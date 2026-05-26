@@ -1,8 +1,17 @@
 @php
-    $organizationOpen = request()->routeIs('companies.*');
+    $organizationOpen = request()->routeIs('companies.*', 'tours.*', 'bookings.*');
+    $catalogOpen = request()->routeIs('categories.*', 'guide-types.*', 'transport-types.*', 'activity-types.*', 'website-settings.*');
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*');
 
-    $canOrganization = auth()->user()?->can('companies.view');
+    $canOrganization = auth()->user()?->can('companies.view')
+        || auth()->user()?->can('tours.view')
+        || auth()->user()?->can('tours.availability')
+        || auth()->user()?->can('bookings.view');
+    $canCatalog = auth()->user()?->can('categories.view')
+        || auth()->user()?->can('guide_types.view')
+        || auth()->user()?->can('transport_types.view')
+        || auth()->user()?->can('activity_types.view')
+        || auth()->user()?->can('website.manage');
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('roles.view')
         || auth()->user()?->can('permissions.view')
@@ -46,6 +55,84 @@
                                         <a class="nav-link" href="{{ route('companies.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-building"></i></span>
                                             <span class="nav-link-title">Empresas</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('tours.view')
+                                    <li class="nav-item {{ request()->routeIs('tours.index', 'tours.create', 'tours.show', 'tours.wizard.*', 'tours.pricing.*', 'tours.reviews.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('tours.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-map-2"></i></span>
+                                            <span class="nav-link-title">Tours</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('tours.availability')
+                                    <li class="nav-item {{ request()->routeIs('tours.availability.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('tours.availability.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-calendar-stats"></i></span>
+                                            <span class="nav-link-title">Disponibilidad</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('bookings.view')
+                                    <li class="nav-item {{ request()->routeIs('bookings.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('bookings.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-ticket"></i></span>
+                                            <span class="nav-link-title">Reservas</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                            </ul>
+                        </div>
+                    </li>
+                @endif
+
+                @if ($canCatalog)
+                    <li class="nav-item app-menu-section {{ $catalogOpen ? 'active' : '' }}">
+                        <button class="nav-link app-menu-toggle {{ $catalogOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-catalog" aria-expanded="{{ $catalogOpen ? 'true' : 'false' }}" aria-controls="menu-catalog">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-package"></i></span>
+                            <span class="nav-link-title">Catalogo</span>
+                            <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
+                        </button>
+                        <div class="collapse {{ $catalogOpen ? 'show' : '' }}" id="menu-catalog">
+                            <ul class="nav app-submenu">
+                                @can('categories.view')
+                                    <li class="nav-item {{ request()->routeIs('categories.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('categories.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-category"></i></span>
+                                            <span class="nav-link-title">Categorias</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('guide_types.view')
+                                    <li class="nav-item {{ request()->routeIs('guide-types.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('guide-types.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-id-badge-2"></i></span>
+                                            <span class="nav-link-title">Tipos de guia</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('transport_types.view')
+                                    <li class="nav-item {{ request()->routeIs('transport-types.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('transport-types.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-bus"></i></span>
+                                            <span class="nav-link-title">Tipos de transporte</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('activity_types.view')
+                                    <li class="nav-item {{ request()->routeIs('activity-types.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('activity-types.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-route"></i></span>
+                                            <span class="nav-link-title">Tipos de actividad</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('website.manage')
+                                    <li class="nav-item {{ request()->routeIs('website-settings.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('website-settings.edit') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-world-cog"></i></span>
+                                            <span class="nav-link-title">Pagina web</span>
                                         </a>
                                     </li>
                                 @endcan

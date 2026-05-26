@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityType;
+use App\Models\Category;
+use App\Models\GuideType;
+use App\Models\TransportType;
 use App\Models\User;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
@@ -12,6 +16,56 @@ use Yajra\DataTables\Facades\DataTables;
 
 class AdminDataTableController extends Controller
 {
+    public function categories(): JsonResponse
+    {
+        abort_unless(auth()->user()?->can('categories.view'), 403);
+
+        return DataTables::eloquent(Category::query())
+            ->editColumn('description', fn (Category $category): string => $category->description ?: '-')
+            ->editColumn('is_active', fn (Category $category): string => $this->statusBadge((bool) $category->is_active))
+            ->editColumn('created_at', fn (Category $category): string => $category->created_at?->format('Y-m-d H:i:s') ?? '')
+            ->addColumn('actions', fn (Category $category): string => view('categories.partials.actions', compact('category'))->render())
+            ->rawColumns(['is_active', 'actions'])
+            ->toJson();
+    }
+
+    public function guideTypes(): JsonResponse
+    {
+        abort_unless(auth()->user()?->can('guide_types.view'), 403);
+
+        return DataTables::eloquent(GuideType::query())
+            ->editColumn('description', fn (GuideType $guideType): string => $guideType->description ?: '-')
+            ->editColumn('created_at', fn (GuideType $guideType): string => $guideType->created_at?->format('Y-m-d H:i:s') ?? '')
+            ->addColumn('actions', fn (GuideType $guideType): string => view('guide-types.partials.actions', compact('guideType'))->render())
+            ->rawColumns(['actions'])
+            ->toJson();
+    }
+
+    public function transportTypes(): JsonResponse
+    {
+        abort_unless(auth()->user()?->can('transport_types.view'), 403);
+
+        return DataTables::eloquent(TransportType::query())
+            ->editColumn('description', fn (TransportType $transportType): string => $transportType->description ?: '-')
+            ->editColumn('created_at', fn (TransportType $transportType): string => $transportType->created_at?->format('Y-m-d H:i:s') ?? '')
+            ->addColumn('actions', fn (TransportType $transportType): string => view('transport-types.partials.actions', compact('transportType'))->render())
+            ->rawColumns(['actions'])
+            ->toJson();
+    }
+
+    public function activityTypes(): JsonResponse
+    {
+        abort_unless(auth()->user()?->can('activity_types.view'), 403);
+
+        return DataTables::eloquent(ActivityType::query())
+            ->editColumn('icon', fn (ActivityType $activityType): string => $activityType->icon ? '<i class="ti '.$activityType->icon.'"></i> '.$activityType->icon : '-')
+            ->editColumn('is_active', fn (ActivityType $activityType): string => $this->statusBadge((bool) $activityType->is_active))
+            ->editColumn('created_at', fn (ActivityType $activityType): string => $activityType->created_at?->format('Y-m-d H:i:s') ?? '')
+            ->addColumn('actions', fn (ActivityType $activityType): string => view('activity-types.partials.actions', compact('activityType'))->render())
+            ->rawColumns(['icon', 'is_active', 'actions'])
+            ->toJson();
+    }
+
     public function audits(Request $request): JsonResponse
     {
         abort_unless(auth()->user()?->can('audits.view'), 403);
@@ -56,6 +110,14 @@ class AdminDataTableController extends Controller
         };
 
         return '<span class="badge text-bg-'.$tone.'">'.AuditController::eventLabel($event).'</span>';
+    }
+
+    private function statusBadge(bool $active): string
+    {
+        $tone = $active ? 'success' : 'secondary';
+        $label = $active ? 'Activo' : 'Inactivo';
+
+        return '<span class="badge text-bg-'.$tone.'">'.$label.'</span>';
     }
 
     private function auditChangesSummary(Audit $audit): string

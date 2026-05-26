@@ -68,6 +68,7 @@ function openAjaxModal(trigger) {
             ajaxModalBody.innerHTML = html;
             disableBusinessFormAutocomplete(ajaxModalBody);
             initTomSelects(ajaxModalBody);
+            initLocalLocationAutocomplete(ajaxModalBody);
             syncPointSaleWarehouse(ajaxModalBody);
             initDefragmentForms(ajaxModalBody);
             initTransferForms(ajaxModalBody);
@@ -141,6 +142,7 @@ async function refreshContainer(url) {
     if (fresh) {
         current.replaceWith(fresh);
         initTomSelects(fresh);
+        initLocalLocationAutocomplete(fresh);
         initAdminDataTables();
     }
 }
@@ -378,6 +380,202 @@ function initTomSelects(scope = document) {
                 },
             },
         });
+    });
+}
+
+function initLocalLocationAutocomplete(scope = document) {
+    scope.querySelectorAll('input[data-location-country-picker]').forEach((input) => {
+        if (input.tomselect) {
+            return;
+        }
+
+        const form = input.closest('form') ?? document;
+        const countryValueInput = form.querySelector(input.dataset.locationCountryTarget ?? '[data-location-country-value]');
+        const searchUrl = input.dataset.locationSearchUrl;
+
+        if (!searchUrl) {
+            return;
+        }
+
+        const countrySelect = new TomSelect(input, {
+            create: false,
+            dropdownParent: 'body',
+            maxItems: 1,
+            maxOptions: 20,
+            persist: false,
+            preload: 'focus',
+            valueField: 'value',
+            labelField: 'label',
+            searchField: ['label', 'country', 'country_code'],
+            loadThrottle: 240,
+            load(query, callback) {
+                const params = new URLSearchParams({
+                    q: query ?? '',
+                    type: 'country',
+                    limit: '20',
+                });
+
+                fetch(`${searchUrl}?${params.toString()}`, {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                })
+                    .then((response) => response.ok ? response.json() : Promise.reject(new Error('No se pudo buscar el pais.')))
+                    .then((payload) => callback(payload.data ?? []))
+                    .catch(() => callback());
+            },
+            onChange(value) {
+                const option = this.options[value];
+
+                if (countryValueInput) {
+                    countryValueInput.value = option?.country ?? value;
+                    countryValueInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            },
+            render: {
+                option(data, escape) {
+                    const meta = data.country_code ? `<div class="text-body-secondary small">${escape(data.country_code)}</div>` : '';
+
+                    return `<div><div>${escape(data.label ?? data.value)}</div>${meta}</div>`;
+                },
+                item(data, escape) {
+                    return `<div>${escape(data.country ?? data.label)}</div>`;
+                },
+                no_results() {
+                    return '<div class="no-results">Sin resultados</div>';
+                },
+            },
+        });
+
+        if (countryValueInput?.value || input.value) {
+            const value = countryValueInput?.value || input.value;
+            const initialValue = `current:${value}`;
+            countrySelect.addOption({
+                value: initialValue,
+                label: value,
+                country: value,
+                type: 'country',
+            });
+            countrySelect.setValue(initialValue, true);
+        }
+    });
+
+    scope.querySelectorAll('input[data-location-city]').forEach((input) => {
+        if (input.tomselect) {
+            return;
+        }
+
+        const form = input.closest('form') ?? document;
+        const countryInput = form.querySelector('[data-location-country]');
+        const cityValueInput = form.querySelector('[data-location-city-value]');
+        const searchUrl = input.dataset.locationSearchUrl;
+
+        if (!searchUrl) {
+            return;
+        }
+
+        const citySelect = new TomSelect(input, {
+            create: false,
+            dropdownParent: 'body',
+            maxItems: 1,
+            maxOptions: 20,
+            persist: false,
+            preload: false,
+            valueField: 'value',
+            labelField: 'label',
+            searchField: ['label', 'country', 'city', 'region'],
+            loadThrottle: 240,
+            load(query, callback) {
+                const params = new URLSearchParams({
+                    q: query ?? '',
+                    type: 'city',
+                    limit: '20',
+                });
+
+                fetch(`${searchUrl}?${params.toString()}`, {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                })
+                    .then((response) => response.ok ? response.json() : Promise.reject(new Error('No se pudo buscar la ubicacion.')))
+                    .then((payload) => callback(payload.data ?? []))
+                    .catch(() => callback());
+            },
+            onChange(value) {
+                const option = this.options[value];
+
+                if (option?.city && cityValueInput) {
+                    cityValueInput.value = option.city;
+                } else if (cityValueInput) {
+                    cityValueInput.value = value;
+                }
+
+                if (option?.country && countryInput) {
+                    countryInput.value = option.country;
+                    countryInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            },
+            onItemAdd(value, item) {
+                const option = this.options[value];
+
+                item.dataset.locationType = option?.type ?? '';
+            },
+            render: {
+                option(data, escape) {
+                    const meta = data.type === 'city'
+                        ? [data.region, data.country].filter(Boolean).join(' - ')
+                        : data.country_code;
+
+                    return `<div><div>${escape(data.label ?? data.value)}</div>${meta ? `<div class="text-body-secondary small">${escape(meta)}</div>` : ''}</div>`;
+                },
+                item(data, escape) {
+                    return `<div>${escape(data.city ?? data.label)}</div>`;
+                },
+                no_results() {
+                    return '<div class="no-results">Sin resultados</div>';
+                },
+            },
+        });
+
+        if (input.value) {
+            const initialValue = `current:${input.value}`;
+            citySelect.addOption({
+                value: initialValue,
+                label: input.value,
+                city: input.value,
+                country: countryInput?.value ?? '',
+                type: 'city',
+            });
+            citySelect.setValue(initialValue, true);
+        }
+    });
+}
+
+function initPublicPopup() {
+    const popup = document.querySelector('[data-public-popup]');
+
+    if (!popup || sessionStorage.getItem('public-popup-closed') === '1') {
+        return;
+    }
+
+    window.setTimeout(() => {
+        popup.hidden = false;
+    }, 650);
+
+    popup.querySelectorAll('[data-public-popup-close]').forEach((button) => {
+        button.addEventListener('click', () => {
+            popup.hidden = true;
+            sessionStorage.setItem('public-popup-closed', '1');
+        });
+    });
+
+    popup.addEventListener('click', (event) => {
+        if (event.target === popup) {
+            popup.hidden = true;
+            sessionStorage.setItem('public-popup-closed', '1');
+        }
     });
 }
 
@@ -1634,6 +1832,8 @@ function initCashCloseModal() {
 showInitialAlerts();
 disableBusinessFormAutocomplete();
 initTomSelects();
+initLocalLocationAutocomplete();
+initPublicPopup();
 initPurchaseForm();
 syncPointSaleWarehouse();
 initPosSaleForm();
