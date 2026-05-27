@@ -1,11 +1,10 @@
 @extends('layouts.admin')
 
-@section('title', 'Nueva categoria | Inventario POS')
+@section('title', 'Nueva categoria | '.config('app.name', 'Base Admin'))
 @section('page-title', 'Nueva categoria')
-@section('page-subtitle', 'Registro de clasificaciones para productos')
 
 @section('content')
-    <x-ui.form-panel :action="route('categories.store')">
-        @include('categories._form')
+    <x-ui.form-panel title="Datos de la categoria">
+        @include('categories.partials.create-form')
     </x-ui.form-panel>
 @endsection

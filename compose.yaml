@@ -22,9 +22,18 @@ services:
         networks:
             - sail
         depends_on:
+            - biometric-engine
             - pgsql
             - redis
             - mailpit
+    biometric-engine:
+        build:
+            context: ./biometric-engine
+            dockerfile: Dockerfile
+        ports:
+            - '${BIOMETRIC_ENGINE_PORT:-8001}:8001'
+        networks:
+            - sail
     pgsql:
         image: 'postgres:17'
         ports:

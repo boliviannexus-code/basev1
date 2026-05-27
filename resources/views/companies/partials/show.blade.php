@@ -6,18 +6,16 @@
     @endif
     <div>
         <div class="h2 mb-1">{{ $company->name }}</div>
-        <div class="text-body-secondary">{{ $company->legal_name ?: 'Sin razon social' }}</div>
+        <div class="text-body-secondary">{{ trim(($company->city ?: '').' / '.($company->country ?: ''), ' /') ?: 'Sin ubicacion registrada' }}</div>
     </div>
 </div>
 
 <dl class="row mb-0">
-    <dt class="col-sm-4">NIT/Documento</dt>
-    <dd class="col-sm-8">{{ $company->tax_id ?: '-' }}</dd>
     <dt class="col-sm-4">Telefono</dt>
     <dd class="col-sm-8">{{ $company->phone ?: '-' }}</dd>
     <dt class="col-sm-4">Email</dt>
     <dd class="col-sm-8">{{ $company->email ?: '-' }}</dd>
-    <dt class="col-sm-4">Direccion</dt>
+    <dt class="col-sm-4">Direccion de sede</dt>
     <dd class="col-sm-8">{{ $company->address ?: '-' }}</dd>
     <dt class="col-sm-4">Ciudad/Pais</dt>
     <dd class="col-sm-8">{{ trim(($company->city ?: '').' / '.($company->country ?: ''), ' /') ?: '-' }}</dd>

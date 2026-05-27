@@ -26,6 +26,7 @@ class CompanyService
         }
 
         unset($data['logo'], $data['remove_logo']);
+        unset($data['legal_name'], $data['tax_id']);
 
         return Company::query()->create($data);
     }
@@ -47,7 +48,7 @@ class CompanyService
             $data['logo_path'] = $data['logo']->store('companies/logos', 'public');
         }
 
-        unset($data['logo'], $data['remove_logo']);
+        unset($data['logo'], $data['remove_logo'], $data['legal_name'], $data['tax_id']);
 
         $company->update($data);
 

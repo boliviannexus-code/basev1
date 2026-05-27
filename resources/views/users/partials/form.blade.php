@@ -18,10 +18,10 @@
     </div>
 
     <div class="col-md-6">
-        <label class="form-label" for="user-company">Empresa</label>
-        <select class="form-select {{ ($errors ?? null)?->has('company_id') ? 'is-invalid' : '' }}" id="user-company" name="company_id" data-tom-select data-placeholder="Seleccionar empresa">
+        <label class="form-label" for="user-company">Liga deportiva</label>
+        <select class="form-select {{ ($errors ?? null)?->has('company_id') ? 'is-invalid' : '' }}" id="user-company" name="company_id" data-tom-select data-placeholder="Seleccionar liga deportiva">
             @if ($canAssignNoCompany)
-                <option value="">Sin empresa</option>
+                <option value="">Sin liga deportiva</option>
             @endif
             @foreach ($companies as $company)
                 <option value="{{ $company->id }}" @selected((int) old('company_id', $user->company_id ?? 0) === $company->id)>

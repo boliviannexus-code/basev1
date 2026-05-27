@@ -4,9 +4,17 @@ import { bunny } from 'laravel-vite-plugin/fonts';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
+    resolve: {
+        alias: {
+            WebSdk: '/resources/js/digitalpersona-websdk.js',
+        },
+    },
+    optimizeDeps: {
+        exclude: ['@digitalpersona/devices'],
+    },
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
+            input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/biometric-test.js'],
             refresh: true,
             fonts: [
                 bunny('Instrument Sans', {

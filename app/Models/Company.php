@@ -17,8 +17,6 @@ class Company extends Model implements Auditable
 
     protected $fillable = [
         'name',
-        'legal_name',
-        'tax_id',
         'phone',
         'email',
         'address',
@@ -39,6 +37,26 @@ class Company extends Model implements Auditable
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    public function seasons(): HasMany
+    {
+        return $this->hasMany(Season::class);
+    }
+
+    public function tournaments(): HasMany
+    {
+        return $this->hasMany(Tournament::class);
+    }
+
+    public function divisions(): HasMany
+    {
+        return $this->hasMany(Division::class);
+    }
+
+    public function divisionCategories(): HasMany
+    {
+        return $this->hasMany(DivisionCategory::class);
     }
 
     public function getLogoUrlAttribute(): ?string

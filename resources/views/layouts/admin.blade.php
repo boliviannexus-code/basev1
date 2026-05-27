@@ -4,7 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="digitalpersona-auth-endpoint" content="{{ config('services.digitalpersona.auth_endpoint', '') }}">
     <title>@yield('title', config('app.name', 'Base Admin'))</title>
+    <script src="{{ asset('vendor/digitalpersona/websdk.client.js') }}"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>

@@ -17,7 +17,7 @@
                 <tr>
                     <th>Codigo</th>
                     <th>Nombre</th>
-                    <th>Empresa</th>
+                    <th>Liga deportiva</th>
                     <th>Telefono</th>
                     <th>Almacenes</th>
                     <th>Estado</th>
@@ -29,7 +29,7 @@
                     <tr>
                         <td><span class="badge text-bg-light">{{ $branch->code }}</span></td>
                         <td>{{ $branch->name }}</td>
-                        <td>{{ $branch->company?->name ?? 'Sin empresa' }}</td>
+                        <td>{{ $branch->company?->name ?? 'Sin liga deportiva' }}</td>
                         <td>{{ $branch->phone ?: '-' }}</td>
                         <td>{{ $branch->warehouses_count }}</td>
                         <td><span class="badge text-bg-{{ $branch->is_active ? 'success' : 'secondary' }}">{{ $branch->is_active ? 'Activo' : 'Inactivo' }}</span></td>

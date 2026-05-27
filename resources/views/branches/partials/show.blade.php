@@ -3,8 +3,8 @@
     <dd class="col-sm-9">{{ $branch->code }}</dd>
     <dt class="col-sm-3">Nombre</dt>
     <dd class="col-sm-9">{{ $branch->name }}</dd>
-    <dt class="col-sm-3">Empresa</dt>
-    <dd class="col-sm-9">{{ $branch->company?->name ?? 'Sin empresa' }}</dd>
+    <dt class="col-sm-3">Liga deportiva</dt>
+    <dd class="col-sm-9">{{ $branch->company?->name ?? 'Sin liga deportiva' }}</dd>
     <dt class="col-sm-3">Telefono</dt>
     <dd class="col-sm-9">{{ $branch->phone ?: '-' }}</dd>
     <dt class="col-sm-3">Direccion</dt>

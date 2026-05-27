@@ -1,14 +1,14 @@
 @extends('layouts.admin')
 
-@section('title', 'Empresas | '.config('app.name', 'Base Admin'))
-@section('page-title', 'Empresas')
+@section('title', 'Ligas deportivas | '.config('app.name', 'Base Admin'))
+@section('page-title', 'Ligas deportivas')
 @section('page-subtitle', 'Datos base para reportes y asignacion de usuarios')
 
 @section('content')
-    <x-ui.table-card title="Listado de empresas" data-refresh-container>
+    <x-ui.table-card title="Listado de ligas deportivas" data-refresh-container>
         <x-slot:actions>
             @can('companies.create')
-                <a class="btn btn-primary btn-sm" href="{{ route('companies.create') }}" data-modal-url="{{ route('companies.create') }}" data-modal-title="Nueva empresa">Nueva empresa</a>
+                <a class="btn btn-primary btn-sm" href="{{ route('companies.create') }}" data-modal-url="{{ route('companies.create') }}" data-modal-title="Nueva liga deportiva">Nueva liga</a>
             @endcan
         </x-slot:actions>
 
@@ -16,8 +16,7 @@
             <thead>
                 <tr>
                     <th>Logo</th>
-                    <th>Nombre</th>
-                    <th>NIT/Documento</th>
+                    <th>Liga deportiva</th>
                     <th>Contacto</th>
                     <th>Usuarios</th>
                     <th>Estado</th>
@@ -36,9 +35,8 @@
                         </td>
                         <td>
                             <div class="fw-semibold">{{ $company->name }}</div>
-                            <div class="text-body-secondary small">{{ $company->legal_name ?: '-' }}</div>
+                            <div class="text-body-secondary small">{{ trim(($company->city ?: '').' / '.($company->country ?: ''), ' /') ?: '-' }}</div>
                         </td>
-                        <td>{{ $company->tax_id ?: '-' }}</td>
                         <td>
                             <div>{{ $company->phone ?: '-' }}</div>
                             <div class="text-body-secondary small">{{ $company->email ?: '-' }}</div>
@@ -46,12 +44,12 @@
                         <td>{{ $company->users_count }}</td>
                         <td><span class="badge text-bg-{{ $company->is_active ? 'success' : 'secondary' }}">{{ $company->is_active ? 'Activo' : 'Inactivo' }}</span></td>
                         <td class="text-end">
-                            <a class="btn btn-outline-secondary btn-sm" href="{{ route('companies.show', $company) }}" data-modal-url="{{ route('companies.show', $company) }}" data-modal-title="Detalle de empresa">Ver</a>
+                            <a class="btn btn-outline-secondary btn-sm" href="{{ route('companies.show', $company) }}" data-modal-url="{{ route('companies.show', $company) }}" data-modal-title="Detalle de liga deportiva">Ver</a>
                             @can('companies.update')
-                                <a class="btn btn-outline-primary btn-sm" href="{{ route('companies.edit', $company) }}" data-modal-url="{{ route('companies.edit', $company) }}" data-modal-title="Editar empresa">Editar</a>
+                                <a class="btn btn-outline-primary btn-sm" href="{{ route('companies.edit', $company) }}" data-modal-url="{{ route('companies.edit', $company) }}" data-modal-title="Editar liga deportiva">Editar</a>
                             @endcan
                             @can('companies.delete')
-                                <form class="d-inline" method="POST" action="{{ route('companies.destroy', $company) }}" data-confirm-delete="Eliminar empresa? Los usuarios asignados quedaran sin empresa.">
+                                <form class="d-inline" method="POST" action="{{ route('companies.destroy', $company) }}" data-confirm-delete="Eliminar liga deportiva? Los usuarios asignados quedaran sin liga.">
                                     @csrf
                                     @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm" type="submit">Eliminar</button>
@@ -60,7 +58,7 @@
                         </td>
                     </tr>
                 @empty
-                    <x-ui.empty-row colspan="7" message="No hay empresas registradas." />
+                    <x-ui.empty-row colspan="6" message="No hay ligas deportivas registradas." />
                 @endforelse
             </tbody>
         </table>
