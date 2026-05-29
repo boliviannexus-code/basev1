@@ -1,6 +1,6 @@
 <div class="d-flex align-items-center gap-3 mb-3">
-    @if ($company->logo_url)
-        <img class="avatar avatar-xl" src="{{ $company->logo_url }}" alt="{{ $company->name }}">
+    @if ($company->logo_display_url)
+        <img class="avatar avatar-xl" src="{{ $company->logo_display_url }}" alt="{{ $company->name }}">
     @else
         <span class="avatar avatar-xl bg-primary-lt text-primary"><i class="ti ti-building fs-2"></i></span>
     @endif

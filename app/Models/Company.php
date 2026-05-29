@@ -59,8 +59,35 @@ class Company extends Model implements Auditable
         return $this->hasMany(DivisionCategory::class);
     }
 
+    public function teamPlayers(): HasMany
+    {
+        return $this->hasMany(TeamPlayer::class);
+    }
+
+    public function tournamentTeamPlayers(): HasMany
+    {
+        return $this->hasMany(TournamentTeamPlayer::class);
+    }
+
     public function getLogoUrlAttribute(): ?string
     {
         return $this->logo_path ? Storage::disk('public')->url($this->logo_path) : null;
+    }
+
+    public function getLogoDisplayUrlAttribute(): ?string
+    {
+        if (! $this->logo_path) {
+            return null;
+        }
+
+        $disk = Storage::disk('public');
+
+        if (! $disk->exists($this->logo_path)) {
+            return $this->logo_url;
+        }
+
+        $mimeType = $disk->mimeType($this->logo_path) ?: 'image/png';
+
+        return 'data:'.$mimeType.';base64,'.base64_encode($disk->get($this->logo_path));
     }
 }

@@ -12,6 +12,7 @@
                     data-biometric-test
                     data-enroll-url="{{ route('biometric.enroll') }}"
                     data-verify-url="{{ route('biometric.verify') }}"
+                    data-identify-url="{{ route('biometric.identify') }}"
                 >
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -41,7 +42,8 @@
                                 <button class="btn btn-outline-info btn-sm" type="button" data-detect-reader>Detectar lector</button>
                                 <button class="btn btn-outline-primary btn-sm" type="button" data-capture-fingerprint>Capturar huella</button>
                                 <button class="btn btn-primary btn-sm" type="button" data-save-fingerprint disabled>Guardar huella</button>
-                                <button class="btn btn-outline-success btn-sm" type="button" data-verify-fingerprint disabled>Verificar huella</button>
+                                <button class="btn btn-outline-success btn-sm" type="button" data-verify-fingerprint>Verificar huella</button>
+                                <button class="btn btn-outline-secondary btn-sm" type="button" data-identify-fingerprint>Buscar dedo</button>
                             </div>
                             <div class="form-hint mt-2" data-biometric-status>Listo para detectar lector.</div>
                         </div>

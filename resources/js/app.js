@@ -110,16 +110,461 @@ function openAjaxModal(trigger) {
             initTournamentCategorySelects(ajaxModalBody);
             initTournamentNamePreviews(ajaxModalBody);
             initTeamNameMatches(ajaxModalBody);
+            initAffiliatePlayerLookup(ajaxModalBody);
+            initPlayerPhotoForms(ajaxModalBody);
             syncPointSaleWarehouse(ajaxModalBody);
             initDefragmentForms(ajaxModalBody);
             initTransferForms(ajaxModalBody);
             initStockAdjustmentForms(ajaxModalBody);
             initFingerprintForms(ajaxModalBody);
+            initPlayerBiometricRegistration(ajaxModalBody);
         })
         .catch((error) => {
             ajaxModal.hide();
             Swal.fire({ icon: 'error', title: 'Error', text: error.message });
         });
+}
+
+function bytesToReadable(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+        return '0 KB';
+    }
+
+    if (bytes >= 1024 * 1024) {
+        return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    }
+
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function ensurePhotoPreviewImage(form, src) {
+    const wrapper = form.closest('[data-player-photo-panel]') ?? form.closest('.col-md-4') ?? form.parentElement;
+    let preview = wrapper?.querySelector('[data-player-photo-preview]');
+
+    if (preview) {
+        preview.src = src;
+
+        return preview;
+    }
+
+    const placeholder = wrapper?.querySelector('[data-player-photo-placeholder]');
+
+    if (!placeholder) {
+        return null;
+    }
+
+    preview = document.createElement('img');
+    preview.className = 'object-fit-cover w-100 h-100';
+    preview.alt = 'Foto del jugador';
+    preview.dataset.playerPhotoPreview = '';
+    preview.src = src;
+    placeholder.replaceWith(preview);
+
+    return preview;
+}
+
+function updatePhotoPreviewAfterUpload(form, data) {
+    const src = data.photo_data_uri ?? data.photo_url;
+
+    if (!src) {
+        return;
+    }
+
+    ensurePhotoPreviewImage(form, data.photo_data_uri ? src : `${src}?v=${Date.now()}`);
+    form.reset();
+
+    const meta = form.querySelector('[data-player-photo-meta]');
+
+    if (meta) {
+        meta.textContent = 'Foto optimizada guardada como WebP 600x600.';
+    }
+}
+
+function fileFromCanvas(canvas, filename) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                reject(new Error('No se pudo preparar el recorte de la foto.'));
+
+                return;
+            }
+
+            resolve(new File([blob], filename, { type: blob.type || 'image/webp' }));
+        }, 'image/webp', 0.9);
+    });
+}
+
+function initPlayerPhotoForms(scope = document) {
+    scope.querySelectorAll('[data-player-photo-form]').forEach((form) => {
+        if (form.dataset.photoInitialized === '1') {
+            return;
+        }
+
+        const input = form.querySelector('[data-player-photo-input]');
+        const meta = form.querySelector('[data-player-photo-meta]');
+        const cropper = form.querySelector('[data-player-photo-cropper]');
+        const canvas = form.querySelector('[data-player-photo-canvas]');
+        const zoom = form.querySelector('[data-player-photo-zoom]');
+        const preview = form.querySelector('[data-player-photo-preview]');
+        const placeholder = form.querySelector('[data-player-photo-placeholder]');
+        const context = canvas?.getContext('2d');
+        const image = new Image();
+        const cropState = {
+            imageLoaded: false,
+            scale: 1,
+            minScale: 1,
+            offsetX: 0,
+            offsetY: 0,
+            dragging: false,
+            pointerX: 0,
+            pointerY: 0,
+        };
+
+        image.decoding = 'async';
+
+        const constrainOffsets = () => {
+            if (!canvas || !image.naturalWidth || !image.naturalHeight) {
+                return;
+            }
+
+            const width = image.naturalWidth * cropState.scale;
+            const height = image.naturalHeight * cropState.scale;
+            const minX = Math.min(0, canvas.width - width);
+            const minY = Math.min(0, canvas.height - height);
+
+            cropState.offsetX = Math.min(0, Math.max(minX, cropState.offsetX));
+            cropState.offsetY = Math.min(0, Math.max(minY, cropState.offsetY));
+        };
+
+        const drawCrop = () => {
+            if (!context || !canvas || !cropState.imageLoaded) {
+                return;
+            }
+
+            constrainOffsets();
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.fillStyle = '#f8f9fa';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(
+                image,
+                cropState.offsetX,
+                cropState.offsetY,
+                image.naturalWidth * cropState.scale,
+                image.naturalHeight * cropState.scale,
+            );
+        };
+
+        const pointerPosition = (event) => {
+            const point = event.touches?.[0] ?? event;
+
+            return {
+                x: point.clientX,
+                y: point.clientY,
+            };
+        };
+
+        input?.addEventListener('change', () => {
+            const file = input.files?.[0];
+
+            if (!file) {
+                if (meta) {
+                    meta.textContent = 'Salida: 600x600 WebP, 40-120 KB aprox.';
+                }
+
+                return;
+            }
+
+            if (!file.type.startsWith('image/')) {
+                cropState.imageLoaded = false;
+                canvas?.classList.add('d-none');
+                preview?.classList.remove('d-none');
+                placeholder?.classList.remove('d-none');
+                if (zoom) {
+                    zoom.disabled = true;
+                    zoom.value = '1';
+                }
+
+                return;
+            }
+
+            if (meta) {
+                meta.textContent = `Original: ${bytesToReadable(file.size)} · salida: 600x600 WebP, 40-120 KB aprox.`;
+            }
+
+            const objectUrl = URL.createObjectURL(file);
+            image.onload = () => {
+                if (!canvas) {
+                    URL.revokeObjectURL(objectUrl);
+
+                    return;
+                }
+
+                cropState.imageLoaded = true;
+                cropState.minScale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+                cropState.scale = cropState.minScale;
+                cropState.offsetX = (canvas.width - image.naturalWidth * cropState.scale) / 2;
+                cropState.offsetY = (canvas.height - image.naturalHeight * cropState.scale) / 2;
+
+                if (zoom) {
+                    zoom.disabled = false;
+                    zoom.min = String(cropState.minScale);
+                    zoom.max = String(cropState.minScale * 3);
+                    zoom.step = String(cropState.minScale / 100);
+                    zoom.value = String(cropState.scale);
+                }
+
+                preview?.classList.add('d-none');
+                placeholder?.classList.add('d-none');
+                canvas.classList.remove('d-none');
+                drawCrop();
+                URL.revokeObjectURL(objectUrl);
+            };
+            image.onerror = () => {
+                cropState.imageLoaded = false;
+                URL.revokeObjectURL(objectUrl);
+
+                if (meta) {
+                    meta.textContent = 'No se pudo leer la imagen seleccionada.';
+                }
+            };
+            image.src = objectUrl;
+        });
+
+        zoom?.addEventListener('input', () => {
+            if (!cropState.imageLoaded || !canvas) {
+                return;
+            }
+
+            const previousScale = cropState.scale;
+            const nextScale = Number.parseFloat(zoom.value);
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const imageCenterX = (centerX - cropState.offsetX) / previousScale;
+            const imageCenterY = (centerY - cropState.offsetY) / previousScale;
+
+            cropState.scale = nextScale;
+            cropState.offsetX = centerX - imageCenterX * cropState.scale;
+            cropState.offsetY = centerY - imageCenterY * cropState.scale;
+            drawCrop();
+        });
+
+        cropper?.addEventListener('pointerdown', (event) => {
+            if (!cropState.imageLoaded) {
+                return;
+            }
+
+            const position = pointerPosition(event);
+            cropState.dragging = true;
+            cropState.pointerX = position.x;
+            cropState.pointerY = position.y;
+            cropper.setPointerCapture?.(event.pointerId);
+        });
+
+        cropper?.addEventListener('pointermove', (event) => {
+            if (!cropState.dragging) {
+                return;
+            }
+
+            const position = pointerPosition(event);
+            const rect = cropper.getBoundingClientRect();
+            const ratio = canvas.width / rect.width;
+
+            cropState.offsetX += (position.x - cropState.pointerX) * ratio;
+            cropState.offsetY += (position.y - cropState.pointerY) * ratio;
+            cropState.pointerX = position.x;
+            cropState.pointerY = position.y;
+            drawCrop();
+        });
+
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach((eventName) => {
+            cropper?.addEventListener(eventName, () => {
+                cropState.dragging = false;
+            });
+        });
+
+        form.addEventListener('submit', async (event) => {
+            if (!cropState.imageLoaded || !canvas || !input?.files?.length) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            clearFormErrors(form);
+            setSubmitting(form, true);
+
+            try {
+                const croppedFile = await fileFromCanvas(canvas, 'player-photo.webp');
+                const formData = new FormData(form);
+                formData.set('photo', croppedFile);
+                await submitAjaxForm(form, formData);
+            } catch (error) {
+                Swal.fire({ icon: 'error', title: 'Foto', text: error.message });
+                setSubmitting(form, false);
+            }
+        });
+
+        form.dataset.photoInitialized = '1';
+    });
+}
+
+function renderAffiliatePlayerSummary(container, payload) {
+    container.innerHTML = '';
+
+    if (!payload.found) {
+        container.className = 'col-md-12';
+
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-info py-2 mb-0';
+        alert.textContent = 'Carnet no registrado. Completa los datos para crear y afiliar al jugador.';
+        container.append(alert);
+
+        return;
+    }
+
+    const player = payload.player ?? {};
+    const currentTeam = payload.current_team;
+    const habilitation = payload.habilitation;
+    const status = payload.status ?? {};
+
+    container.className = 'col-md-12';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'border rounded bg-body-tertiary p-3';
+
+    const header = document.createElement('div');
+    header.className = 'd-flex flex-wrap justify-content-between align-items-start gap-2 mb-2';
+
+    const title = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'fw-semibold';
+    name.textContent = player.full_name ?? 'Jugador registrado';
+    const meta = document.createElement('div');
+    meta.className = 'text-body-secondary small';
+    meta.textContent = `CI ${player.ci ?? '-'} · ${player.internal_code ?? 'Sin codigo'}`;
+    title.append(name, meta);
+
+    const badge = document.createElement('span');
+    badge.className = `badge text-bg-${status.tone ?? 'secondary'}`;
+    badge.textContent = status.label ?? 'Registrado';
+    header.append(title, badge);
+
+    const grid = document.createElement('div');
+    grid.className = 'row g-2 small';
+
+    const items = [
+        ['Equipo actual', currentTeam?.name ?? 'Sin equipo en esta division'],
+        ['Division', currentTeam?.division ?? '-'],
+        ['Afiliacion', currentTeam?.joined_at ?? '-'],
+        ['Habilitacion', habilitation ? `${habilitation.team ?? '-'} · ${habilitation.enabled_at ?? '-'}` : 'Sin habilitacion activa'],
+    ];
+
+    items.forEach(([label, value]) => {
+        const col = document.createElement('div');
+        col.className = 'col-sm-6';
+        const labelEl = document.createElement('div');
+        labelEl.className = 'text-body-secondary';
+        labelEl.textContent = label;
+        const valueEl = document.createElement('div');
+        valueEl.className = 'fw-semibold';
+        valueEl.textContent = value;
+        col.append(labelEl, valueEl);
+        grid.append(col);
+    });
+
+    if (currentTeam && currentTeam.is_selected_team === false) {
+        const warning = document.createElement('div');
+        warning.className = 'alert alert-warning py-2 mt-2 mb-0';
+        warning.textContent = 'El jugador ya figura afiliado a otro equipo en esta division.';
+        wrapper.append(header, grid, warning);
+    } else {
+        wrapper.append(header, grid);
+    }
+
+    container.append(wrapper);
+}
+
+function setAffiliateExistingPlayerState(form, existing) {
+    form.querySelectorAll('[data-affiliate-player-field]').forEach((field) => {
+        field.readOnly = existing;
+    });
+}
+
+function initAffiliatePlayerLookup(scope = document) {
+    scope.querySelectorAll('[data-affiliate-player-form]').forEach((form) => {
+        if (form.dataset.playerLookupInitialized === '1') {
+            return;
+        }
+
+        const ci = form.querySelector('[data-affiliate-ci]');
+        const summary = form.querySelector('[data-affiliate-player-summary]');
+        const internalCode = form.querySelector('[data-affiliate-internal-code]');
+        let timer;
+
+        const resetExistingState = () => {
+            setAffiliateExistingPlayerState(form, false);
+            if (internalCode) {
+                internalCode.value = 'Se generara automaticamente';
+            }
+        };
+
+        const lookup = async () => {
+            const value = ci?.value.trim() ?? '';
+
+            if (value.length < 2 || !summary || !form.dataset.playerLookupUrl) {
+                summary?.classList.add('d-none');
+                resetExistingState();
+
+                return;
+            }
+
+            const url = new URL(form.dataset.playerLookupUrl, window.location.origin);
+            url.searchParams.set('ci', value);
+            url.searchParams.set('tournament_id', form.querySelector('[name="tournament_id"]')?.value ?? '');
+            url.searchParams.set('team_id', form.querySelector('[name="team_id"]')?.value ?? '');
+
+            const response = await fetch(url, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const payload = await response.json();
+            summary.classList.remove('d-none');
+            renderAffiliatePlayerSummary(summary, payload);
+
+            if (!payload.found) {
+                resetExistingState();
+                form.querySelector('[name="first_name"]').value = '';
+                form.querySelector('[name="last_name"]').value = '';
+                form.querySelector('[name="birth_date"]').value = '';
+
+                return;
+            }
+
+            form.querySelector('[name="first_name"]').value = payload.player?.first_name ?? '';
+            form.querySelector('[name="last_name"]').value = payload.player?.last_name ?? '';
+            form.querySelector('[name="birth_date"]').value = payload.player?.birth_date ?? '';
+
+            if (internalCode) {
+                internalCode.value = payload.player?.internal_code ?? 'Sin codigo';
+            }
+
+            setAffiliateExistingPlayerState(form, true);
+        };
+
+        ci?.addEventListener('input', () => {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(lookup, 350);
+        });
+        ci?.addEventListener('blur', lookup);
+
+        form.dataset.playerLookupInitialized = '1';
+    });
 }
 
 function disableBusinessFormAutocomplete(scope = document) {
@@ -191,14 +636,14 @@ async function refreshContainer(url) {
     }
 }
 
-async function submitAjaxForm(form) {
+async function submitAjaxForm(form, body = null) {
     clearFormErrors(form);
     setSubmitting(form, true);
 
     try {
         const response = await fetch(form.action, {
             method: form.method.toUpperCase(),
-            body: new FormData(form),
+            body: body ?? new FormData(form),
             headers: {
                 Accept: 'application/json',
                 'X-CSRF-TOKEN': csrfToken,
@@ -217,6 +662,28 @@ async function submitAjaxForm(form) {
 
         if (!response.ok || payload.success === false) {
             throw new Error(payload.message ?? 'No se pudo completar la operacion.');
+        }
+
+        if (form.dataset.showUrl && ajaxModalBody && ajaxModalElement?.classList.contains('show')) {
+            try {
+                ajaxModalTitle.textContent = 'Detalle de jugador';
+                ajaxModalBody.innerHTML = await fetchHtml(form.dataset.showUrl);
+                initPlayerPhotoForms(ajaxModalBody);
+                initPlayerBiometricRegistration(ajaxModalBody);
+            } catch (_error) {
+                ajaxModal?.hide();
+            }
+
+            toast.fire({ icon: 'success', title: payload.message ?? 'Operacion realizada correctamente.' });
+
+            return;
+        }
+
+        if (form.dataset.keepModal === 'true') {
+            updatePhotoPreviewAfterUpload(form, payload.data ?? {});
+            toast.fire({ icon: 'success', title: payload.message ?? 'Operacion realizada correctamente.' });
+
+            return;
         }
 
         ajaxModal?.hide();
@@ -240,6 +707,12 @@ function confirmDelete(form) {
         confirmButtonColor: '#dc3545',
     }).then((result) => {
         if (result.isConfirmed) {
+            if (form.matches('[data-ajax-form]')) {
+                submitAjaxForm(form);
+
+                return;
+            }
+
             form.submit();
         }
     });
@@ -1905,15 +2378,12 @@ function normalizeDigitalPersonaError(error) {
 
 async function loadDigitalPersona() {
     if (!digitalPersonaModules) {
-        const [core, importedDevices, services] = await Promise.all([
-            import('@digitalpersona/core'),
-            import('@digitalpersona/devices'),
-            import('@digitalpersona/services'),
-        ]);
-        const devices = resolveDigitalPersonaDevices(importedDevices);
+        const core = window.dp?.core;
+        const services = window.dp?.services;
+        const devices = resolveDigitalPersonaDevices(window.dp?.devices);
 
-        if (!devices) {
-            console.debug('Modulo @digitalpersona/devices sin FingerprintReader constructor:', importedDevices);
+        if (!core || !services || !devices) {
+            console.debug('DigitalPersona global incompleto:', window.dp);
             throw new Error('DigitalPersona Devices no expone FingerprintReader.');
         }
 
@@ -2148,6 +2618,122 @@ async function captureFingerprintSample(deviceUid, onStatus = () => {}) {
     });
 }
 
+function base64UrlToBase64(value) {
+    if (!value || typeof value !== 'string') {
+        return '';
+    }
+
+    if (value.startsWith('data:image/png;base64,')) {
+        return value.replace('data:image/png;base64,', '');
+    }
+
+    const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+    const padding = base64.length % 4;
+
+    return padding ? base64 + '='.repeat(4 - padding) : base64;
+}
+
+function extractFingerprintPng(samples) {
+    const sample = Array.isArray(samples) ? samples[0] : samples;
+
+    if (!sample) {
+        return '';
+    }
+
+    if (typeof sample === 'string') {
+        return base64UrlToBase64(sample);
+    }
+
+    for (const key of ['Data', 'data', 'ImageData', 'imageData']) {
+        if (typeof sample[key] === 'string') {
+            return base64UrlToBase64(sample[key]);
+        }
+    }
+
+    return '';
+}
+
+async function captureFingerprintPng(deviceUid, onStatus = () => {}, onQuality = () => {}) {
+    return new Promise(async (resolve, reject) => {
+        let settled = false;
+        let timeout;
+        let reader;
+
+        try {
+            reader = await getFingerprintReader();
+        } catch (error) {
+            reject(new Error(normalizeDigitalPersonaError(error)));
+
+            return;
+        }
+
+        const cleanup = async () => {
+            window.clearTimeout(timeout);
+            reader.off('AcquisitionStarted', onAcquisitionStarted);
+            reader.off('CommunicationFailed', onCommunicationFailed);
+            reader.off('DeviceDisconnected', onDeviceDisconnected);
+            reader.off('QualityReported', onQualityReported);
+            reader.off('SamplesAcquired', onSamplesAcquired);
+            reader.off('ErrorOccurred', onErrorOccurred);
+
+            try {
+                await reader.stopAcquisition(deviceUid);
+            } catch (_error) {
+                // The agent may already have stopped after a successful scan.
+            }
+        };
+
+        const finish = async (callback, value) => {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            await cleanup();
+            callback(value);
+        };
+
+        const onAcquisitionStarted = () => onStatus('Lector conectado. Coloca el indice derecho en el sensor.');
+        const onCommunicationFailed = () => finish(reject, new Error('No se pudo conectar con DigitalPersona Agent. Verifica que este ejecutandose.'));
+        const onDeviceDisconnected = () => finish(reject, new Error('El lector biometrico se desconecto.'));
+        const onQualityReported = (event) => {
+            onQuality(event.quality);
+            onStatus(fingerprintQualityMessage(event.quality));
+        };
+        const onSamplesAcquired = (event) => {
+            const image = extractFingerprintPng(event.samples);
+
+            if (!image) {
+                finish(reject, new Error('No se recibio una imagen PNG valida.'));
+
+                return;
+            }
+
+            finish(resolve, image);
+        };
+        const onErrorOccurred = (event) => finish(reject, new Error(`Error del lector biometrico: ${event.error ?? 'captura fallida'}.`));
+
+        timeout = window.setTimeout(() => {
+            finish(reject, new Error('Tiempo agotado esperando la huella.'));
+        }, 30000);
+
+        reader.on('AcquisitionStarted', onAcquisitionStarted);
+        reader.on('CommunicationFailed', onCommunicationFailed);
+        reader.on('DeviceDisconnected', onDeviceDisconnected);
+        reader.on('QualityReported', onQualityReported);
+        reader.on('SamplesAcquired', onSamplesAcquired);
+        reader.on('ErrorOccurred', onErrorOccurred);
+
+        try {
+            const { devices } = await loadDigitalPersona();
+            await reader.startAcquisition(devices.SampleFormat.PngImage, deviceUid);
+        } catch (error) {
+            await cleanup();
+            reject(new Error(normalizeDigitalPersonaError(error)));
+        }
+    });
+}
+
 async function detectarLector() {
     let devices = [];
 
@@ -2329,12 +2915,165 @@ function initFingerprintForms(scope = document) {
     });
 }
 
+function initPlayerBiometricRegistration(scope = document) {
+    scope.querySelectorAll('[data-player-biometric-registration]').forEach((form) => {
+        if (form.dataset.playerBiometricInitialized === '1') {
+            return;
+        }
+
+        const detect = form.querySelector('[data-player-biometric-detect]');
+        const capture = form.querySelector('[data-player-biometric-capture]');
+        const save = form.querySelector('[data-player-biometric-save]');
+        const status = form.querySelector('[data-player-biometric-status]');
+        const preview = form.querySelector('[data-player-biometric-preview]');
+        const empty = form.querySelector('[data-player-biometric-empty]');
+        const sampleError = form.querySelector('[data-error-for="sample_image"]');
+        let capturedImage = '';
+        let qualityScore = null;
+
+        const setStatus = (message) => {
+            if (status) {
+                status.textContent = message;
+            }
+        };
+
+        const setBusy = (busy) => {
+            if (detect) {
+                detect.disabled = busy;
+            }
+
+            if (capture) {
+                capture.disabled = busy;
+            }
+
+            if (save) {
+                save.disabled = busy || !capturedImage;
+            }
+        };
+
+        detect?.addEventListener('click', async () => {
+            setBusy(true);
+            setStatus('Buscando lector biometrico...');
+
+            try {
+                const devices = await detectarLector();
+                setStatus(devices.length ? `Lector conectado: ${devices.join(', ')}.` : 'No se reconoce ningun lector biometrico.');
+            } finally {
+                setBusy(false);
+            }
+        });
+
+        capture?.addEventListener('click', async () => {
+            setBusy(true);
+            setStatus('Buscando lector biometrico...');
+            if (sampleError) {
+                sampleError.textContent = '';
+            }
+
+            try {
+                const devices = await detectFingerprintDevices();
+
+                if (!devices.length) {
+                    setStatus('No se detecto ningun lector.');
+
+                    return;
+                }
+
+                capturedImage = await captureFingerprintPng(devices[0], setStatus, (quality) => {
+                    qualityScore = quality === FingerprintQuality.Good ? 100 : null;
+                });
+
+                if (preview) {
+                    preview.src = `data:image/png;base64,${capturedImage}`;
+                    preview.classList.remove('d-none');
+                }
+
+                empty?.classList.add('d-none');
+                setStatus('Huella capturada. Puedes guardar el registro.');
+            } catch (error) {
+                capturedImage = '';
+                setStatus(error.message ?? 'No se pudo capturar la huella.');
+            } finally {
+                setBusy(false);
+            }
+        });
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            if (!capturedImage) {
+                setStatus('Primero captura la huella del indice derecho.');
+
+                return;
+            }
+
+            setBusy(true);
+            setStatus('Guardando huella...');
+            if (sampleError) {
+                sampleError.textContent = '';
+            }
+
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        sample_image: capturedImage,
+                        quality_score: qualityScore,
+                    }),
+                });
+                const payload = await response.json();
+
+                if (response.status === 422) {
+                    if (sampleError) {
+                        sampleError.textContent = payload.errors?.sample_image?.[0] ?? payload.message ?? 'Revisa la huella capturada.';
+                    }
+
+                    throw new Error(payload.message ?? 'Revisa la huella capturada.');
+                }
+
+                if (!response.ok || payload.success === false) {
+                    throw new Error(payload.message ?? 'No se pudo guardar la huella.');
+                }
+
+                toast.fire({ icon: 'success', title: payload.message ?? 'Huella guardada correctamente.' });
+                setStatus('Huella guardada correctamente.');
+
+                if (ajaxModalBody && form.dataset.showUrl) {
+                    try {
+                        ajaxModalTitle.textContent = 'Detalle de jugador';
+                        ajaxModalBody.innerHTML = await fetchHtml(form.dataset.showUrl);
+                        initPlayerPhotoForms(ajaxModalBody);
+                        initPlayerBiometricRegistration(ajaxModalBody);
+                    } catch (_error) {
+                        ajaxModal?.hide();
+                    }
+                }
+            } catch (error) {
+                setStatus(error.message ?? 'No se pudo guardar la huella.');
+                Swal.fire({ icon: 'error', title: 'Registro biometrico', text: error.message ?? 'No se pudo guardar la huella.' });
+            } finally {
+                setBusy(false);
+            }
+        });
+
+        form.dataset.playerBiometricInitialized = '1';
+    });
+}
+
 showInitialAlerts();
 disableBusinessFormAutocomplete();
 initTomSelects();
 initTournamentCategorySelects();
 initTournamentNamePreviews();
 initTeamNameMatches();
+initAffiliatePlayerLookup();
+initPlayerPhotoForms();
 initPurchaseForm();
 syncPointSaleWarehouse();
 initPosSaleForm();
@@ -2346,6 +3085,7 @@ initSidebarToggle();
 initCashExpenseModal();
 initCashCloseModal();
 initFingerprintForms();
+initPlayerBiometricRegistration();
 initAdminDataTables();
 
 document.addEventListener('click', (event) => {
@@ -2380,6 +3120,10 @@ document.addEventListener('change', (event) => {
     if (event.target.closest('[data-tournament-category], [name="season_id"]')) {
         refreshTournamentNamePreview(event.target.closest('form') ?? document);
     }
+
+    if (event.target.closest('[data-habilitation-autosubmit]')) {
+        event.target.closest('form')?.submit();
+    }
 });
 
 document.addEventListener('submit', (event) => {
@@ -2402,15 +3146,17 @@ document.addEventListener('submit', (event) => {
         return;
     }
 
+    if (deleteForm) {
+        event.preventDefault();
+        confirmDelete(deleteForm);
+
+        return;
+    }
+
     if (ajaxForm) {
         event.preventDefault();
         submitAjaxForm(ajaxForm);
 
         return;
-    }
-
-    if (deleteForm) {
-        event.preventDefault();
-        confirmDelete(deleteForm);
     }
 });

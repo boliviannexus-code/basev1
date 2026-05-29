@@ -1,15 +1,17 @@
 @php
-    $organizationOpen = request()->routeIs('companies.*', 'seasons.*', 'divisions.*', 'teams.*', 'categories.*');
-    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*');
+    $organizationOpen = request()->routeIs('companies.*', 'seasons.*', 'divisions.*', 'teams.*', 'players.*', 'categories.*');
+    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'player-habilitations.*');
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'biometric.*');
 
     $canOrganization = auth()->user()?->can('companies.view')
         || auth()->user()?->can('seasons.view')
         || auth()->user()?->can('divisions.view')
         || auth()->user()?->can('teams.view')
+        || auth()->user()?->can('players.view')
         || auth()->user()?->can('categories.view');
     $canTournament = auth()->user()?->can('tournaments.view')
-        || auth()->user()?->can('tournament-registrations.view');
+        || auth()->user()?->can('tournament-registrations.view')
+        || auth()->user()?->can('player-habilitations.view');
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('fingerprint-templates.view')
         || auth()->user()?->can('roles.view')
@@ -88,6 +90,14 @@
                                         </a>
                                     </li>
                                 @endcan
+                                @can('players.view')
+                                    <li class="nav-item {{ request()->routeIs('players.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('players.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-user-star"></i></span>
+                                            <span class="nav-link-title">Jugadores</span>
+                                        </a>
+                                    </li>
+                                @endcan
                                 @can('categories.view')
                                     <li class="nav-item {{ request()->routeIs('categories.*') ? 'active' : '' }}">
                                         <a class="nav-link" href="{{ route('categories.index') }}">
@@ -123,6 +133,14 @@
                                         <a class="nav-link" href="{{ route('tournament-registrations.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-clipboard-list"></i></span>
                                             <span class="nav-link-title">Inscripciones</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('player-habilitations.view')
+                                    <li class="nav-item {{ request()->routeIs('player-habilitations.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('player-habilitations.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-user-check"></i></span>
+                                            <span class="nav-link-title">Habilitaciones</span>
                                         </a>
                                     </li>
                                 @endcan

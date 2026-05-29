@@ -42,6 +42,89 @@ body {
     margin-bottom: 0;
 }
 
+.registration-division-tabs,
+.registration-tournament-tabs {
+    flex-wrap: nowrap;
+    gap: .4rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: .15rem;
+    scrollbar-width: thin;
+}
+
+.registration-division-tabs {
+    border-bottom: 1px solid rgba(var(--tblr-border-color-rgb), .9);
+}
+
+.registration-tournament-tabs {
+    border-bottom: 0;
+}
+
+.registration-color-tab {
+    --registration-hue: 210;
+    --registration-sat: 70%;
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    min-height: 2.75rem;
+    border: 1px solid hsl(var(--registration-hue) var(--registration-sat) 82%) !important;
+    border-radius: .5rem .5rem 0 0 !important;
+    background: hsl(var(--registration-hue) var(--registration-sat) 97%) !important;
+    color: hsl(var(--registration-hue) 62% 28%) !important;
+    white-space: nowrap;
+}
+
+.registration-color-tab:hover,
+.registration-color-tab:focus {
+    background: hsl(var(--registration-hue) var(--registration-sat) 94%) !important;
+    color: hsl(var(--registration-hue) 68% 24%) !important;
+}
+
+.registration-color-tab.active {
+    border-color: hsl(var(--registration-hue) var(--registration-sat) 42%) !important;
+    background: hsl(var(--registration-hue) var(--registration-sat) 42%) !important;
+    color: #fff !important;
+    box-shadow: inset 0 -.18rem 0 rgba(255, 255, 255, .35);
+}
+
+.registration-tournament-tab {
+    min-height: 2.35rem;
+    border-radius: 999px !important;
+}
+
+.registration-tab-title {
+    overflow: hidden;
+    max-width: min(20rem, 48vw);
+    text-overflow: ellipsis;
+}
+
+.registration-tab-badge {
+    background: rgba(255, 255, 255, .82);
+    color: hsl(var(--registration-hue) 58% 28%);
+}
+
+.registration-color-tab:not(.active) .registration-tab-badge {
+    background: hsl(var(--registration-hue) var(--registration-sat) 89%);
+}
+
+.registration-tab-badge-soft {
+    background: rgba(255, 255, 255, .55);
+}
+
+.registration-division-content {
+    min-width: 44rem;
+}
+
+.registration-tournament-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .75rem .9rem;
+    border-left: .25rem solid hsl(var(--registration-hue) var(--registration-sat) 42%);
+    background: hsl(var(--registration-hue) var(--registration-sat) 97%);
+}
+
 .stock-filter-bar {
     display: grid;
     grid-template-columns: repeat(4, minmax(10rem, 1fr)) auto auto;

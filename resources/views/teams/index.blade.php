@@ -17,7 +17,15 @@
             </div>
         </x-slot:actions>
 
-        <table class="table table-hover align-middle">
+
+        <table
+            class="table table-hover align-middle"
+            data-datatable
+            data-url="{{ route('datatables.teams') }}"
+            data-order='[[0,"asc"]]'
+            data-columns-id="teams-table-columns"
+            data-filters-form="#teams-filters"
+        >
             <thead>
                 <tr>
                     <th>Equipo</th>
@@ -27,39 +35,16 @@
                     <th class="text-end">Acciones</th>
                 </tr>
             </thead>
-            <tbody>
-                @forelse ($teams as $team)
-                    <tr>
-                        <td>
-                            <div class="fw-semibold">{{ $team->name }}</div>
-                            <div class="text-body-secondary small">{{ $team->notes ?: '-' }}</div>
-                            @if ($team->pendingUpdateRequest)
-                                <span class="badge text-bg-warning mt-1">Edicion pendiente</span>
-                            @endif
-                        </td>
-                        <td>{{ $team->founded_at?->format('Y-m-d') }}</td>
-                        <td>{{ $team->company?->name ?? '-' }}</td>
-                        <td><span class="badge text-bg-{{ $team->is_active ? 'success' : 'secondary' }}">{{ $team->is_active ? 'Activo' : 'Inactivo' }}</span></td>
-                        <td class="text-end">
-                            <a class="btn btn-outline-secondary btn-sm" href="{{ route('teams.show', $team) }}" data-modal-url="{{ route('teams.show', $team) }}" data-modal-title="Detalle de equipo">Ver</a>
-                            @can('teams.update')
-                                <a class="btn btn-outline-primary btn-sm" href="{{ route('teams.edit', $team) }}" data-modal-url="{{ route('teams.edit', $team) }}" data-modal-title="Editar equipo">Editar</a>
-                            @endcan
-                            @can('teams.delete')
-                                <form class="d-inline" method="POST" action="{{ route('teams.destroy', $team) }}" data-confirm-delete="Eliminar equipo?">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button class="btn btn-outline-danger btn-sm" type="submit">Eliminar</button>
-                                </form>
-                            @endcan
-                        </td>
-                    </tr>
-                @empty
-                    <x-ui.empty-row colspan="5" message="No hay equipos registrados." />
-                @endforelse
-            </tbody>
+            <tbody></tbody>
         </table>
-
-        <x-slot:footer>{{ $teams->links() }}</x-slot:footer>
+        <script type="application/json" id="teams-table-columns">
+            [
+                {"data":"team_name","name":"teams.name"},
+                {"data":"founded_at","name":"teams.founded_at"},
+                {"data":"company_name","name":"companies.name","defaultContent":"-"},
+                {"data":"is_active","name":"teams.is_active","orderable":false,"searchable":false},
+                {"data":"actions","name":"actions","orderable":false,"searchable":false,"className":"text-end"}
+            ]
+        </script>
     </x-ui.table-card>
 @endsection

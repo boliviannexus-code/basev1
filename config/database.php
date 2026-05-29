@@ -84,6 +84,25 @@ return [
             ]) : [],
         ],
 
+        'legacy' => [
+            'driver' => env('LEGACY_DB_CONNECTION', 'mysql'),
+            'host' => env('LEGACY_DB_HOST', 'legacy_mysql'),
+            'port' => env('LEGACY_DB_PORT', '3306'),
+            'database' => env('LEGACY_DB_DATABASE', 'nexucjns_mejillones'),
+            'username' => env('LEGACY_DB_USERNAME', 'legacy'),
+            'password' => env('LEGACY_DB_PASSWORD', 'legacy'),
+            'unix_socket' => env('LEGACY_DB_SOCKET', ''),
+            'charset' => env('LEGACY_DB_CHARSET', 'utf8mb4'),
+            'collation' => env('LEGACY_DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => false,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),

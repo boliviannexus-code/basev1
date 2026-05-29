@@ -160,19 +160,31 @@ class TournamentRegistrationTest extends TestCase
             ->assertSee('Equipo Tab');
     }
 
-    public function test_registrations_index_filters_tournaments_by_division(): void
+    public function test_registrations_index_only_shows_divisions_with_registered_teams(): void
     {
         [$company, , $user] = $this->leagueUser(['tournament-registrations.view']);
         $firstDivision = Division::factory()->create(['company_id' => $company->id, 'name' => 'Primera']);
         $secondDivision = Division::factory()->create(['company_id' => $company->id, 'name' => 'Segunda']);
         $firstTournament = $this->tournamentFor($company, 'Sub 17', $firstDivision);
         $secondTournament = $this->tournamentFor($company, 'Sub 20', $secondDivision);
+        $team = Team::factory()->create(['company_id' => $company->id, 'name' => 'Equipo Primera']);
+
+        TournamentRegistration::factory()->create([
+            'company_id' => $company->id,
+            'tournament_id' => $firstTournament->id,
+            'division_id' => $firstTournament->division_id,
+            'team_id' => $team->id,
+        ]);
 
         $this
             ->actingAs($user)
             ->get(route('tournament-registrations.index', ['division_id' => $firstDivision->id]))
             ->assertOk()
+            ->assertSee('registration-division-tabs', false)
+            ->assertSee('registration-tournament-tabs', false)
+            ->assertSee($firstDivision->name)
             ->assertSee($firstTournament->name)
+            ->assertDontSee($secondDivision->name)
             ->assertDontSee($secondTournament->name);
     }
 

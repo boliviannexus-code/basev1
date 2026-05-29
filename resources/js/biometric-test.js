@@ -41,13 +41,29 @@ function normalizeDigitalPersonaError(error) {
     return message || 'No se pudo comunicar con el lector biometrico.';
 }
 
+function isCommunicationFailure(error) {
+    const message = error?.message ?? String(error ?? '');
+
+    return message.includes('Communication failure')
+        || message.includes('No se pudo conectar con DigitalPersona Agent');
+}
+
+function resetDigitalPersonaSession() {
+    try {
+        window.sessionStorage?.removeItem('websdk.sessionId');
+    } catch (_error) {
+        // sessionStorage can be unavailable in restricted browser modes.
+    }
+
+    reader = null;
+}
+
 async function getDevicesModule() {
     if (!devicesModule) {
-        const importedDevices = await import('@digitalpersona/devices');
-        devicesModule = resolveDigitalPersonaDevices(importedDevices);
+        devicesModule = resolveDigitalPersonaDevices(window.dp?.devices);
 
         if (!devicesModule) {
-            console.debug('Modulo @digitalpersona/devices sin FingerprintReader constructor:', importedDevices);
+            console.debug('DigitalPersona Devices global no disponible:', window.dp);
             throw new Error('DigitalPersona Devices no expone FingerprintReader.');
         }
     }
@@ -55,13 +71,31 @@ async function getDevicesModule() {
     return devicesModule;
 }
 
-async function getReader() {
+async function getReader({ fresh = false } = {}) {
+    if (fresh) {
+        resetDigitalPersonaSession();
+    }
+
     if (!reader) {
         const { FingerprintReader } = await getDevicesModule();
         reader = new FingerprintReader();
     }
 
     return reader;
+}
+
+async function withDigitalPersonaRetry(callback) {
+    try {
+        return await callback(false);
+    } catch (error) {
+        if (!isCommunicationFailure(error)) {
+            throw error;
+        }
+
+        resetDigitalPersonaSession();
+
+        return callback(true);
+    }
 }
 
 function base64UrlToBase64(value) {
@@ -128,6 +162,23 @@ function qualityMessage(quality) {
     return messages[quality] ?? 'Leyendo huella...';
 }
 
+function fingerPositionLabel(position) {
+    const labels = {
+        right_thumb: 'Pulgar derecho',
+        right_index: 'Indice derecho',
+        right_middle: 'Medio derecho',
+        right_ring: 'Anular derecho',
+        right_little: 'Menique derecho',
+        left_thumb: 'Pulgar izquierdo',
+        left_index: 'Indice izquierdo',
+        left_middle: 'Medio izquierdo',
+        left_ring: 'Anular izquierdo',
+        left_little: 'Menique izquierdo',
+    };
+
+    return labels[position] ?? position ?? 'No especificado';
+}
+
 async function capturePng(deviceUid, onStatus, onQuality) {
     return new Promise(async (resolve, reject) => {
         let settled = false;
@@ -148,6 +199,7 @@ async function capturePng(deviceUid, onStatus, onQuality) {
             activeReader.off('QualityReported', onQualityReported);
             activeReader.off('SamplesAcquired', onSamplesAcquired);
             activeReader.off('ErrorOccurred', onErrorOccurred);
+            activeReader.off('CommunicationFailed', onCommunicationFailed);
             activeReader.off('DeviceDisconnected', onDisconnected);
 
             try {
@@ -168,6 +220,7 @@ async function capturePng(deviceUid, onStatus, onQuality) {
         };
 
         const onStarted = () => onStatus('Esperando dedo...');
+        const onCommunicationFailed = () => finish(reject, new Error('Communication failure.'));
         const onDisconnected = () => finish(reject, new Error('El lector se desconecto.'));
         const onErrorOccurred = (event) => finish(reject, new Error(`Error del lector: ${event.error ?? 'captura fallida'}.`));
         const onQualityReported = (event) => {
@@ -194,6 +247,7 @@ async function capturePng(deviceUid, onStatus, onQuality) {
         activeReader.on('QualityReported', onQualityReported);
         activeReader.on('SamplesAcquired', onSamplesAcquired);
         activeReader.on('ErrorOccurred', onErrorOccurred);
+        activeReader.on('CommunicationFailed', onCommunicationFailed);
         activeReader.on('DeviceDisconnected', onDisconnected);
 
         try {
@@ -212,6 +266,7 @@ document.querySelectorAll('[data-biometric-test]').forEach((module) => {
     const captureButton = module.querySelector('[data-capture-fingerprint]');
     const saveButton = module.querySelector('[data-save-fingerprint]');
     const verifyButton = module.querySelector('[data-verify-fingerprint]');
+    const identifyButton = module.querySelector('[data-identify-fingerprint]');
     const fingerPosition = module.querySelector('[data-finger-position]');
     const preview = module.querySelector('[data-fingerprint-preview]');
     const empty = module.querySelector('[data-fingerprint-empty]');
@@ -238,8 +293,38 @@ document.querySelectorAll('[data-biometric-test]').forEach((module) => {
         }
 
         if (verifyButton) {
-            verifyButton.disabled = busy || !capturedImage;
+            verifyButton.disabled = busy;
         }
+
+        if (identifyButton) {
+            identifyButton.disabled = busy;
+        }
+    };
+
+    const captureFreshImage = async (initialStatus, retryStatus) => {
+        setStatus(initialStatus);
+
+        const devices = await withDigitalPersonaRetry(async (retrying) => {
+            if (retrying) {
+                setStatus('Reiniciando conexion con DigitalPersona Agent...');
+            }
+
+            const activeReader = await getReader({ fresh: retrying });
+
+            return activeReader.enumerateDevices();
+        });
+
+        if (!devices.length) {
+            throw new Error('No se detecto ningun lector.');
+        }
+
+        return withDigitalPersonaRetry(async (retrying) => {
+            if (retrying) {
+                setStatus(retryStatus);
+            }
+
+            return capturePng(devices[0], setStatus, () => {});
+        });
     };
 
     detectButton?.addEventListener('click', async () => {
@@ -247,8 +332,16 @@ document.querySelectorAll('[data-biometric-test]').forEach((module) => {
         setStatus('Buscando lector...');
 
         try {
-            const activeReader = await getReader();
-            const devices = await activeReader.enumerateDevices();
+            const devices = await withDigitalPersonaRetry(async (retrying) => {
+                if (retrying) {
+                    setStatus('Reiniciando conexion con DigitalPersona Agent...');
+                }
+
+                const activeReader = await getReader({ fresh: retrying });
+
+                return activeReader.enumerateDevices();
+            });
+
             setStatus(devices.length ? `Lector detectado: ${devices.join(', ')}.` : 'No se detecto ningun lector.');
         } catch (error) {
             setStatus(normalizeDigitalPersonaError(error));
@@ -262,8 +355,15 @@ document.querySelectorAll('[data-biometric-test]').forEach((module) => {
         setStatus('Buscando lector...');
 
         try {
-            const activeReader = await getReader();
-            const devices = await activeReader.enumerateDevices();
+            const devices = await withDigitalPersonaRetry(async (retrying) => {
+                if (retrying) {
+                    setStatus('Reiniciando conexion con DigitalPersona Agent...');
+                }
+
+                const activeReader = await getReader({ fresh: retrying });
+
+                return activeReader.enumerateDevices();
+            });
 
             if (!devices.length) {
                 setStatus('No se detecto ningun lector.');
@@ -271,8 +371,14 @@ document.querySelectorAll('[data-biometric-test]').forEach((module) => {
                 return;
             }
 
-            capturedImage = await capturePng(devices[0], setStatus, (quality) => {
-                qualityScore = quality === FingerprintQuality.Good ? 100 : null;
+            capturedImage = await withDigitalPersonaRetry(async (retrying) => {
+                if (retrying) {
+                    setStatus('Reintentando captura con una sesion nueva...');
+                }
+
+                return capturePng(devices[0], setStatus, (quality) => {
+                    qualityScore = quality === FingerprintQuality.Good ? 100 : null;
+                });
             });
 
             preview.src = `data:image/png;base64,${capturedImage}`;
@@ -327,14 +433,14 @@ document.querySelectorAll('[data-biometric-test]').forEach((module) => {
     });
 
     verifyButton?.addEventListener('click', async () => {
-        if (!capturedImage) {
-            return;
-        }
-
         setBusy(true);
-        setStatus('Verificando huella...');
 
         try {
+            const candidateImage = await captureFreshImage(
+                'Buscando lector para verificar...',
+                'Reintentando verificacion con una sesion nueva...',
+            );
+
             const response = await fetch(module.dataset.verifyUrl, {
                 method: 'POST',
                 headers: {
@@ -344,7 +450,7 @@ document.querySelectorAll('[data-biometric-test]').forEach((module) => {
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 body: JSON.stringify({
-                    sample_image: capturedImage,
+                    sample_image: candidateImage,
                     threshold: 40,
                 }),
             });
@@ -360,6 +466,9 @@ document.querySelectorAll('[data-biometric-test]').forEach((module) => {
             const score = result.score ?? '-';
             const threshold = result.threshold ?? 40;
 
+            preview.src = `data:image/png;base64,${candidateImage}`;
+            preview.classList.remove('d-none');
+            empty.classList.add('d-none');
             setStatus(`${payload.message} Score: ${score}. Umbral: ${threshold}.`);
             window.Swal?.fire({
                 icon: match ? 'success' : 'warning',
@@ -368,6 +477,61 @@ document.querySelectorAll('[data-biometric-test]').forEach((module) => {
             });
         } catch (error) {
             setStatus(error?.message ?? 'No se pudo verificar la huella.');
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    identifyButton?.addEventListener('click', async () => {
+        setBusy(true);
+
+        try {
+            const candidateImage = await captureFreshImage(
+                'Coloca el dedo que quieres buscar...',
+                'Reintentando busqueda con una sesion nueva...',
+            );
+
+            const response = await fetch(module.dataset.identifyUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({
+                    sample_image: candidateImage,
+                    threshold: 40,
+                }),
+            });
+
+            const payload = await response.json();
+
+            if (!response.ok || payload.success === false) {
+                throw new Error(payload.message ?? 'No se pudo buscar la huella.');
+            }
+
+            const result = payload.data ?? {};
+            const match = result.match === true;
+            const score = result.score ?? '-';
+            const threshold = result.threshold ?? 40;
+            const finger = fingerPositionLabel(result.finger_position);
+
+            preview.src = `data:image/png;base64,${candidateImage}`;
+            preview.classList.remove('d-none');
+            empty.classList.add('d-none');
+
+            setStatus(match
+                ? `Dedo identificado: ${finger}. Score: ${score}. Umbral: ${threshold}.`
+                : `Sin coincidencia confiable. Mejor candidato: ${finger}. Score: ${score}. Umbral: ${threshold}.`);
+
+            window.Swal?.fire({
+                icon: match ? 'success' : 'warning',
+                title: match ? `Dedo: ${finger}` : 'Sin coincidencia confiable',
+                text: `Score: ${score}. Umbral: ${threshold}.`,
+            });
+        } catch (error) {
+            setStatus(error?.message ?? 'No se pudo buscar la huella.');
         } finally {
             setBusy(false);
         }

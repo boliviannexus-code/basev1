@@ -361,6 +361,63 @@ class SeasonTournamentCrudTest extends TestCase
         ]);
     }
 
+    public function test_league_user_can_reuse_deleted_division_name(): void
+    {
+        [$company, , $user] = $this->leagueUser(['divisions.view', 'divisions.create']);
+        Division::factory()->create(['company_id' => $company->id, 'name' => 'Sub 20'])->delete();
+
+        $this
+            ->actingAs($user)
+            ->post(route('divisions.store'), [
+                'name' => 'Sub 20',
+                'min_age' => 18,
+                'max_age' => 20,
+                'description' => 'Nueva division Sub 20',
+                'is_active' => '1',
+            ])
+            ->assertRedirect(route('divisions.index'));
+
+        $this->assertDatabaseHas('divisions', [
+            'company_id' => $company->id,
+            'name' => 'Sub 20',
+            'deleted_at' => null,
+        ]);
+    }
+
+    public function test_league_user_cannot_create_division_with_same_name_in_different_case(): void
+    {
+        [$company, , $user] = $this->leagueUser(['divisions.view', 'divisions.create']);
+        Division::factory()->create(['company_id' => $company->id, 'name' => 'juvenil']);
+
+        $this
+            ->actingAs($user)
+            ->post(route('divisions.store'), [
+                'name' => 'Juvenil',
+                'min_age' => 15,
+                'max_age' => 18,
+                'is_active' => '1',
+            ])
+            ->assertSessionHasErrors('name');
+    }
+
+    public function test_league_user_cannot_update_division_to_same_name_in_different_case(): void
+    {
+        [$company, , $user] = $this->leagueUser(['divisions.view', 'divisions.update']);
+        Division::factory()->create(['company_id' => $company->id, 'name' => 'juvenil']);
+        $division = Division::factory()->create(['company_id' => $company->id, 'name' => 'Senior']);
+
+        $this
+            ->actingAs($user)
+            ->put(route('divisions.update', $division), [
+                'name' => 'Juvenil',
+                'min_age' => $division->min_age,
+                'max_age' => $division->max_age,
+                'description' => $division->description,
+                'is_active' => '1',
+            ])
+            ->assertSessionHasErrors('name');
+    }
+
     public function test_league_user_can_manage_existing_categories_from_division_edit(): void
     {
         [$company, , $user] = $this->leagueUser(['divisions.view', 'divisions.update']);

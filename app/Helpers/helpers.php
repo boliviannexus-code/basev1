@@ -1,5 +1,19 @@
 <?php
 
+use App\Models\Player;
+use Illuminate\Support\Facades\Storage;
+
+if (! function_exists('player_photo_url')) {
+    function player_photo_url(?Player $player): ?string
+    {
+        if (! $player || blank($player->photo_path)) {
+            return null;
+        }
+
+        return Storage::disk((string) config('player_media.photos.disk', 'public'))->url($player->photo_path);
+    }
+}
+
 if (! function_exists('money_format_decimal')) {
     function money_format_decimal(float|int|string $amount): string
     {
@@ -34,13 +48,35 @@ if (! function_exists('permission_module_label')) {
             'seasons' => 'Gestiones',
             'divisions' => 'Divisiones',
             'teams' => 'Equipos',
+            'players' => 'Jugadores',
             'tournaments' => 'Torneos',
             'tournament-registrations' => 'Inscripciones',
+            'player-habilitations' => 'Habilitaciones',
             'categories' => 'Categorias',
             'audits' => 'Auditoria',
         ];
 
         return $labels[$module] ?? str($module)->replace(['-', '_'], ' ')->headline()->toString();
+    }
+}
+
+if (! function_exists('player_team_status_label')) {
+    function player_team_status_label(string $status): string
+    {
+        return [
+            'active' => 'Activo',
+            'inactive' => 'Inactivo',
+        ][$status] ?? str($status)->replace(['-', '_'], ' ')->headline()->toString();
+    }
+}
+
+if (! function_exists('habilitation_status_label')) {
+    function habilitation_status_label(string $status): string
+    {
+        return [
+            'enabled' => 'Habilitado',
+            'disabled' => 'Retirado',
+        ][$status] ?? str($status)->replace(['-', '_'], ' ')->headline()->toString();
     }
 }
 

@@ -10,8 +10,11 @@ class BiometricFingerprint extends Model
     protected $fillable = [
         'company_id',
         'user_id',
+        'player_id',
         'finger_position',
         'sample_image',
+        'template_data',
+        'template_format',
         'format',
         'quality_score',
         'is_active',
@@ -20,6 +23,7 @@ class BiometricFingerprint extends Model
 
     protected $hidden = [
         'sample_image',
+        'template_data',
     ];
 
     protected function casts(): array
@@ -39,5 +43,10 @@ class BiometricFingerprint extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function player(): BelongsTo
+    {
+        return $this->belongsTo(Player::class);
     }
 }

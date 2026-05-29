@@ -48,4 +48,9 @@ class Division extends Model implements Auditable
     {
         return $this->hasMany(DivisionCategory::class);
     }
+
+    public function teamPlayers(): HasMany
+    {
+        return $this->hasMany(TeamPlayer::class);
+    }
 }

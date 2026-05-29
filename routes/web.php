@@ -10,6 +10,9 @@ use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\DivisionController;
 use App\Http\Controllers\Web\FingerprintTemplateController;
 use App\Http\Controllers\Web\PermissionController;
+use App\Http\Controllers\Web\PlayerBiometricRegistrationController;
+use App\Http\Controllers\Web\PlayerController;
+use App\Http\Controllers\Web\PlayerHabilitationController;
 use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\SeasonController;
 use App\Http\Controllers\Web\TeamController;
@@ -30,6 +33,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('biometrico/prueba', [BiometricTestController::class, 'index'])->name('biometric.test');
     Route::post('biometrico/enroll', [BiometricTestController::class, 'enroll'])->name('biometric.enroll');
     Route::post('biometrico/verify', [BiometricTestController::class, 'verify'])->name('biometric.verify');
+    Route::post('biometrico/identify', [BiometricTestController::class, 'identify'])->name('biometric.identify');
     Route::get('audits', [AuditController::class, 'index'])->middleware('permission:audits.view')->name('audits.index');
     Route::get('audits/{audit}', [AuditController::class, 'show'])->middleware('permission:audits.view')->name('audits.show');
     Route::prefix('companies')->name('companies.')->group(function (): void {
@@ -71,6 +75,20 @@ Route::middleware('auth')->group(function (): void {
         Route::put('{team}', [TeamController::class, 'update'])->middleware('permission:teams.update')->name('update');
         Route::delete('{team}', [TeamController::class, 'destroy'])->middleware('permission:teams.delete')->name('destroy');
     });
+    Route::prefix('players')->name('players.')->group(function (): void {
+        Route::get('/', [PlayerController::class, 'index'])->middleware('permission:players.view')->name('index');
+        Route::get('create', [PlayerController::class, 'create'])->middleware('permission:players.create')->name('create');
+        Route::post('/', [PlayerController::class, 'store'])->middleware('permission:players.create')->name('store');
+        Route::get('{player}', [PlayerController::class, 'show'])->middleware('permission:players.view')->name('show');
+        Route::get('{player}/edit', [PlayerController::class, 'edit'])->middleware('permission:players.update')->name('edit');
+        Route::put('{player}', [PlayerController::class, 'update'])->middleware('permission:players.update')->name('update');
+        Route::get('{player}/biometric-registration', [PlayerBiometricRegistrationController::class, 'create'])->middleware('permission:players.update')->name('biometric-registration.create');
+        Route::post('{player}/biometric-registration', [PlayerBiometricRegistrationController::class, 'store'])->middleware('permission:players.update')->name('biometric-registration.store');
+        Route::get('{player}/photo', [PlayerController::class, 'editPhoto'])->middleware('permission:players.update')->name('photo.edit');
+        Route::post('{player}/photo', [PlayerController::class, 'updatePhoto'])->middleware('permission:players.update')->name('photo.update');
+        Route::delete('{player}/photo', [PlayerController::class, 'destroyPhoto'])->middleware('permission:players.update')->name('photo.destroy');
+        Route::delete('{player}', [PlayerController::class, 'destroy'])->middleware('permission:players.delete')->name('destroy');
+    });
     Route::prefix('tournaments')->name('tournaments.')->group(function (): void {
         Route::get('/', [TournamentController::class, 'index'])->middleware('permission:tournaments.view')->name('index');
         Route::get('create', [TournamentController::class, 'create'])->middleware('permission:tournaments.create')->name('create');
@@ -90,6 +108,14 @@ Route::middleware('auth')->group(function (): void {
         Route::put('{tournamentRegistration}', [TournamentRegistrationController::class, 'update'])->middleware('permission:tournament-registrations.update')->name('update');
         Route::delete('{tournamentRegistration}', [TournamentRegistrationController::class, 'destroy'])->middleware('permission:tournament-registrations.delete')->name('destroy');
     });
+    Route::prefix('player-habilitations')->name('player-habilitations.')->group(function (): void {
+        Route::get('/', [PlayerHabilitationController::class, 'index'])->middleware('permission:player-habilitations.view')->name('index');
+        Route::get('affiliate', [PlayerHabilitationController::class, 'affiliateForm'])->middleware('permission:player-habilitations.create')->name('affiliate.form');
+        Route::get('player-lookup', [PlayerHabilitationController::class, 'playerLookup'])->middleware('permission:player-habilitations.create')->name('player-lookup');
+        Route::post('affiliate', [PlayerHabilitationController::class, 'affiliate'])->middleware('permission:player-habilitations.create')->name('affiliate');
+        Route::post('enable', [PlayerHabilitationController::class, 'enable'])->middleware('permission:player-habilitations.create')->name('enable');
+        Route::delete('{tournamentTeamPlayer}', [PlayerHabilitationController::class, 'destroy'])->middleware('permission:player-habilitations.delete')->name('destroy');
+    });
     Route::prefix('categories')->name('categories.')->group(function (): void {
         Route::get('/', [CategoryController::class, 'index'])->middleware('permission:categories.view')->name('index');
         Route::get('create', [CategoryController::class, 'create'])->middleware('permission:categories.create')->name('create');
@@ -101,6 +127,8 @@ Route::middleware('auth')->group(function (): void {
     });
     Route::prefix('datatables')->name('datatables.')->group(function (): void {
         Route::get('audits', [AdminDataTableController::class, 'audits'])->name('audits');
+        Route::get('players', [AdminDataTableController::class, 'players'])->name('players');
+        Route::get('teams', [AdminDataTableController::class, 'teams'])->name('teams');
     });
     Route::prefix('users')->name('users.')->group(function (): void {
         Route::get('/', [UserController::class, 'index'])->middleware('permission:users.view')->name('index');

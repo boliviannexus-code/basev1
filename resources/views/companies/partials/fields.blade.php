@@ -34,9 +34,9 @@
         <input class="form-control" id="company-logo" name="logo" type="file" accept="image/jpeg,image/png,image/webp">
         <div class="form-hint">JPG, PNG o WebP. Maximo 2 MB.</div>
         <div class="invalid-feedback" data-error-for="logo"></div>
-        @if (($company ?? null)?->logo_url)
+        @if (($company ?? null)?->logo_display_url)
             <div class="d-flex align-items-center gap-3 mt-2">
-                <img class="avatar avatar-lg" src="{{ $company->logo_url }}" alt="{{ $company->name }}">
+                <img class="avatar avatar-lg" src="{{ $company->logo_display_url }}" alt="{{ $company->name }}">
                 <label class="form-check m-0">
                     <input class="form-check-input" name="remove_logo" type="checkbox" value="1" @checked(old('remove_logo'))>
                     <span class="form-check-label">Quitar logo actual</span>

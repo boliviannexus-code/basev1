@@ -23,17 +23,25 @@ class TournamentRegistrationController extends Controller
     public function index(): View
     {
         $divisionId = request()->integer('division_id') ?: null;
-        $divisions = $this->registrations->divisionsForSelect(CompanyContext::id());
-        $activeDivisionId = $divisionId ?? $divisions->first()?->id;
-        $tournaments = $this->registrations->tournamentsForSelect(CompanyContext::id())
-            ->when($activeDivisionId, fn ($collection, $divisionId) => $collection->where('division_id', $divisionId))
+        $registrationsByTournament = $this->registrations->groupedByTournament();
+        $divisionIdsWithRegistrations = $registrationsByTournament
+            ->flatten(1)
+            ->pluck('division_id')
+            ->filter()
+            ->unique()
             ->values();
+        $divisions = $this->registrations->divisionsForSelect(CompanyContext::id())
+            ->whereIn('id', $divisionIdsWithRegistrations)
+            ->values();
+        $activeDivisionId = $divisions->contains('id', $divisionId) ? $divisionId : $divisions->first()?->id;
+        $tournaments = $this->registrations->tournamentsForSelect(CompanyContext::id());
 
         return view('tournament-registrations.index', [
             'activeDivisionId' => $activeDivisionId,
             'divisions' => $divisions,
-            'registrationsByTournament' => $this->registrations->groupedByTournament($activeDivisionId),
+            'registrationsByTournament' => $registrationsByTournament,
             'tournaments' => $tournaments,
+            'tournamentsByDivision' => $tournaments->groupBy('division_id'),
         ]);
     }
 

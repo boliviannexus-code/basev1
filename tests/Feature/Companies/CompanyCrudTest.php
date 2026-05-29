@@ -42,6 +42,27 @@ class CompanyCrudTest extends TestCase
         Storage::disk('public')->assertExists($company->logo_path);
     }
 
+    public function test_company_logo_is_rendered_from_storage_in_index_without_public_symlink(): void
+    {
+        Storage::fake('public');
+        $user = $this->userWithCompanyPermissions();
+        $company = Company::factory()->create([
+            'name' => 'Liga Con Logo',
+            'logo_path' => 'companies/logos/demo.png',
+        ]);
+        Storage::disk('public')->put(
+            $company->logo_path,
+            file_get_contents(UploadedFile::fake()->image('logo.png')->getRealPath())
+        );
+
+        $this
+            ->actingAs($user)
+            ->get(route('companies.index'))
+            ->assertOk()
+            ->assertSee('data:image/png;base64', false)
+            ->assertDontSee('/storage/companies/logos/demo.png', false);
+    }
+
     public function test_user_can_assign_company_to_user(): void
     {
         $actor = $this->userWithUserPermissions();

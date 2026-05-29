@@ -27,8 +27,8 @@
                 @forelse ($companies as $company)
                     <tr>
                         <td>
-                            @if ($company->logo_url)
-                                <img class="avatar" src="{{ $company->logo_url }}" alt="{{ $company->name }}">
+                            @if ($company->logo_display_url)
+                                <img class="avatar" src="{{ $company->logo_display_url }}" alt="{{ $company->name }}">
                             @else
                                 <span class="avatar bg-primary-lt text-primary"><i class="ti ti-building"></i></span>
                             @endif
