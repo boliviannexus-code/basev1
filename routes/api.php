@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\PermissionController;
+use App\Http\Controllers\Api\V1\PublicTourController;
 use App\Http\Controllers\Api\V1\RoleController;
+use App\Http\Controllers\Api\V1\TourBookingController;
 use App\Http\Controllers\Api\V1\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -10,9 +12,19 @@ Route::prefix('v1')
     ->middleware('throttle:api')
     ->group(function (): void {
         Route::post('auth/login', [AuthController::class, 'login'])->name('api.v1.login');
+        Route::post('auth/register-tourist', [AuthController::class, 'registerTourist'])->name('api.v1.register-tourist');
+
+        Route::get('tours', [PublicTourController::class, 'index'])->name('api.v1.tours.index');
+        Route::get('tours/featured', [PublicTourController::class, 'featured'])->name('api.v1.tours.featured');
+        Route::get('tours/categories', [PublicTourController::class, 'categories'])->name('api.v1.tours.categories');
+        Route::get('website-content', [PublicTourController::class, 'websiteContent'])->name('api.v1.website-content');
+        Route::get('tours/{tour}', [PublicTourController::class, 'show'])->name('api.v1.tours.show');
 
         Route::middleware('auth:sanctum')->group(function (): void {
             Route::post('auth/logout', [AuthController::class, 'logout'])->name('api.v1.logout');
+            Route::get('tourist/bookings', [TourBookingController::class, 'index'])->name('api.v1.tourist.bookings.index');
+            Route::post('tours/{tour}/bookings', [TourBookingController::class, 'store'])->name('api.v1.tours.bookings.store');
+            Route::get('tourist/bookings/{booking}', [TourBookingController::class, 'show'])->name('api.v1.tourist.bookings.show');
 
             Route::prefix('users')->name('api.v1.users.')->group(function (): void {
                 Route::get('/', [UserController::class, 'index'])->middleware('permission:users.view')->name('index');

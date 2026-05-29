@@ -35,6 +35,9 @@ services:
             - '${BIOMETRIC_ENGINE_PORT:-8001}:8001'
         networks:
             - sail
+            - pgsql
+            - redis
+            - mailpit
     pgsql:
         image: 'postgres:17'
         ports:

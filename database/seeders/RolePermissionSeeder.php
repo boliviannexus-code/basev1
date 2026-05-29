@@ -12,6 +12,7 @@ class RolePermissionSeeder extends Seeder
     public function run(): void
     {
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
+        $guard = 'web';
 
         $permissions = [
             'dashboard.view',
@@ -72,11 +73,36 @@ class RolePermissionSeeder extends Seeder
             'categories.create',
             'categories.update',
             'categories.delete',
+            'guide_types.view',
+            'guide_types.create',
+            'guide_types.update',
+            'guide_types.delete',
+            'transport_types.view',
+            'transport_types.create',
+            'transport_types.update',
+            'transport_types.delete',
+            'activity_types.view',
+            'activity_types.create',
+            'activity_types.update',
+            'activity_types.delete',
+            'tours.view',
+            'tours.create',
+            'tours.edit',
+            'tours.delete',
+            'tours.review',
+            'tours.pricing',
+            'tours.availability',
+            'bookings.view',
+            'bookings.manage',
+            'website.manage',
             'audits.view',
         ];
 
         foreach ($permissions as $permission) {
-            Permission::findOrCreate($permission);
+            Permission::query()->firstOrCreate([
+                'name' => $permission,
+                'guard_name' => $guard,
+            ]);
         }
 
         Permission::query()
@@ -85,8 +111,18 @@ class RolePermissionSeeder extends Seeder
 
         Role::findOrCreate('super_admin')->syncPermissions($permissions);
         Role::findOrCreate('admin')->syncPermissions(array_values(array_diff($permissions, ['teams.approve-updates'])));
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        Role::findOrCreate('manager')->syncPermissions([
+        $permissionModels = Permission::query()
+            ->where('guard_name', $guard)
+            ->whereIn('name', $permissions)
+            ->get()
+            ->keyBy('name');
+
+        Role::findOrCreate('super_admin', $guard)->syncPermissions($permissionModels->values());
+        Role::findOrCreate('admin', $guard)->syncPermissions($permissionModels->values());
+
+        $managerPermissions = [
             'dashboard.view',
             'users.view',
             'fingerprint-templates.view',
@@ -121,10 +157,37 @@ class RolePermissionSeeder extends Seeder
             'categories.view',
             'categories.create',
             'categories.update',
+            'categories.view',
+            'categories.create',
+            'categories.update',
+            'categories.delete',
+            'guide_types.view',
+            'guide_types.create',
+            'guide_types.update',
+            'guide_types.delete',
+            'transport_types.view',
+            'transport_types.create',
+            'transport_types.update',
+            'transport_types.delete',
+            'activity_types.view',
+            'activity_types.create',
+            'activity_types.update',
+            'activity_types.delete',
+            'tours.view',
+            'tours.create',
+            'tours.edit',
+            'tours.delete',
+            'tours.pricing',
+            'tours.availability',
+            'bookings.view',
+            'bookings.manage',
+            'website.manage',
             'audits.view',
-        ]);
+        ];
 
-        Role::findOrCreate('viewer')->syncPermissions([
+        Role::findOrCreate('manager', $guard)->syncPermissions($permissionModels->only($managerPermissions)->values());
+
+        $viewerPermissions = [
             'dashboard.view',
             'users.view',
             'fingerprint-templates.view',
@@ -139,8 +202,18 @@ class RolePermissionSeeder extends Seeder
             'tournament-registrations.view',
             'player-habilitations.view',
             'categories.view',
+            'categories.view',
+            'guide_types.view',
+            'transport_types.view',
+            'activity_types.view',
+            'tours.view',
+            'bookings.view',
             'audits.view',
-        ]);
+        ];
+
+        Role::findOrCreate('viewer', $guard)->syncPermissions($permissionModels->only($viewerPermissions)->values());
+
+        Role::findOrCreate('tourist', $guard)->syncPermissions([]);
 
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }

@@ -67,6 +67,9 @@ class Company extends Model implements Auditable
     public function tournamentTeamPlayers(): HasMany
     {
         return $this->hasMany(TournamentTeamPlayer::class);
+    public function tours(): HasMany
+    {
+        return $this->hasMany(Tour::class);
     }
 
     public function getLogoUrlAttribute(): ?string
