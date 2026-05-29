@@ -33,7 +33,7 @@ class StoreUserRequest extends FormRequest
                 return;
             }
 
-            $validator->errors()->add('company_id', 'Solo un super administrador puede asignar usuarios sin empresa.');
+            $validator->errors()->add('company_id', 'Solo un super administrador puede asignar usuarios sin liga deportiva.');
         });
     }
 }

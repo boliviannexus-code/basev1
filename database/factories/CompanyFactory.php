@@ -13,9 +13,7 @@ class CompanyFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->company(),
-            'legal_name' => fake()->company().' SRL',
-            'tax_id' => fake()->unique()->numerify('########'),
+            'name' => fake()->unique()->words(3, true).' Liga Deportiva',
             'phone' => fake()->phoneNumber(),
             'email' => fake()->companyEmail(),
             'address' => fake()->address(),

@@ -18,7 +18,7 @@
                     <th>Codigo</th>
                     <th>Siguiente comprobante</th>
                     <th>Nombre</th>
-                    <th>Empresa</th>
+                    <th>Liga deportiva</th>
                     <th>Sucursal</th>
                     <th>Almacen vinculado</th>
                     <th>Usuarios</th>
@@ -36,7 +36,7 @@
                             </span>
                         </td>
                         <td>{{ $pointOfSale->name }}</td>
-                        <td>{{ $pointOfSale->company?->name ?? 'Sin empresa' }}</td>
+                        <td>{{ $pointOfSale->company?->name ?? 'Sin liga deportiva' }}</td>
                         <td>{{ $pointOfSale->branch?->name ?? '-' }}</td>
                         <td>{{ $pointOfSale->warehouse?->name ?? '-' }}</td>
                         <td>

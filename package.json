@@ -14,6 +14,10 @@
         "vite": "^8.0.0"
     },
     "dependencies": {
+        "@digitalpersona/core": "^0.2.6",
+        "@digitalpersona/devices": "^0.2.6",
+        "@digitalpersona/services": "^0.2.8",
+        "@digitalpersona/websdk": "^1.1.0",
         "@popperjs/core": "^2.11.8",
         "@tabler/core": "^1.4.0",
         "@tabler/icons-webfont": "^3.44.0",

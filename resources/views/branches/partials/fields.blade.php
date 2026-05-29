@@ -1,8 +1,8 @@
 <div class="row g-3">
     <div class="col-md-12">
-        <label class="form-label" for="modal-branch-company">Empresa</label>
+        <label class="form-label" for="modal-branch-company">Liga deportiva</label>
         <select class="form-select" id="modal-branch-company" name="company_id" @disabled(auth()->user()?->company_id)>
-            <option value="">Sin empresa</option>
+            <option value="">Sin liga deportiva</option>
             @foreach ($companies as $company)
                 <option value="{{ $company->id }}" @selected((int) old('company_id', $branch->company_id ?? auth()->user()?->company_id ?? 0) === $company->id)>
                     {{ $company->name }}

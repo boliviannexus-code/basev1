@@ -1,11 +1,10 @@
 @extends('layouts.admin')
 
-@section('title', 'Editar categoria | Inventario POS')
+@section('title', 'Editar categoria | '.config('app.name', 'Base Admin'))
 @section('page-title', 'Editar categoria')
-@section('page-subtitle', 'Actualizacion de datos del catalogo')
 
 @section('content')
-    <x-ui.form-panel :action="route('categories.update', $category)" method="PUT">
-        @include('categories._form')
+    <x-ui.form-panel title="Datos de la categoria">
+        @include('categories.partials.edit-form')
     </x-ui.form-panel>
 @endsection

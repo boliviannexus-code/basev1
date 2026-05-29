@@ -1,4 +1,17 @@
 @php
+    $organizationOpen = request()->routeIs('companies.*', 'seasons.*', 'divisions.*', 'teams.*', 'players.*', 'categories.*');
+    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'player-habilitations.*');
+    $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'biometric.*');
+
+    $canOrganization = auth()->user()?->can('companies.view')
+        || auth()->user()?->can('seasons.view')
+        || auth()->user()?->can('divisions.view')
+        || auth()->user()?->can('teams.view')
+        || auth()->user()?->can('players.view')
+        || auth()->user()?->can('categories.view');
+    $canTournament = auth()->user()?->can('tournaments.view')
+        || auth()->user()?->can('tournament-registrations.view')
+        || auth()->user()?->can('player-habilitations.view');
     $organizationOpen = request()->routeIs('companies.*', 'tours.*', 'bookings.*');
     $catalogOpen = request()->routeIs('categories.*', 'guide-types.*', 'transport-types.*', 'activity-types.*', 'website-settings.*');
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*');
@@ -13,6 +26,7 @@
         || auth()->user()?->can('activity_types.view')
         || auth()->user()?->can('website.manage');
     $canAdmin = auth()->user()?->can('users.view')
+        || auth()->user()?->can('fingerprint-templates.view')
         || auth()->user()?->can('roles.view')
         || auth()->user()?->can('permissions.view')
         || auth()->user()?->can('audits.view');
@@ -41,11 +55,18 @@
                     </a>
                 </li>
 
+                <li class="nav-item {{ request()->routeIs('biometric.*') ? 'active' : '' }}">
+                    <a class="nav-link" href="{{ route('biometric.test') }}">
+                        <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-fingerprint-scan"></i></span>
+                        <span class="nav-link-title">Prueba biometrica</span>
+                    </a>
+                </li>
+
                 @if ($canOrganization)
                     <li class="nav-item app-menu-section {{ $organizationOpen ? 'active' : '' }}">
                         <button class="nav-link app-menu-toggle {{ $organizationOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-organization" aria-expanded="{{ $organizationOpen ? 'true' : 'false' }}" aria-controls="menu-organization">
                             <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-building-store"></i></span>
-                            <span class="nav-link-title">Organizacion</span>
+                            <span class="nav-link-title">Ligas</span>
                             <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
                         </button>
                         <div class="collapse {{ $organizationOpen ? 'show' : '' }}" id="menu-organization">
@@ -54,7 +75,85 @@
                                     <li class="nav-item {{ request()->routeIs('companies.*') ? 'active' : '' }}">
                                         <a class="nav-link" href="{{ route('companies.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-building"></i></span>
-                                            <span class="nav-link-title">Empresas</span>
+                                            <span class="nav-link-title">Ligas deportivas</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('seasons.view')
+                                    <li class="nav-item {{ request()->routeIs('seasons.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('seasons.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-calendar"></i></span>
+                                            <span class="nav-link-title">Gestiones</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('divisions.view')
+                                    <li class="nav-item {{ request()->routeIs('divisions.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('divisions.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-layers-intersect"></i></span>
+                                            <span class="nav-link-title">Divisiones</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('teams.view')
+                                    <li class="nav-item {{ request()->routeIs('teams.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('teams.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-shield-star"></i></span>
+                                            <span class="nav-link-title">Equipos</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('players.view')
+                                    <li class="nav-item {{ request()->routeIs('players.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('players.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-user-star"></i></span>
+                                            <span class="nav-link-title">Jugadores</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('categories.view')
+                                    <li class="nav-item {{ request()->routeIs('categories.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('categories.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-tags"></i></span>
+                                            <span class="nav-link-title">Categorias</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                            </ul>
+                        </div>
+                    </li>
+                @endif
+
+                @if ($canTournament)
+                    <li class="nav-item app-menu-section {{ $tournamentOpen ? 'active' : '' }}">
+                        <button class="nav-link app-menu-toggle {{ $tournamentOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-tournament" aria-expanded="{{ $tournamentOpen ? 'true' : 'false' }}" aria-controls="menu-tournament">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-trophy"></i></span>
+                            <span class="nav-link-title">Torneo</span>
+                            <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
+                        </button>
+                        <div class="collapse {{ $tournamentOpen ? 'show' : '' }}" id="menu-tournament">
+                            <ul class="nav app-submenu">
+                                @can('tournaments.view')
+                                    <li class="nav-item {{ request()->routeIs('tournaments.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('tournaments.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-trophy"></i></span>
+                                            <span class="nav-link-title">Torneos</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('tournament-registrations.view')
+                                    <li class="nav-item {{ request()->routeIs('tournament-registrations.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('tournament-registrations.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-clipboard-list"></i></span>
+                                            <span class="nav-link-title">Inscripciones</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('player-habilitations.view')
+                                    <li class="nav-item {{ request()->routeIs('player-habilitations.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('player-habilitations.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-user-check"></i></span>
+                                            <span class="nav-link-title">Habilitaciones</span>
                                         </a>
                                     </li>
                                 @endcan
@@ -155,6 +254,15 @@
                                         <a class="nav-link" href="{{ route('users.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-users"></i></span>
                                             <span class="nav-link-title">Usuarios</span>
+                                        </a>
+                                    </li>
+                                @endcan
+
+                                @can('fingerprint-templates.view')
+                                    <li class="nav-item {{ request()->routeIs('fingerprint-templates.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('fingerprint-templates.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-fingerprint"></i></span>
+                                            <span class="nav-link-title">Huellas</span>
                                         </a>
                                     </li>
                                 @endcan

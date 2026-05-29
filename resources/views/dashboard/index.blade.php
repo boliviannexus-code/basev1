@@ -39,7 +39,7 @@
             <div class="dashboard-stat-note">Control de acceso listo</div>
         </div>
         <div class="col-sm-6 col-xl-3">
-            <x-ui.stat-card label="Empresas" :value="$totalCompanies" icon="ti ti-building" tone="info" />
+            <x-ui.stat-card label="Ligas deportivas" :value="$totalCompanies" icon="ti ti-building" tone="info" />
             <div class="dashboard-stat-note">Contexto organizacional</div>
         </div>
     </div>

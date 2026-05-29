@@ -10,8 +10,8 @@
 
         <div class="navbar-brand d-none-navbar-horizontal pe-0 pe-md-3">
             <div class="d-flex align-items-center gap-3">
-                @if ($navbarCompany?->logo_url)
-                    <span class="avatar avatar-md" style="background-image: url('{{ $navbarCompany->logo_url }}')"></span>
+                @if ($navbarCompany?->logo_display_url)
+                    <span class="avatar avatar-md" style="background-image: url('{{ $navbarCompany->logo_display_url }}')"></span>
                 @else
                     <span class="avatar avatar-md bg-primary-lt text-primary">
                         <i class="ti ti-building-store fs-2"></i>

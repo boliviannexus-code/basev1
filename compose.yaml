@@ -22,6 +22,19 @@ services:
         networks:
             - sail
         depends_on:
+            - biometric-engine
+            - legacy_mysql
+            - pgsql
+            - redis
+            - mailpit
+    biometric-engine:
+        build:
+            context: ./biometric-engine
+            dockerfile: Dockerfile
+        ports:
+            - '${BIOMETRIC_ENGINE_PORT:-8001}:8001'
+        networks:
+            - sail
             - pgsql
             - redis
             - mailpit
@@ -48,6 +61,27 @@ services:
                 - '${DB_DATABASE}'
                 - '-U'
                 - '${DB_USERNAME}'
+            retries: 3
+            timeout: 5s
+    legacy_mysql:
+        image: 'mariadb:11'
+        ports:
+            - '${FORWARD_LEGACY_DB_PORT:-3307}:3306'
+        environment:
+            MYSQL_ROOT_PASSWORD: '${LEGACY_DB_ROOT_PASSWORD:-root}'
+            MYSQL_DATABASE: '${LEGACY_DB_DATABASE:-nexucjns_mejillones}'
+            MYSQL_USER: '${LEGACY_DB_USERNAME:-legacy}'
+            MYSQL_PASSWORD: '${LEGACY_DB_PASSWORD:-legacy}'
+        volumes:
+            - 'sail-legacy-mysql:/var/lib/mysql'
+        networks:
+            - sail
+        healthcheck:
+            test:
+                - CMD
+                - healthcheck.sh
+                - '--connect'
+                - '--innodb_initialized'
             retries: 3
             timeout: 5s
     redis:
@@ -79,4 +113,6 @@ volumes:
     sail-pgsql:
         driver: local
     sail-redis:
+        driver: local
+    sail-legacy-mysql:
         driver: local
