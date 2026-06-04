@@ -45,8 +45,10 @@
                         <td class="text-end">
                             <a class="btn btn-outline-secondary btn-sm" href="{{ route('tours.show', $tour) }}" data-modal-url="{{ route('tours.show', $tour) }}" data-modal-title="Detalle de tour">Ver</a>
                             @can('tours.edit')
-                                @if ($tour->review_status !== \App\Models\Tour::REVIEW_APPROVED)
+                                @if (in_array($tour->review_status, [\App\Models\Tour::REVIEW_DRAFT, \App\Models\Tour::REVIEW_REJECTED], true))
                                     <a class="btn btn-outline-primary btn-sm" href="{{ route('tours.edit', $tour) }}">{{ $tour->status === \App\Models\Tour::STATUS_DRAFT ? 'Continuar borrador' : 'Editar tour' }}</a>
+                                @elseif ($tour->review_status === \App\Models\Tour::REVIEW_APPROVED)
+                                    <a class="btn btn-outline-primary btn-sm" href="{{ route('tours.wizard.edit', [$tour, 'step' => 4]) }}">Editar permitido</a>
                                 @endif
                             @endcan
                             @can('tours.pricing')

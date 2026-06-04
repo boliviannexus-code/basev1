@@ -70,7 +70,7 @@ class TourAvailabilityService
 
         $payload = [
             'status' => $data['status'],
-            'capacity' => $data['capacity'] ?? null,
+            'capacity' => $this->normalizeCapacity($tour, $data['capacity'] ?? null),
         ];
 
         if (array_key_exists('restrictions', $data)) {
@@ -117,7 +117,9 @@ class TourAvailabilityService
 
                 foreach (['status', 'capacity', 'restrictions'] as $field) {
                     if (array_key_exists($field, $data)) {
-                        $payload[$field] = $data[$field];
+                        $payload[$field] = $field === 'capacity'
+                            ? $this->normalizeCapacity($tour, $data[$field])
+                            : $data[$field];
                     }
                 }
 
@@ -195,11 +197,31 @@ class TourAvailabilityService
             'date' => $date->toDateString(),
             'status' => $availability?->status ?? TourAvailability::STATUS_CLOSED,
             'status_label' => $availability?->status_label ?? TourAvailability::STATUSES[TourAvailability::STATUS_CLOSED],
-            'capacity' => $availability?->capacity,
+            'capacity' => $this->effectiveCapacity($tour, $availability),
+            'uses_default_capacity' => $availability === null || $availability->capacity === null,
             'booked_count' => $availability?->booked_count ?? 0,
             'restrictions' => $availability?->restrictions,
             'prices' => $prices->all(),
         ];
+    }
+
+    private function effectiveCapacity(Tour $tour, ?TourAvailability $availability): ?int
+    {
+        return $availability?->capacity ?? $tour->capacity;
+    }
+
+    private function normalizeCapacity(Tour $tour, mixed $capacity): ?int
+    {
+        $capacity = $capacity === '' ? null : $capacity;
+        $capacity = $capacity === null ? $tour->capacity : (int) $capacity;
+
+        if ($tour->capacity !== null && $capacity !== null && $capacity > $tour->capacity) {
+            throw ValidationException::withMessages([
+                'capacity' => 'El cupo del dia no puede superar el cupo maximo registrado para el tour.',
+            ]);
+        }
+
+        return $capacity;
     }
 
     private function pricePayload(TourPrice $price): array

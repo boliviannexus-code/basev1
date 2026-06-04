@@ -24,6 +24,7 @@ class TourAvailabilityRepository
             ],
             [
                 'status' => TourAvailability::STATUS_CLOSED,
+                'capacity' => $tour->capacity,
                 'booked_count' => 0,
             ],
         );

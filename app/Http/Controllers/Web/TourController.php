@@ -67,7 +67,12 @@ class TourController extends Controller
     public function edit(Request $request, Tour $tour): RedirectResponse
     {
         abort_unless($request->user()?->can('tours.edit') && $this->tours->userCanAccess($tour), 403);
-        $this->abortIfApproved($tour);
+
+        if ($tour->review_status === Tour::REVIEW_APPROVED) {
+            return redirect()->route('tours.wizard.edit', [$tour, 'step' => Tour::APPROVED_EDITABLE_STEPS[0]]);
+        }
+
+        $this->abortIfNotEditable($tour);
 
         return redirect()->route('tours.wizard.edit', [$tour, 'step' => $tour->current_step ?: 1]);
     }
@@ -75,9 +80,9 @@ class TourController extends Controller
     public function editWizard(Request $request, Tour $tour): View
     {
         abort_unless($request->user()?->can('tours.edit') && $this->tours->userCanAccess($tour), 403);
-        $this->abortIfApproved($tour);
 
         $step = max(1, min((int) $request->integer('step', $tour->current_step ?: 1), Tour::TOTAL_STEPS));
+        $this->abortIfStepIsNotEditable($tour, $step);
         $tour->load(['company', 'category', 'guideType', 'transportType', 'images', 'itineraryDays.stops.activityType']);
 
         return view('tours.wizard', $this->wizardData($tour, $step));
@@ -91,13 +96,22 @@ class TourController extends Controller
     public function updateStep(UpdateTourRequest $request, Tour $tour, int $step): RedirectResponse
     {
         abort_unless($request->user()?->can('tours.edit') && $this->tours->userCanAccess($tour), 403);
-        $this->abortIfApproved($tour);
+        $this->abortIfStepIsNotEditable($tour, $step);
+        $wasApproved = $tour->review_status === Tour::REVIEW_APPROVED;
 
         if ($step === 8 && $request->hasFile('images')) {
             $this->tours->storeImages($tour, $request->file('images', []));
         }
 
         $tour = $this->tours->updateStep($tour, $step, $request->validated());
+
+        if ($wasApproved) {
+            $this->tours->submitApprovedChangesForReview($tour);
+
+            return redirect()
+                ->route('tours.index')
+                ->with('success', 'Cambios guardados y enviados a revision.');
+        }
 
         if ($request->input('action') === 'finalize') {
             try {
@@ -126,7 +140,8 @@ class TourController extends Controller
     public function finalize(Request $request, Tour $tour): RedirectResponse
     {
         abort_unless($request->user()?->can('tours.edit') && $this->tours->userCanAccess($tour), 403);
-        $this->abortIfApproved($tour);
+        $this->abortIfNotEditable($tour);
+        abort_if($tour->review_status === Tour::REVIEW_APPROVED, 403, 'Usa la edicion limitada para enviar cambios de un tour aprobado a revision.');
 
         try {
             $this->tours->finalize($tour->load('images'));
@@ -205,8 +220,15 @@ class TourController extends Controller
     {
         abort_unless($request->user()?->can('tours.edit') && $this->tours->userCanAccess($tour), 403);
 
+        $wasApproved = $tour->review_status === Tour::REVIEW_APPROVED;
         $validated = $request->validate($this->tours->rulesForStep(8, $tour));
         $this->tours->storeImages($tour, $validated['images'] ?? []);
+
+        if ($wasApproved) {
+            $this->tours->submitApprovedChangesForReview($tour);
+
+            return redirect()->route('tours.index')->with('success', 'Imagenes guardadas y enviadas a revision.');
+        }
 
         return back()->with('success', 'Imagenes guardadas correctamente.');
     }
@@ -215,7 +237,14 @@ class TourController extends Controller
     {
         abort_unless($request->user()?->can('tours.edit') && $this->tours->userCanAccess($tour) && (int) $image->tour_id === (int) $tour->id, 403);
 
+        $wasApproved = $tour->review_status === Tour::REVIEW_APPROVED;
         $this->tours->deleteImage($image);
+
+        if ($wasApproved) {
+            $this->tours->submitApprovedChangesForReview($tour);
+
+            return redirect()->route('tours.index')->with('success', 'Imagen eliminada y enviada a revision.');
+        }
 
         return back()->with('success', 'Imagen eliminada correctamente.');
     }
@@ -224,7 +253,14 @@ class TourController extends Controller
     {
         abort_unless($request->user()?->can('tours.edit') && $this->tours->userCanAccess($tour) && (int) $image->tour_id === (int) $tour->id, 403);
 
+        $wasApproved = $tour->review_status === Tour::REVIEW_APPROVED;
         $this->tours->setMainImage($image);
+
+        if ($wasApproved) {
+            $this->tours->submitApprovedChangesForReview($tour);
+
+            return redirect()->route('tours.index')->with('success', 'Imagen principal actualizada y enviada a revision.');
+        }
 
         return back()->with('success', 'Imagen principal actualizada.');
     }
@@ -252,8 +288,17 @@ class TourController extends Controller
         ];
     }
 
-    private function abortIfApproved(Tour $tour): void
+    private function abortIfNotEditable(Tour $tour): void
     {
-        abort_if($tour->review_status === Tour::REVIEW_APPROVED, 403, 'El tour aprobado no puede modificarse.');
+        abort_if($tour->review_status === Tour::REVIEW_PENDING, 403, 'El tour en revision no puede modificarse.');
+    }
+
+    private function abortIfStepIsNotEditable(Tour $tour, int $step): void
+    {
+        $this->abortIfNotEditable($tour);
+
+        if ($tour->review_status === Tour::REVIEW_APPROVED) {
+            abort_unless(in_array($step, Tour::APPROVED_EDITABLE_STEPS, true), 403, 'Solo puedes modificar palabras clave, imagenes y operacion en un tour aprobado.');
+        }
     }
 }

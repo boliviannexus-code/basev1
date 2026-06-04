@@ -6,7 +6,7 @@
 <section class="market-header">
     <div class="container-xl">
         <h1>Encuentra tu proxima experiencia</h1>
-        <p>Filtra por destino, fecha, presupuesto y estilo de guia.</p>
+        <p>Filtra por destino, rango de fechas, presupuesto y estilo de guia.</p>
     </div>
 </section>
 
@@ -19,8 +19,11 @@
                 <input type="hidden" name="destination" value="{{ $filters['destination'] ?? '' }}" data-location-city-value>
                 <input class="form-control mb-3" id="destination" value="{{ $filters['destination'] ?? '' }}" placeholder="Ciudad o destino" data-location-city data-location-search-url="{{ route('locations.search') }}">
 
-                <label class="form-label" for="date">Fecha</label>
-                <input class="form-control mb-3" id="date" name="date" type="date" value="{{ $filters['date'] ?? '' }}">
+                <label class="form-label" for="start_date">Fecha inicio</label>
+                <input class="form-control mb-3" id="start_date" name="start_date" type="date" value="{{ $filters['start_date'] ?? ($filters['date'] ?? '') }}">
+
+                <label class="form-label" for="end_date">Fecha fin</label>
+                <input class="form-control mb-3" id="end_date" name="end_date" type="date" value="{{ $filters['end_date'] ?? '' }}">
 
                 <label class="form-label" for="people">Personas</label>
                 <input class="form-control mb-3" id="people" name="people" type="number" min="1" value="{{ $filters['people'] ?? '' }}">

@@ -121,7 +121,7 @@ body {
 
 .hero-search {
     display: grid;
-    grid-template-columns: minmax(14rem, 1.4fr) minmax(10rem, 1fr) minmax(8rem, .8fr) auto;
+    grid-template-columns: minmax(14rem, 1.4fr) minmax(9rem, .9fr) minmax(9rem, .9fr) minmax(8rem, .75fr) auto;
     gap: .8rem;
     max-width: 980px;
     padding: .8rem;

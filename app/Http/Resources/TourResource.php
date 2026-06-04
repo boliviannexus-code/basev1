@@ -38,6 +38,8 @@ class TourResource extends JsonResource
             'price_from_usd' => $minPrice === null ? null : (float) $minPrice,
             'rating' => isset($this->reviews_avg_rating) ? round((float) $this->reviews_avg_rating, 1) : null,
             'reviews_count' => $this->reviews_count ?? 0,
+            'minimum_capacity' => $this->minimum_capacity,
+            'capacity' => $this->capacity,
             'availability' => TourAvailabilityResource::collection($this->whenLoaded('availabilities')),
             'includes' => $this->includes ?: $this->included,
             'excludes' => $this->excludes ?: $this->not_included,

@@ -1,0 +1,19 @@
+.git
+.github
+.vscode
+.env
+.env.*
+!.env.example
+.env copy
+node_modules
+vendor
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+bootstrap/cache/*
+npm-debug.log
+yarn-error.log
+.phpunit.result.cache
+coverage
+public/build

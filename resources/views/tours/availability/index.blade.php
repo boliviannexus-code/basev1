@@ -86,7 +86,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-2"><label class="form-label">Cupos</label><input class="form-control form-control-sm" name="capacity" type="number" min="0" placeholder="Sin cambiar"></div>
+                    <div class="col-md-2"><label class="form-label">Cupo maximo</label><input class="form-control form-control-sm" name="capacity" type="number" min="0" placeholder="Maximo del tour"></div>
                     <div class="col-md-2"><label class="form-label">Precio USD</label><input class="form-control form-control-sm" name="price_usd" type="number" min="0" step="0.01" placeholder="Todos los rangos"></div>
                     <div class="col-md-2"><button class="btn btn-success btn-sm w-100" type="submit">Aplicar</button></div>
                     <div class="col-12">
@@ -128,7 +128,7 @@
                 </select>
             </div>
             <div class="mb-2">
-                <label class="form-label">Cupos</label>
+                <label class="form-label">Cupo maximo</label>
                 <input class="form-control" name="capacity" type="number" min="0">
             </div>
             <div class="mb-3" data-popover-prices></div>
@@ -200,7 +200,7 @@
                     </div>`;
                 const statusRow = row(tour, 'Estado', (day, date) => `<button class="availability-status ${statusClass(day.status)}" type="button" data-edit-day data-tour-id="${tour.id}" data-date="${date.date}" ${disabledAttr}>${statusLabel(day.status)}</button>`);
                 const bookingsRow = row(tour, 'Reservas', (day) => `<div class="availability-bookings">${day.booked_count || 0}</div>`);
-                const capacityRow = row(tour, 'Cupos', (day, date) => `<input class="form-control availability-input" type="number" min="0" value="${day.capacity ?? ''}" data-quick-capacity data-tour-id="${tour.id}" data-date="${date.date}" placeholder="-" ${disabledAttr}>`);
+                const capacityRow = row(tour, 'Cupo maximo', (day, date) => `<input class="form-control availability-input" type="number" min="0" value="${day.capacity ?? ''}" data-quick-capacity data-tour-id="${tour.id}" data-date="${date.date}" placeholder="Max." ${disabledAttr}>`);
                 const priceRows = (tour.prices.length ? tour.prices : [{ tour_price_id: '', title: '', min_people: 1, max_people: null, price_usd: 0 }]).map((price) => row(tour, priceLabel(price), (day, date) => {
                     const dayPrice = (day.prices || []).find((item) => String(item.tour_price_id || '') === String(price.tour_price_id || '')) || price;
                     const special = Number(dayPrice.price_usd) !== Number(price.price_usd);

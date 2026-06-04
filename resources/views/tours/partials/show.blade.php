@@ -20,7 +20,10 @@
     <dt class="col-sm-3">Tipo de actividad</dt>
     <dd class="col-sm-9">{{ ['private' => 'Privada', 'shared' => 'Compartida'][$tour->activity_type] ?? '-' }}</dd>
 
-    <dt class="col-sm-3">Cupos</dt>
+    <dt class="col-sm-3">Cupo minimo</dt>
+    <dd class="col-sm-9">{{ $tour->minimum_capacity ?: '-' }}</dd>
+
+    <dt class="col-sm-3">Cupo maximo</dt>
     <dd class="col-sm-9">{{ $tour->capacity ?: '-' }}</dd>
 
     <dt class="col-sm-3">Limite de reserva</dt>

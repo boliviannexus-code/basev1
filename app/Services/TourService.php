@@ -12,11 +12,17 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Spatie\Image\Image;
 
 class TourService
 {
+    private const TOUR_IMAGE_MAX_WIDTH = 1600;
+
+    private const TOUR_IMAGE_WEBP_QUALITY = 78;
+
     public function __construct(
         private readonly TourRepository $tours
     ) {}
@@ -147,6 +153,16 @@ class TourService
         ]);
     }
 
+    public function submitApprovedChangesForReview(Tour $tour): Tour
+    {
+        return $this->tours->update($tour, [
+            'status' => Tour::STATUS_DRAFT,
+            'review_status' => Tour::REVIEW_PENDING,
+            'reviewed_by' => null,
+            'reviewed_at' => null,
+        ]);
+    }
+
     public function toggleOperationalStatus(Tour $tour): Tour
     {
         if ($tour->review_status !== Tour::REVIEW_APPROVED) {
@@ -210,7 +226,7 @@ class TourService
                 continue;
             }
 
-            $path = $image->store('tours/'.$tour->id, 'public');
+            $path = $this->storeOptimizedTourImage($tour, $image);
             $isFirst = $this->tours->imagesCount($tour) === 0;
 
             $this->tours->createImage($tour, [
@@ -220,6 +236,42 @@ class TourService
                 'sort_order' => $this->tours->imagesCount($tour) + 1,
             ]);
         }
+    }
+
+    private function storeOptimizedTourImage(Tour $tour, UploadedFile $image): string
+    {
+        if (! extension_loaded('gd') && ! class_exists(\Imagick::class)) {
+            throw ValidationException::withMessages([
+                'images' => 'No se pudo optimizar la imagen. Activa GD o Imagick en PHP para convertir imagenes a WebP.',
+            ]);
+        }
+
+        $directory = 'tours/'.$tour->id;
+        $path = $directory.'/'.Str::uuid()->toString().'.webp';
+        $absolutePath = Storage::disk('public')->path($path);
+
+        Storage::disk('public')->makeDirectory($directory);
+
+        try {
+            $optimized = Image::load((string) $image->getRealPath());
+
+            if ($optimized->getWidth() > self::TOUR_IMAGE_MAX_WIDTH) {
+                $optimized->width(self::TOUR_IMAGE_MAX_WIDTH);
+            }
+
+            $optimized
+                ->format('webp')
+                ->quality(self::TOUR_IMAGE_WEBP_QUALITY)
+                ->save($absolutePath);
+        } catch (\Throwable $exception) {
+            Storage::disk('public')->delete($path);
+
+            throw ValidationException::withMessages([
+                'images' => 'No se pudo convertir la imagen '.$image->getClientOriginalName().' a WebP.',
+            ]);
+        }
+
+        return $path;
     }
 
     public function deleteImage(TourImage $image): void
@@ -302,20 +354,23 @@ class TourService
             ],
             8 => $final ? [] : [
                 'images' => [$final ? 'nullable' : 'nullable', 'array'],
-                'images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+                'images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
+                // 'images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             ],
             9 => $final ? [
                 'activity_type' => ['required', 'string', Rule::in(['private', 'shared'])],
                 'meeting_point' => ['required', 'string', 'max:255'],
                 'booking_deadline_value' => ['required', 'integer', 'min:1', 'max:720'],
                 'booking_deadline_unit' => ['required', 'string', Rule::in(['hours', 'days'])],
-                'capacity' => ['required', 'integer', 'min:1', 'max:99999'],
+                'minimum_capacity' => ['required', 'integer', 'min:1', 'max:99999', 'lte:capacity'],
+                'capacity' => ['required', 'integer', 'min:1', 'max:99999', 'gte:minimum_capacity'],
             ] : [
                 'activity_type' => ['required', 'string', Rule::in(['private', 'shared'])],
                 'meeting_point' => ['required', 'string', 'max:255'],
                 'booking_deadline_value' => ['required', 'integer', 'min:1', 'max:720'],
                 'booking_deadline_unit' => ['required', 'string', Rule::in(['hours', 'days'])],
-                'capacity' => ['required', 'integer', 'min:1', 'max:99999'],
+                'minimum_capacity' => ['required', 'integer', 'min:1', 'max:99999', 'lte:capacity'],
+                'capacity' => ['required', 'integer', 'min:1', 'max:99999', 'gte:minimum_capacity'],
             ],
             10 => [
                 'itinerary_days' => ['required', 'array', 'min:1', 'max:30'],
@@ -490,7 +545,8 @@ class TourService
             'meeting_point' => 'punto de recogida',
             'booking_deadline_value' => 'tiempo limite de reserva',
             'booking_deadline_unit' => 'unidad del tiempo limite',
-            'capacity' => 'cantidad de cupos',
+            'minimum_capacity' => 'cupo minimo para iniciar',
+            'capacity' => 'cupo maximo',
             'itinerary_days' => 'itinerario',
             'itinerary_days.*.title' => 'titulo del dia',
             'itinerary_days.*.stops' => 'paradas del dia',

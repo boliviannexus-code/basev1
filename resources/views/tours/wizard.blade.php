@@ -4,6 +4,8 @@
     $isNew = $tour === null;
     $currentStep = $step ?? 1;
     $savedStep = $tour?->current_step ?? 1;
+    $isApprovedLimitedEdit = $tour?->review_status === \App\Models\Tour::REVIEW_APPROVED;
+    $approvedEditableSteps = \App\Models\Tour::APPROVED_EDITABLE_STEPS;
     $progress = (int) round(($currentStep / count($steps)) * 100);
     $keywordsValue = old('keywords', implode(',', $tour?->keywords ?? []));
     $itineraryDays = old('itinerary_days');
@@ -54,9 +56,14 @@
         .tour-wizard-card { border-radius: 8px; }
         .keyword-chip { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid var(--tblr-border-color); border-radius: 999px; padding: .35rem .65rem; background: var(--tblr-bg-surface); }
         .keyword-chip button { border: 0; background: transparent; color: var(--tblr-secondary); padding: 0; line-height: 1; }
+        .tour-upload-panel { border: 1px dashed var(--tblr-border-color); border-radius: 8px; padding: 1rem; background: var(--tblr-bg-surface-secondary, var(--tblr-bg-surface)); }
+        .tour-upload-panel .form-control { background: var(--tblr-bg-surface); }
         .tour-image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .75rem; }
         .tour-image-card { border: 1px solid var(--tblr-border-color); border-radius: 8px; overflow: hidden; background: var(--tblr-bg-surface); }
         .tour-image-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+        .tour-image-card-body { display: grid; gap: .5rem; padding: .6rem; }
+        .tour-image-meta { min-width: 0; }
+        .tour-image-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .tour-rejection-alert { border: 2px solid var(--tblr-danger); background: rgba(var(--tblr-danger-rgb), .1); color: var(--tblr-danger); }
         .tour-rejection-title { color: var(--tblr-danger); font-size: 1.1rem; font-weight: 800; text-transform: uppercase; }
         .tour-rejection-alert li { font-weight: 700; }
@@ -117,13 +124,18 @@
                 <div class="vstack gap-1">
                     @foreach ($steps as $number => $label)
                         @php
-                            $canJump = ! $isNew && $number <= max($savedStep, $currentStep);
+                            $canJump = $isApprovedLimitedEdit
+                                ? in_array($number, $approvedEditableSteps, true)
+                                : (! $isNew && $number <= max($savedStep, $currentStep));
+                            $stepStatus = $isApprovedLimitedEdit
+                                ? (in_array($number, $approvedEditableSteps, true) ? ($number === $currentStep ? 'Actual' : 'Editable') : 'Bloqueado')
+                                : (! $isNew && $number < $savedStep ? 'Guardado' : ($number === $currentStep ? 'Actual' : 'Pendiente'));
                         @endphp
                         <a class="tour-step-item {{ $number === $currentStep ? 'is-active' : '' }} {{ ! $isNew && $number < $savedStep ? 'is-done' : '' }}" href="{{ $canJump ? route('tours.wizard.edit', [$tour, 'step' => $number]) : '#' }}">
                             <span class="tour-step-number">{{ $number }}</span>
                             <span>
                                 <span class="tour-step-title d-block">{{ $label }}</span>
-                                <span class="tour-step-status">{{ ! $isNew && $number < $savedStep ? 'Guardado' : ($number === $currentStep ? 'Actual' : 'Pendiente') }}</span>
+                                <span class="tour-step-status">{{ $stepStatus }}</span>
                             </span>
                         </a>
                     @endforeach
@@ -135,7 +147,13 @@
             <div class="card-header">
                 <div>
                     <h3 class="card-title mb-1">Paso {{ $currentStep }}: {{ $steps[$currentStep] }}</h3>
-                    <div class="text-body-secondary small">{{ $isNew ? 'Selecciona la categoria para iniciar el borrador.' : 'Puedes guardar y continuar luego desde este punto.' }}</div>
+                    <div class="text-body-secondary small">
+                        @if ($isApprovedLimitedEdit)
+                            Solo puedes modificar palabras clave, imagenes y operacion. Al guardar, el tour pasara a revision.
+                        @else
+                            {{ $isNew ? 'Selecciona la categoria para iniciar el borrador.' : 'Puedes guardar y continuar luego desde este punto.' }}
+                        @endif
+                    </div>
                 </div>
                 @if ($tour)
                     <span class="badge text-bg-{{ $tour->status === \App\Models\Tour::STATUS_DRAFT ? 'warning' : 'success' }}">{{ $tour->status_label }}</span>
@@ -293,11 +311,21 @@
                             <div class="col-md-6"><label class="form-label" for="tour-emergency-phone">Numero de emergencia</label><input class="form-control @error('emergency_phone') is-invalid @enderror" id="tour-emergency-phone" name="emergency_phone" value="{{ old('emergency_phone', $tour->emergency_phone) }}">@error('emergency_phone')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
                         </div>
                     @elseif ($currentStep === 8)
-                        <label class="form-label" for="tour-images">Imagenes del tour</label>
-                        <input class="form-control @error('images') is-invalid @enderror" id="tour-images" name="images[]" type="file" multiple accept="image/jpeg,image/png,image/webp" data-image-preview-input>
-                        <div class="form-hint mb-3">JPG, JPEG, PNG o WebP. Minimo 5 imagenes para finalizar.</div>
+                        <div class="tour-upload-panel mb-3">
+                            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                                <div>
+                                    <label class="form-label mb-1" for="tour-images">Imagenes del tour</label>
+                                    <div class="text-body-secondary small">JPG, JPEG, PNG o WebP. Maximo 8 MB por imagen. Minimo 5 imagenes para finalizar.</div>
+                                </div>
+                                <span class="badge text-bg-secondary" data-image-preview-count>0 seleccionadas</span>
+                            </div>
+                            <input class="form-control @error('images') is-invalid @enderror @error('images.*') is-invalid @enderror" id="tour-images" name="images[]" type="file" multiple accept="image/jpeg,image/png,image/webp" data-image-preview-input data-max-size="8388608">
+                            {{-- <input class="form-control @error('images') is-invalid @enderror @error('images.*') is-invalid @enderror" id="tour-images" name="images[]" type="file" multiple accept="image/jpeg,image/png,image/webp" data-image-preview-input data-max-size="4194304"> --}}
+                            <div class="text-danger small mt-2 d-none" data-image-preview-errors></div>
+                        </div>
                         <div class="tour-image-grid mb-3" data-image-preview></div>
                         @error('images')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
+                        @error('images.*')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
                         @if ($tour->images->isNotEmpty())
                             <div class="tour-image-grid">
                                 @foreach ($tour->images as $image)
@@ -327,8 +355,13 @@
                                 </select>
                                 @error('activity_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label" for="tour-capacity">Cantidad de cupos</label>
+                            <div class="col-md-3">
+                                <label class="form-label" for="tour-minimum-capacity">Cupo minimo para iniciar</label>
+                                <input class="form-control @error('minimum_capacity') is-invalid @enderror" id="tour-minimum-capacity" name="minimum_capacity" type="number" min="1" max="99999" value="{{ old('minimum_capacity', $tour->minimum_capacity) }}">
+                                @error('minimum_capacity')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="tour-capacity">Cupo maximo</label>
                                 <input class="form-control @error('capacity') is-invalid @enderror" id="tour-capacity" name="capacity" type="number" min="1" max="99999" value="{{ old('capacity', $tour->capacity) }}">
                                 @error('capacity')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
@@ -436,16 +469,18 @@
                 <div class="card-footer d-flex flex-wrap justify-content-between gap-2">
                     <a class="btn btn-outline-secondary" href="{{ route('tours.index') }}">Salir</a>
                     <div class="d-flex flex-wrap gap-2">
-                        @if (! $isNew && $currentStep > 1)
+                        @if (! $isNew && ! $isApprovedLimitedEdit && $currentStep > 1)
                             <a class="btn btn-outline-secondary" href="{{ route('tours.wizard.edit', [$tour, 'step' => $currentStep - 1]) }}">Anterior</a>
                         @endif
-                        @if (! $isNew)
+                        @if ($isApprovedLimitedEdit)
+                            <button class="btn btn-primary" type="submit" name="action" value="submit_review">Guardar y enviar a revision</button>
+                        @elseif (! $isNew)
                             <button class="btn btn-outline-primary" type="submit" name="action" value="draft">Guardar borrador</button>
-                        @endif
-                        @if ($currentStep < \App\Models\Tour::TOTAL_STEPS)
-                            <button class="btn btn-primary" type="submit" name="action" value="next">{{ $isNew ? 'Iniciar registro' : 'Siguiente' }}</button>
-                        @elseif ($tour)
-                            <button class="btn btn-success" type="submit" name="action" value="finalize">Finalizar</button>
+                            @if ($currentStep < \App\Models\Tour::TOTAL_STEPS)
+                                <button class="btn btn-primary" type="submit" name="action" value="next">{{ $isNew ? 'Iniciar registro' : 'Siguiente' }}</button>
+                            @elseif ($tour)
+                                <button class="btn btn-success" type="submit" name="action" value="finalize">Finalizar</button>
+                            @endif
                         @endif
                     </div>
                 </div>
@@ -671,18 +706,88 @@
                 renumberItinerary();
             }
 
-            document.querySelector('[data-image-preview-input]')?.addEventListener('change', (event) => {
-                const target = document.querySelector('[data-image-preview]');
-                if (!target) return;
-                target.innerHTML = '';
-                Array.from(event.target.files || []).forEach((file) => {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        target.insertAdjacentHTML('beforeend', `<div class="tour-image-card"><img src="${reader.result}" alt="${file.name}"><div class="p-2 small text-truncate">${file.name}</div></div>`);
-                    };
-                    reader.readAsDataURL(file);
+            const imageInput = document.querySelector('[data-image-preview-input]');
+            const imagePreview = document.querySelector('[data-image-preview]');
+            const imageErrors = document.querySelector('[data-image-preview-errors]');
+            const imageCount = document.querySelector('[data-image-preview-count]');
+
+            if (imageInput && imagePreview) {
+                const maxSize = Number(imageInput.dataset.maxSize || 4194304);
+                const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+                let selectedImages = [];
+                let previewUrls = [];
+                const escapeImageHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+                const formatFileSize = (bytes) => {
+                    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+                    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+                };
+                const syncInputFiles = () => {
+                    const transfer = new DataTransfer();
+                    selectedImages.forEach((file) => transfer.items.add(file));
+                    imageInput.files = transfer.files;
+                };
+                const renderSelectedImages = () => {
+                    previewUrls.forEach((url) => URL.revokeObjectURL(url));
+                    previewUrls = [];
+                    imagePreview.innerHTML = selectedImages.map((file, index) => {
+                        const url = URL.createObjectURL(file);
+                        previewUrls.push(url);
+
+                        return `
+                            <div class="tour-image-card">
+                                <img src="${url}" alt="${escapeImageHtml(file.name)}">
+                                <div class="tour-image-card-body">
+                                    <div class="tour-image-meta small">
+                                        <div class="tour-image-name fw-semibold" title="${escapeImageHtml(file.name)}">${escapeImageHtml(file.name)}</div>
+                                        <div class="text-body-secondary">${formatFileSize(file.size)}</div>
+                                    </div>
+                                    <button class="btn btn-outline-danger btn-sm w-100" type="button" data-remove-selected-image="${index}">Eliminar</button>
+                                </div>
+                            </div>`;
+                    }).join('');
+                    if (imageCount) {
+                        imageCount.textContent = selectedImages.length === 1 ? '1 seleccionada' : `${selectedImages.length} seleccionadas`;
+                    }
+                    syncInputFiles();
+                };
+                const showImageErrors = (messages) => {
+                    if (!imageErrors) return;
+                    imageErrors.classList.toggle('d-none', messages.length === 0);
+                    imageErrors.innerHTML = messages.map((message) => `<div>${escapeImageHtml(message)}</div>`).join('');
+                };
+
+                imageInput.addEventListener('change', (event) => {
+                    const messages = [];
+                    const incoming = Array.from(event.target.files || []);
+                    selectedImages = [];
+
+                    incoming.forEach((file) => {
+                        if (!allowedTypes.includes(file.type)) {
+                            messages.push(`${file.name}: formato no permitido.`);
+                            return;
+                        }
+
+                        if (file.size > maxSize) {
+                            messages.push(`${file.name}: pesa ${formatFileSize(file.size)} y el maximo es ${formatFileSize(maxSize)}.`);
+                            return;
+                        }
+
+                        selectedImages.push(file);
+                    });
+
+                    showImageErrors(messages);
+                    renderSelectedImages();
                 });
-            });
+
+                imagePreview.addEventListener('click', (event) => {
+                    const button = event.target.closest('[data-remove-selected-image]');
+                    if (!button) return;
+
+                    selectedImages.splice(Number(button.dataset.removeSelectedImage), 1);
+                    showImageErrors([]);
+                    renderSelectedImages();
+                });
+            }
         });
     </script>
 @endpush

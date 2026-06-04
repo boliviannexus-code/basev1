@@ -93,14 +93,28 @@
         <aside class="booking-box">
             <span class="text-muted">Desde</span>
             <div class="booking-price">{{ $price ? '$'.number_format((float) $price, 2) : 'Consultar' }} <small>por persona</small></div>
+            @if ($tour->minimum_capacity || $tour->capacity)
+                <div class="text-muted mb-3">
+                    @if ($tour->minimum_capacity)
+                        Minimo {{ $tour->minimum_capacity }} para iniciar
+                    @endif
+                    @if ($tour->minimum_capacity && $tour->capacity)
+                        /
+                    @endif
+                    @if ($tour->capacity)
+                        Maximo {{ $tour->capacity }} cupos
+                    @endif
+                </div>
+            @endif
             <form action="{{ route('public.bookings.create', $tour) }}" method="GET">
                 <label class="form-label" for="date">Fecha</label>
                 <select class="form-select mb-3" id="date" name="date" required>
                     @foreach ($tour->availabilities as $availability)
                         <option value="{{ $availability->date->toDateString() }}">
                             {{ $availability->date->translatedFormat('d M Y') }}
-                            @if ($availability->capacity !== null)
-                                - {{ max(0, $availability->capacity - $availability->booked_count) }} cupos
+                            @php($capacity = $availability->capacity ?? $tour->capacity)
+                            @if ($capacity !== null)
+                                - {{ max(0, $capacity - $availability->booked_count) }} cupos
                             @endif
                         </option>
                     @endforeach

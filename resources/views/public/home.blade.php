@@ -17,8 +17,12 @@
                 <input class="form-control" value="{{ $search['destination'] ?? '' }}" placeholder="Uyuni, La Paz, Cusco" data-location-city data-location-search-url="{{ route('locations.search') }}">
             </label>
             <label>
-                <span>Fecha</span>
-                <input class="form-control" name="date" type="date" value="{{ $search['date'] ?? '' }}">
+                <span>Fecha inicio</span>
+                <input class="form-control" name="start_date" type="date" value="{{ $search['start_date'] ?? ($search['date'] ?? '') }}">
+            </label>
+            <label>
+                <span>Fecha fin</span>
+                <input class="form-control" name="end_date" type="date" value="{{ $search['end_date'] ?? '' }}">
             </label>
             <label>
                 <span>Personas</span>

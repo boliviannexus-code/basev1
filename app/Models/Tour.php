@@ -3,11 +3,11 @@
 namespace App\Models;
 
 use App\Models\Concerns\AuditsCompanyChanges;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Builder;
 use OwenIt\Auditing\Contracts\Auditable;
 
 class Tour extends Model implements Auditable
@@ -59,6 +59,8 @@ class Tour extends Model implements Auditable
 
     public const TOTAL_STEPS = 10;
 
+    public const APPROVED_EDITABLE_STEPS = [4, 8, 9];
+
     protected $fillable = [
         'company_id',
         'category_id',
@@ -82,6 +84,7 @@ class Tour extends Model implements Auditable
         'meeting_point',
         'booking_deadline_value',
         'booking_deadline_unit',
+        'minimum_capacity',
         'capacity',
         'included',
         'not_included',
@@ -117,6 +120,7 @@ class Tour extends Model implements Auditable
             'correction_history' => 'array',
             'reviewed_at' => 'datetime',
             'current_step' => 'integer',
+            'minimum_capacity' => 'integer',
             'capacity' => 'integer',
             'start_time' => 'datetime:H:i',
             'end_time' => 'datetime:H:i',

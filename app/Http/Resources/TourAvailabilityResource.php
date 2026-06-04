@@ -9,14 +9,17 @@ class TourAvailabilityResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $capacity = $this->capacity ?? ($this->relationLoaded('tour') ? $this->tour?->capacity : null);
+
         return [
             'id' => $this->id,
             'date' => $this->date?->toDateString(),
             'status' => $this->status,
             'status_label' => $this->status_label,
-            'capacity' => $this->capacity,
+            'capacity' => $capacity,
+            'uses_default_capacity' => $this->capacity === null,
             'booked_count' => $this->booked_count,
-            'available_spots' => $this->capacity === null ? null : max(0, $this->capacity - $this->booked_count),
+            'available_spots' => $capacity === null ? null : max(0, $capacity - $this->booked_count),
             'restrictions' => $this->restrictions,
             'prices' => $this->whenLoaded('prices', fn () => $this->prices->map(fn ($price): array => [
                 'id' => $price->id,

@@ -6,8 +6,8 @@ use App\Models\Tour;
 use App\Models\TourAvailability;
 use App\Models\TourBooking;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -78,7 +78,9 @@ class TourBookingService
             throw ValidationException::withMessages(['travel_date' => 'La fecha seleccionada no esta disponible.']);
         }
 
-        if ($availability->capacity !== null && ($availability->capacity - $availability->booked_count) < $people) {
+        $capacity = $availability->capacity ?? $tour->capacity;
+
+        if ($capacity !== null && ($capacity - $availability->booked_count) < $people) {
             throw ValidationException::withMessages(['people' => 'No hay cupos suficientes para la cantidad seleccionada.']);
         }
     }

@@ -23,13 +23,13 @@ class PublicTourController extends Controller
             'featuredTours' => $this->website->featuredTours()->whenEmpty(fn () => $this->tours->featuredTours()),
             'companies' => $this->website->visibleCompanies(),
             'categories' => $this->tours->categories()->take(8),
-            'search' => $request->only(['destination', 'date', 'people']),
+            'search' => $request->only(['destination', 'date', 'start_date', 'end_date', 'people']),
         ]);
     }
 
     public function index(Request $request): View
     {
-        $filters = $request->only(['destination', 'date', 'people', 'category', 'max_price', 'duration']);
+        $filters = $request->only(['destination', 'date', 'start_date', 'end_date', 'people', 'category', 'max_price', 'duration']);
 
         return view('public.tours.index', [
             'tours' => $this->tours->search($filters),

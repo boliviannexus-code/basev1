@@ -7,6 +7,8 @@ use App\Models\Company;
 use App\Models\Tour;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -76,6 +78,43 @@ class TourItineraryWizardTest extends TestCase
             'position' => 1,
             'title' => 'Visita al centro historico',
             'location_name' => 'Centro',
+        ]);
+    }
+
+    public function test_tour_image_step_rejects_images_over_the_size_limit(): void
+    {
+        Storage::fake('public');
+        Permission::findOrCreate('tours.edit');
+
+        $company = Company::factory()->create();
+        $user = User::factory()->create(['company_id' => $company->id]);
+        $user->givePermissionTo('tours.edit');
+        $user->setRelation('company', $company);
+
+        $tour = Tour::query()->create([
+            'company_id' => $company->id,
+            'name' => 'Tour con imagen pesada',
+            'title' => 'Tour con imagen pesada',
+            'description' => 'Demo',
+            'status' => Tour::STATUS_DRAFT,
+            'review_status' => Tour::REVIEW_DRAFT,
+            'current_step' => 8,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->from(route('tours.wizard.edit', [$tour, 'step' => 8]))
+            ->patch(route('tours.wizard.step', [$tour, 8]), [
+                'action' => 'draft',
+                'images' => [
+                    UploadedFile::fake()->create('imagen-pesada.jpg', 4097, 'image/jpeg'),
+                ],
+            ])
+            ->assertRedirect(route('tours.wizard.edit', [$tour, 'step' => 8]))
+            ->assertSessionHasErrors('images.0');
+
+        $this->assertDatabaseMissing('tour_images', [
+            'tour_id' => $tour->id,
         ]);
     }
 }
