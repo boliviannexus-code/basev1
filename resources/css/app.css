@@ -181,6 +181,406 @@ body {
     box-shadow: var(--tblr-box-shadow-sm);
 }
 
+.occupancy-week-toolbar {
+    display: flex;
+    gap: .75rem;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.occupancy-week-date {
+    width: 10rem;
+}
+
+.occupancy-week-filters {
+    display: grid;
+    grid-template-columns: minmax(8rem, .8fr) minmax(14rem, 1.4fr) minmax(10rem, 1fr) auto;
+    gap: .75rem;
+    align-items: end;
+    margin-bottom: 1rem;
+}
+
+.occupancy-grid-shell {
+    overflow-x: auto;
+    max-height: none;
+}
+
+.occupancy-grid {
+    width: 100%;
+    min-width: 58rem;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.occupancy-grid th,
+.occupancy-grid td {
+    border-right: 1px solid var(--tblr-border-color);
+    border-bottom: 1px solid var(--tblr-border-color);
+}
+
+.occupancy-grid th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    padding: .65rem .75rem;
+    background: var(--tblr-bg-surface);
+    font-size: .8rem;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.occupancy-grid th:first-child,
+.occupancy-resource-cell {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    width: 15rem;
+    min-width: 15rem;
+    max-width: 15rem;
+    background: var(--tblr-bg-surface);
+    text-align: left;
+}
+
+.occupancy-resource-cell {
+    z-index: 2;
+    padding: .65rem .75rem;
+    font-size: .875rem;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.occupancy-space-group .occupancy-resource-cell,
+.occupancy-space-group td {
+    background: var(--tblr-bg-surface-secondary);
+}
+
+.occupancy-space-group .occupancy-resource-cell {
+    color: var(--tblr-primary);
+}
+
+.occupancy-room-row .occupancy-resource-cell {
+    padding-left: 1.5rem;
+    font-weight: 500;
+}
+
+.occupancy-cell {
+    min-width: 6.5rem;
+    height: 3.2rem;
+    padding: .35rem;
+    background: var(--tblr-bg-surface);
+    cursor: pointer;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.occupancy-cell:hover {
+    box-shadow: inset 0 0 0 2px rgba(var(--tblr-primary-rgb), .35);
+}
+
+.occupancy-cell-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 2.15rem;
+    padding: .25rem .35rem;
+    border-radius: .375rem;
+    font-size: .78rem;
+    font-weight: 600;
+}
+
+.occupancy-cell-available .occupancy-cell-label {
+    background: rgba(47, 179, 68, .11);
+    color: #2b8a3e;
+}
+
+.occupancy-cell-manual-block .occupancy-cell-label {
+    background: rgba(214, 57, 57, .13);
+    color: #c92a2a;
+}
+
+.occupancy-cell-maintenance .occupancy-cell-label {
+    background: rgba(245, 159, 0, .17);
+    color: #b66d00;
+}
+
+.occupancy-cell-owner-use .occupancy-cell-label {
+    background: rgba(66, 99, 235, .13);
+    color: #364fc7;
+}
+
+.occupancy-cell-unavailable .occupancy-cell-label {
+    background: rgba(108, 117, 125, .16);
+    color: #495057;
+}
+
+.occupancy-summary-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .65rem 0;
+    border-bottom: 1px solid var(--tblr-border-color);
+}
+
+.occupancy-summary-item:last-child {
+    border-bottom: 0;
+}
+
+.occupancy-summary-item span {
+    color: var(--tblr-secondary);
+}
+
+.occupancy-summary-item strong {
+    font-size: 1.25rem;
+}
+
+.occupancy-legend {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    margin-bottom: .6rem;
+}
+
+.occupancy-dot {
+    width: .85rem;
+    height: .85rem;
+    border-radius: 999px;
+}
+
+.occupancy-dot-available {
+    background: #2fb344;
+}
+
+.occupancy-dot-manual-block {
+    background: #d63939;
+}
+
+.occupancy-dot-maintenance {
+    background: #f59f00;
+}
+
+.occupancy-dot-owner-use {
+    background: #4263eb;
+}
+
+.occupancy-dot-unavailable {
+    background: #6c757d;
+}
+
+.availability-toolbar {
+    display: flex;
+    gap: .75rem;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.availability-date {
+    width: 10rem;
+}
+
+.availability-filters {
+    display: grid;
+    grid-template-columns: minmax(8rem, .8fr) minmax(14rem, 1.4fr) minmax(10rem, 1fr) auto;
+    gap: .75rem;
+    align-items: end;
+    margin-bottom: 1rem;
+}
+
+.availability-grid-shell {
+    overflow-x: auto;
+}
+
+.availability-grid {
+    width: 100%;
+    min-width: 166rem;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.availability-grid th,
+.availability-grid td {
+    border-right: 1px solid var(--tblr-border-color);
+    border-bottom: 1px solid var(--tblr-border-color);
+}
+
+.availability-grid th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    padding: .45rem .5rem;
+    background: var(--tblr-bg-surface);
+    font-size: .72rem;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.availability-grid th:first-child,
+.availability-resource-cell {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    width: 16rem;
+    min-width: 16rem;
+    max-width: 16rem;
+    background: var(--tblr-bg-surface);
+    text-align: left;
+}
+
+.availability-resource-cell {
+    z-index: 2;
+    padding: .5rem .65rem;
+    font-size: .8rem;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.availability-space-group .availability-resource-cell,
+.availability-space-group td {
+    background: var(--tblr-bg-surface-secondary);
+}
+
+.availability-space-group .availability-resource-cell {
+    color: var(--tblr-primary);
+}
+
+.availability-room-row .availability-resource-cell {
+    padding-left: 1.5rem;
+    font-weight: 500;
+}
+
+.availability-cell {
+    width: 5rem;
+    min-width: 5rem;
+    height: 3.85rem;
+    padding: .2rem;
+    background: var(--tblr-bg-surface);
+    text-align: center;
+    vertical-align: middle;
+}
+
+.availability-cell:hover {
+    box-shadow: inset 0 0 0 2px rgba(var(--tblr-primary-rgb), .35);
+}
+
+.availability-cell-content {
+    display: grid;
+    min-height: 3.05rem;
+    grid-template-columns: 1fr;
+    align-items: center;
+    gap: .16rem;
+    border-radius: .3rem;
+    padding: .18rem;
+}
+
+.availability-price-input {
+    width: 100%;
+    min-width: 0;
+    height: 1.55rem;
+    border: 1px solid rgba(0, 0, 0, .12);
+    border-radius: .22rem;
+    background: rgba(255, 255, 255, .72);
+    color: var(--tblr-body-color);
+    font-size: .7rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.availability-price-input:focus {
+    border-color: rgba(var(--tblr-primary-rgb), .55);
+    box-shadow: 0 0 0 .15rem rgba(var(--tblr-primary-rgb), .12);
+    outline: 0;
+}
+
+.availability-status {
+    justify-self: center;
+    border: 0;
+    border-radius: 999px;
+    padding: .05rem .26rem;
+    font-size: .55rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.availability-status-action {
+    cursor: pointer;
+}
+
+.availability-status-action:disabled {
+    cursor: default;
+}
+
+.availability-cell-available .availability-cell-content,
+.availability-dot-available {
+    background: rgba(47, 179, 68, .12);
+}
+
+.availability-cell-available .availability-status {
+    background: rgba(47, 179, 68, .16);
+    color: #2b8a3e;
+}
+
+.availability-cell-closed .availability-cell-content,
+.availability-dot-closed {
+    background: rgba(108, 117, 125, .16);
+}
+
+.availability-cell-closed .availability-status {
+    background: rgba(108, 117, 125, .2);
+    color: #495057;
+}
+
+.availability-cell-sold-out .availability-cell-content,
+.availability-dot-sold-out {
+    background: rgba(214, 57, 57, .13);
+}
+
+.availability-cell-sold-out .availability-status {
+    background: rgba(214, 57, 57, .18);
+    color: #c92a2a;
+}
+
+.availability-cell-saving {
+    opacity: .72;
+    pointer-events: none;
+}
+
+.availability-summary-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .65rem 0;
+    border-bottom: 1px solid var(--tblr-border-color);
+}
+
+.availability-summary-item:last-child {
+    border-bottom: 0;
+}
+
+.availability-summary-item span {
+    color: var(--tblr-secondary);
+}
+
+.availability-summary-item strong {
+    font-size: 1.25rem;
+}
+
+.availability-legend {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    margin-bottom: .6rem;
+}
+
+.availability-dot {
+    width: .85rem;
+    height: .85rem;
+    border-radius: 999px;
+}
+
 .purchase-form {
     max-width: 1320px;
 }

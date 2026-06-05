@@ -2,11 +2,11 @@
     $organizationOpen = request()->routeIs('companies.*');
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*');
     $globalAdminOpen = request()->routeIs('admin.accommodation-catalogs.*', 'admin.spaces.*');
-    $spacesOpen = request()->routeIs('spaces.*');
+    $spacesOpen = request()->routeIs('spaces.*', 'availability.*', 'occupancy.*');
 
     $canOrganization = auth()->user()?->can('companies.view');
     $canSpaces = auth()->user()?->company_id !== null
-        && (auth()->user()?->can('spaces.view') || auth()->user()?->can('spaces.create'));
+        && (auth()->user()?->can('spaces.view') || auth()->user()?->can('spaces.create') || auth()->user()?->can('availability.view') || auth()->user()?->can('occupancy.view'));
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('roles.view')
         || auth()->user()?->can('permissions.view')
@@ -75,6 +75,22 @@
                                         <a class="nav-link" href="{{ route('spaces.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-list-details"></i></span>
                                             <span class="nav-link-title">Listado</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('availability.view')
+                                    <li class="nav-item {{ request()->routeIs('availability.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('availability.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-calendar-dollar"></i></span>
+                                            <span class="nav-link-title">Disponibilidad</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('occupancy.view')
+                                    <li class="nav-item {{ request()->routeIs('occupancy.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('occupancy.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-calendar-stats"></i></span>
+                                            <span class="nav-link-title">Ocupabilidad</span>
                                         </a>
                                     </li>
                                 @endcan

@@ -1667,6 +1667,666 @@ function initCashCloseModal() {
     bootstrap.Modal.getOrCreateInstance(modal).show();
 }
 
+function initOccupancyWeekGrid() {
+    const root = document.querySelector('[data-occupancy-week]');
+
+    if (!root || root.dataset.occupancyInitialized === '1') {
+        return;
+    }
+
+    const gridTarget = root.querySelector('[data-occupancy-grid]');
+    const summaryTarget = root.querySelector('[data-occupancy-summary]');
+    const filtersForm = root.querySelector('[data-occupancy-filters]');
+    const weekPicker = root.querySelector('[data-occupancy-week-picker]');
+    const modalElement = root.querySelector('[data-occupancy-modal]');
+    const form = root.querySelector('[data-occupancy-form]');
+    const modal = modalElement ? bootstrap.Modal.getOrCreateInstance(modalElement) : null;
+    const modalTitle = root.querySelector('[data-occupancy-modal-title]');
+    const blockIdInput = root.querySelector('[data-occupancy-block-id]');
+    const spaceSelect = root.querySelector('[data-occupancy-space-select]');
+    const roomSelect = root.querySelector('[data-occupancy-room-select]');
+    const roomWrap = root.querySelector('[data-occupancy-room-wrap]');
+    const deleteButton = root.querySelector('[data-occupancy-delete]');
+    const spaces = JSON.parse(root.dataset.spaces ?? '[]');
+    const canManage = root.dataset.canManage === '1';
+    let weekData = JSON.parse(root.dataset.initialWeek ?? '{}');
+    let weekStart = weekData.week_start;
+
+    if (!gridTarget || !filtersForm || !weekPicker || !modal || !form) {
+        return;
+    }
+
+    const typeLabels = {
+        manual_block: 'Bloqueo manual',
+        maintenance: 'Mantenimiento',
+        owner_use: 'Uso propietario',
+        unavailable: 'No disponible',
+    };
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
+    const routeFor = (template, id) => template.replace('__ID__', id);
+    const findSpace = (spaceId) => spaces.find((space) => String(space.id) === String(spaceId));
+    const findRow = (spaceId, roomId) => weekData.rows?.find((row) => String(row.space_id) === String(spaceId) && String(row.room_id ?? '') === String(roomId ?? ''));
+    const findCell = (spaceId, roomId, date) => findRow(spaceId, roomId)?.cells?.find((cell) => cell.date === date);
+
+    const fillRooms = (spaceId, selectedRoomId = '') => {
+        const space = findSpace(spaceId);
+        const rooms = space?.rooms ?? [];
+        roomSelect.innerHTML = '<option value="">Seleccionar</option>';
+
+        rooms.forEach((room) => {
+            const option = document.createElement('option');
+            option.value = room.id;
+            option.textContent = room.name;
+            roomSelect.append(option);
+        });
+
+        roomWrap.classList.toggle('d-none', space?.mode !== 'compartido');
+        roomSelect.required = space?.mode === 'compartido';
+        roomSelect.value = selectedRoomId && rooms.some((room) => String(room.id) === String(selectedRoomId)) ? selectedRoomId : '';
+    };
+
+    const setFormDisabled = (disabled) => {
+        form.querySelectorAll('input, select, textarea, button[type="submit"]').forEach((field) => {
+            field.disabled = disabled;
+        });
+    };
+
+    const clearOccupancyForm = () => {
+        form.reset();
+        clearFormErrors(form);
+        setFormDisabled(!canManage);
+        blockIdInput.disabled = false;
+        blockIdInput.value = '';
+        modalTitle.textContent = 'Nuevo bloqueo';
+        deleteButton?.classList.add('d-none');
+        fillRooms('');
+    };
+
+    const renderSummary = () => {
+        if (!summaryTarget) {
+            return;
+        }
+
+        const summary = weekData.summary ?? {};
+        summaryTarget.innerHTML = [
+            ['Espacios privados', summary.private_spaces ?? 0],
+            ['Habitaciones', summary.shared_rooms ?? 0],
+            ['Bloqueos del periodo', summary.blocks_this_week ?? 0],
+        ].map(([label, value]) => `
+            <div class="occupancy-summary-item">
+                <span>${escapeHtml(label)}</span>
+                <strong>${escapeHtml(value)}</strong>
+            </div>
+        `).join('');
+    };
+
+    const renderGrid = () => {
+        const dates = weekData.dates ?? [];
+        const rows = weekData.rows ?? [];
+
+        const header = `
+            <thead>
+                <tr>
+                    <th>Espacio / Habitacion</th>
+                    ${dates.map((date) => `<th class="${date.is_today ? 'text-primary' : ''}">${escapeHtml(date.label)}</th>`).join('')}
+                </tr>
+            </thead>
+        `;
+
+        const body = rows.length
+            ? rows.map((row) => {
+                if (row.type === 'shared_space_group') {
+                    return `
+                        <tr class="occupancy-space-group">
+                            <td class="occupancy-resource-cell">
+                                <i class="ti ti-building me-1"></i>${escapeHtml(row.label)}
+                            </td>
+                            ${dates.map(() => '<td></td>').join('')}
+                        </tr>
+                    `;
+                }
+
+                return `
+                    <tr class="${row.type === 'shared_room' ? 'occupancy-room-row' : 'occupancy-private-row'}">
+                        <td class="occupancy-resource-cell">
+                            ${row.type === 'shared_room' ? '<i class="ti ti-door me-1"></i>' : '<i class="ti ti-home me-1"></i>'}${escapeHtml(row.label)}
+                        </td>
+                        ${row.cells.map((cell) => `
+                            <td
+                                class="occupancy-cell occupancy-cell-${escapeHtml(cell.tone)}"
+                                data-date="${escapeHtml(cell.date)}"
+                                data-space-id="${escapeHtml(row.space_id)}"
+                                data-room-id="${escapeHtml(row.room_id ?? '')}"
+                                data-resource-type="${escapeHtml(row.type)}"
+                                data-status="${escapeHtml(cell.status)}"
+                                data-block-id="${escapeHtml(cell.block_id ?? '')}"
+                                data-closed-by-availability="${cell.closed_by_availability ? '1' : '0'}"
+                            >
+                                <span class="occupancy-cell-label" data-block-id="${escapeHtml(cell.block_id ?? '')}">
+                                    ${escapeHtml(cell.label)}
+                                </span>
+                            </td>
+                        `).join('')}
+                    </tr>
+                `;
+            }).join('')
+            : `<tr><td class="text-center text-body-secondary py-4" colspan="${dates.length + 1}">No hay recursos para mostrar.</td></tr>`;
+
+        gridTarget.innerHTML = `<table class="occupancy-grid">${header}<tbody>${body}</tbody></table>`;
+        renderSummary();
+    };
+
+    async function loadWeekData(targetWeek = weekStart) {
+        const params = new URLSearchParams(new FormData(filtersForm));
+        params.set('week_start', targetWeek);
+
+        const response = await fetch(`${root.dataset.weekDataUrl}?${params.toString()}`, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('No se pudo cargar el periodo.');
+        }
+
+        weekData = await response.json();
+        weekStart = weekData.week_start;
+        weekPicker.value = weekStart;
+        renderGrid();
+    }
+
+    const openCreateBlockModal = (spaceId = '', roomId = '', date = '') => {
+        if (!canManage) {
+            return;
+        }
+
+        clearOccupancyForm();
+        modalTitle.textContent = 'Nuevo bloqueo';
+        spaceSelect.value = spaceId;
+        fillRooms(spaceId, roomId);
+        form.querySelector('[name="start_date"]').value = date;
+        form.querySelector('[name="end_date"]').value = date;
+        const row = findRow(spaceId, roomId);
+        form.querySelector('[name="title"]').value = row ? `Bloqueo - ${row.label}` : '';
+        modal.show();
+    };
+
+    const openEditBlockModal = (spaceId, roomId, date) => {
+        const cell = findCell(spaceId, roomId, date);
+
+        if (!cell?.block_id) {
+            openCreateBlockModal(spaceId, roomId, date);
+
+            return;
+        }
+
+        clearOccupancyForm();
+        modalTitle.textContent = canManage ? 'Editar bloqueo' : 'Detalle de bloqueo';
+        blockIdInput.value = cell.block_id;
+        deleteButton?.classList.toggle('d-none', !canManage);
+        spaceSelect.value = spaceId;
+        fillRooms(spaceId, roomId);
+        form.querySelector('[name="type"]').value = cell.status;
+        form.querySelector('[name="title"]').value = cell.title || typeLabels[cell.status] || 'Bloqueo';
+        form.querySelector('[name="description"]').value = cell.description || '';
+        form.querySelector('[name="start_date"]').value = cell.start_date;
+        form.querySelector('[name="end_date"]').value = cell.end_date;
+        modal.show();
+    };
+
+    const saveBlock = async () => {
+        clearFormErrors(form);
+        const blockId = blockIdInput.value;
+        const url = blockId ? routeFor(root.dataset.updateUrlTemplate, blockId) : root.dataset.storeUrl;
+        const body = new FormData(form);
+
+        if (blockId) {
+            body.append('_method', 'PATCH');
+        }
+
+        const response = await fetch(url, {
+            method: 'POST',
+            body,
+            headers: {
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const payload = await response.json();
+
+        if (response.status === 422) {
+            showFormErrors(form, payload.errors ?? {});
+            Swal.fire({ icon: 'error', title: 'Validacion', text: payload.message ?? 'Revisa los datos ingresados.' });
+
+            return;
+        }
+
+        if (!response.ok || payload.success === false) {
+            throw new Error(payload.message ?? 'No se pudo guardar el bloqueo.');
+        }
+
+        modal.hide();
+        await loadWeekData();
+        toast.fire({ icon: 'success', title: payload.message ?? 'Bloqueo guardado.' });
+    };
+
+    const deleteBlock = async () => {
+        const blockId = blockIdInput.value;
+
+        if (!blockId || !canManage) {
+            return;
+        }
+
+        const result = await Swal.fire({
+            icon: 'warning',
+            title: 'Eliminar bloqueo',
+            text: 'El bloqueo dejara de aparecer en la grilla.',
+            showCancelButton: true,
+            confirmButtonText: 'Si, eliminar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#dc3545',
+        });
+
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        const response = await fetch(routeFor(root.dataset.destroyUrlTemplate, blockId), {
+            method: 'POST',
+            body: new URLSearchParams({ _method: 'DELETE' }),
+            headers: {
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const payload = await response.json();
+
+        if (!response.ok || payload.success === false) {
+            throw new Error(payload.message ?? 'No se pudo eliminar el bloqueo.');
+        }
+
+        modal.hide();
+        await loadWeekData();
+        toast.fire({ icon: 'success', title: payload.message ?? 'Bloqueo eliminado.' });
+    };
+
+    // Punto de extension para drag/drop y seleccion extendida por fila en fases futuras.
+    gridTarget.addEventListener('click', (event) => {
+        const cell = event.target.closest('.occupancy-cell');
+
+        if (!cell) {
+            return;
+        }
+
+        if (cell.dataset.closedByAvailability === '1') {
+            Swal.fire({
+                icon: 'info',
+                title: 'Fecha cerrada',
+                text: 'Esta fecha esta cerrada desde Disponibilidad. Habilitala primero para operar en Ocupabilidad.',
+            });
+
+            return;
+        }
+
+        openEditBlockModal(cell.dataset.spaceId, cell.dataset.roomId, cell.dataset.date);
+    });
+
+    root.querySelector('[data-occupancy-week-prev]')?.addEventListener('click', () => loadWeekData(weekData.previous_week).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+    root.querySelector('[data-occupancy-week-today]')?.addEventListener('click', () => loadWeekData(weekData.current_week).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+    root.querySelector('[data-occupancy-week-next]')?.addEventListener('click', () => loadWeekData(weekData.next_week).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+    root.querySelector('[data-occupancy-new-block]')?.addEventListener('click', () => openCreateBlockModal('', '', weekStart));
+    weekPicker.addEventListener('change', () => loadWeekData(weekPicker.value).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+    filtersForm.addEventListener('change', () => loadWeekData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+    filtersForm.addEventListener('reset', () => window.setTimeout(() => loadWeekData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })), 0));
+    spaceSelect.addEventListener('change', () => fillRooms(spaceSelect.value));
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        saveBlock().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+    });
+    deleteButton?.addEventListener('click', () => deleteBlock().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+
+    renderGrid();
+    root.dataset.occupancyInitialized = '1';
+}
+
+function initAvailabilityGrid() {
+    const root = document.querySelector('[data-availability]');
+
+    if (!root || root.dataset.availabilityInitialized === '1') {
+        return;
+    }
+
+    const gridTarget = root.querySelector('[data-availability-grid]');
+    const summaryTarget = root.querySelector('[data-availability-summary]');
+    const filtersForm = root.querySelector('[data-availability-filters]');
+    const datePicker = root.querySelector('[data-availability-picker]');
+    const bulkModalElement = root.querySelector('[data-availability-bulk-modal]');
+    const bulkForm = root.querySelector('[data-availability-bulk-form]');
+    const bulkModal = bulkModalElement ? bootstrap.Modal.getOrCreateInstance(bulkModalElement) : null;
+    const spaces = JSON.parse(root.dataset.spaces ?? '[]');
+    const canManage = root.dataset.canManage === '1';
+    let gridData = JSON.parse(root.dataset.initialGrid ?? '{}');
+    let startDate = gridData.start_date;
+
+    if (!gridTarget || !filtersForm || !datePicker || !bulkModal || !bulkForm) {
+        return;
+    }
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
+    const findSpace = (spaceId) => spaces.find((space) => String(space.id) === String(spaceId));
+
+    const renderSummary = () => {
+        if (!summaryTarget) {
+            return;
+        }
+
+        const summary = gridData.summary ?? {};
+        summaryTarget.innerHTML = [
+            ['Recursos', summary.resources ?? 0],
+            ['Disponible', summary.available ?? 0],
+            ['Cerrado', summary.closed ?? 0],
+            ['Agotado', summary.sold_out ?? 0],
+            ['Sin precio', summary.without_price ?? 0],
+        ].map(([label, value]) => `
+            <div class="availability-summary-item">
+                <span>${escapeHtml(label)}</span>
+                <strong>${escapeHtml(value)}</strong>
+            </div>
+        `).join('');
+    };
+
+    const renderGrid = () => {
+        const dates = gridData.dates ?? [];
+        const rows = gridData.rows ?? [];
+        const header = `
+            <thead>
+                <tr>
+                    <th>Espacio / Habitacion</th>
+                    ${dates.map((date) => `<th class="${date.is_today ? 'text-primary' : ''}">${escapeHtml(date.label)}</th>`).join('')}
+                </tr>
+            </thead>
+        `;
+        const body = rows.length
+            ? rows.map((row) => {
+                if (row.type === 'shared_space_group') {
+                    return `
+                        <tr class="availability-space-group">
+                            <td class="availability-resource-cell">
+                                <i class="ti ti-building me-1"></i>${escapeHtml(row.label)}
+                            </td>
+                            ${dates.map(() => '<td></td>').join('')}
+                        </tr>
+                    `;
+                }
+
+                return `
+                    <tr class="${row.type === 'shared_room' ? 'availability-room-row' : 'availability-private-row'}">
+                        <td class="availability-resource-cell">
+                            ${row.type === 'shared_room' ? '<i class="ti ti-door me-1"></i>' : '<i class="ti ti-home me-1"></i>'}${escapeHtml(row.label)}
+                        </td>
+                        ${row.cells.map((cell) => `
+                            <td
+                                class="availability-cell availability-cell-${escapeHtml(cell.tone)}"
+                                data-date="${escapeHtml(cell.date)}"
+                                data-space-id="${escapeHtml(row.space_id)}"
+                                data-room-id="${escapeHtml(row.room_id ?? '')}"
+                                data-status="${escapeHtml(cell.status)}"
+                                data-stored-status="${escapeHtml(cell.stored_status)}"
+                                data-price="${escapeHtml(cell.price ?? '')}"
+                            >
+                                <div class="availability-cell-content">
+                                    <input
+                                        class="availability-price-input"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value="${escapeHtml(cell.price ?? '')}"
+                                        placeholder="--"
+                                        data-availability-price-input
+                                        ${canManage ? '' : 'disabled'}
+                                    >
+                                    <button
+                                        class="availability-status availability-status-action"
+                                        type="button"
+                                        title="${cell.stored_status === 'closed' ? 'Cambiar a disponible' : 'Cambiar a cerrado'}"
+                                        data-availability-toggle
+                                        ${canManage ? '' : 'disabled'}
+                                    >${escapeHtml(cell.label)}</button>
+                                </div>
+                            </td>
+                        `).join('')}
+                    </tr>
+                `;
+            }).join('')
+            : `<tr><td class="text-center text-body-secondary py-4" colspan="${dates.length + 1}">No hay recursos para mostrar.</td></tr>`;
+
+        gridTarget.innerHTML = `<table class="availability-grid">${header}<tbody>${body}</tbody></table>`;
+        renderSummary();
+    };
+
+    async function loadGridData(targetDate = startDate) {
+        const params = new URLSearchParams(new FormData(filtersForm));
+        params.set('start_date', targetDate);
+
+        const response = await fetch(`${root.dataset.gridDataUrl}?${params.toString()}`, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('No se pudo cargar la disponibilidad.');
+        }
+
+        gridData = await response.json();
+        startDate = gridData.start_date;
+        datePicker.value = startDate;
+        renderGrid();
+    }
+
+    const fillBulkRooms = () => {
+        const spaceSelect = bulkForm.querySelector('[data-availability-bulk-space]');
+        const roomSelect = bulkForm.querySelector('[data-availability-bulk-room]');
+        const roomWrap = bulkForm.querySelector('[data-availability-bulk-room-wrap]');
+        const space = findSpace(spaceSelect.value);
+        const rooms = space?.rooms ?? [];
+
+        roomSelect.innerHTML = '<option value="">Todas</option>';
+        rooms.forEach((room) => {
+            const option = document.createElement('option');
+            option.value = room.id;
+            option.textContent = room.name;
+            roomSelect.append(option);
+        });
+
+        roomWrap.classList.toggle('d-none', space?.mode !== 'compartido');
+        roomSelect.value = '';
+    };
+
+    const saveInlineDay = async (cell, values = {}) => {
+        if (!canManage || !cell) {
+            return;
+        }
+
+        const input = cell.querySelector('[data-availability-price-input]');
+        const price = values.price ?? input?.value ?? '';
+        const status = price === '' ? 'closed' : (values.status ?? cell.dataset.storedStatus ?? 'closed');
+        const body = new FormData();
+
+        body.append('_method', 'PATCH');
+        body.append('space_id', cell.dataset.spaceId ?? '');
+        body.append('space_room_id', cell.dataset.roomId ?? '');
+        body.append('date', cell.dataset.date ?? '');
+        body.append('price', price);
+        body.append('status', status);
+        cell.classList.add('availability-cell-saving');
+
+        const response = await fetch(root.dataset.storeDayUrl, {
+            method: 'POST',
+            body,
+            headers: {
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const payload = await response.json();
+
+        if (response.status === 422) {
+            cell.classList.remove('availability-cell-saving');
+            Swal.fire({ icon: 'error', title: 'Validacion', text: payload.message ?? 'Revisa los datos ingresados.' });
+
+            return;
+        }
+
+        if (!response.ok || payload.success === false) {
+            cell.classList.remove('availability-cell-saving');
+            throw new Error(payload.message ?? 'No se pudo guardar la disponibilidad.');
+        }
+
+        await loadGridData();
+        toast.fire({ icon: 'success', title: 'Disponibilidad guardada.' });
+    };
+
+    const openBulkModal = () => {
+        clearFormErrors(bulkForm);
+        bulkForm.reset();
+        bulkForm.querySelector('[data-availability-bulk-start]').value = gridData.start_date;
+        bulkForm.querySelector('[data-availability-bulk-end]').value = gridData.end_date;
+        bulkForm.querySelector('[data-availability-bulk-apply-status]').checked = true;
+        bulkForm.querySelector('[data-availability-bulk-status]').value = 'available';
+        fillBulkRooms();
+        bulkModal.show();
+    };
+
+    const saveBulk = async () => {
+        clearFormErrors(bulkForm);
+        const result = await Swal.fire({
+            icon: 'warning',
+            title: 'Aplicar cambios',
+            text: 'Se actualizaran todas las celdas que coincidan con el rango y filtros seleccionados.',
+            showCancelButton: true,
+            confirmButtonText: 'Aplicar',
+            cancelButtonText: 'Cancelar',
+        });
+
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        const response = await fetch(root.dataset.bulkUrl, {
+            method: 'POST',
+            body: new FormData(bulkForm),
+            headers: {
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const payload = await response.json();
+
+        if (response.status === 422) {
+            showFormErrors(bulkForm, payload.errors ?? {});
+            Swal.fire({ icon: 'error', title: 'Validacion', text: payload.message ?? 'Revisa los datos ingresados.' });
+
+            return;
+        }
+
+        if (!response.ok || payload.success === false) {
+            throw new Error(payload.message ?? 'No se pudo aplicar la accion en bloque.');
+        }
+
+        bulkModal.hide();
+        await loadGridData();
+        toast.fire({ icon: 'success', title: payload.message ?? 'Disponibilidad actualizada.' });
+    };
+
+    gridTarget.addEventListener('click', (event) => {
+        const toggle = event.target.closest('[data-availability-toggle]');
+
+        if (!toggle) {
+            return;
+        }
+
+        const cell = toggle.closest('.availability-cell');
+        const nextStatus = cell?.dataset.storedStatus === 'closed' ? 'available' : 'closed';
+        const price = cell?.querySelector('[data-availability-price-input]')?.value ?? '';
+
+        if (nextStatus === 'available' && price === '') {
+            Swal.fire({
+                icon: 'info',
+                title: 'Precio requerido',
+                text: 'Asigna un precio antes de habilitar esta fecha.',
+            });
+
+            return;
+        }
+
+        saveInlineDay(cell, { status: nextStatus }).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+    });
+
+    gridTarget.addEventListener('focusin', (event) => {
+        const input = event.target.closest('[data-availability-price-input]');
+
+        if (input) {
+            input.dataset.previousValue = input.value;
+        }
+    });
+
+    gridTarget.addEventListener('keydown', (event) => {
+        const input = event.target.closest('[data-availability-price-input]');
+
+        if (input && event.key === 'Enter') {
+            event.preventDefault();
+            input.blur();
+        }
+    });
+
+    gridTarget.addEventListener('focusout', (event) => {
+        const input = event.target.closest('[data-availability-price-input]');
+
+        if (!input || input.value === (input.dataset.previousValue ?? '')) {
+            return;
+        }
+
+        saveInlineDay(input.closest('.availability-cell'), { price: input.value }).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+    });
+
+    root.querySelector('[data-availability-prev]')?.addEventListener('click', () => loadGridData(gridData.previous_period).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+    root.querySelector('[data-availability-today]')?.addEventListener('click', () => loadGridData(gridData.current_period).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+    root.querySelector('[data-availability-next]')?.addEventListener('click', () => loadGridData(gridData.next_period).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+    root.querySelector('[data-availability-bulk-open]')?.addEventListener('click', openBulkModal);
+    datePicker.addEventListener('change', () => loadGridData(datePicker.value).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+    filtersForm.addEventListener('change', () => loadGridData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+    filtersForm.addEventListener('reset', () => window.setTimeout(() => loadGridData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })), 0));
+    bulkForm.querySelector('[data-availability-bulk-space]')?.addEventListener('change', fillBulkRooms);
+    bulkForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        saveBulk().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+    });
+
+    renderGrid();
+    root.dataset.availabilityInitialized = '1';
+}
+
 showInitialAlerts();
 disableBusinessFormAutocomplete();
 initTomSelects();
@@ -1682,6 +2342,8 @@ initCashExpenseModal();
 initCashCloseModal();
 initAdminDataTables();
 initCharacterCounters();
+initOccupancyWeekGrid();
+initAvailabilityGrid();
 
 document.addEventListener('click', (event) => {
     const modalTrigger = event.target.closest('[data-modal-url]');

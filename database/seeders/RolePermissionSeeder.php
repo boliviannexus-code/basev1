@@ -41,6 +41,10 @@ class RolePermissionSeeder extends Seeder
             'spaces.create',
             'spaces.edit',
             'spaces.approve',
+            'availability.view',
+            'availability.manage',
+            'occupancy.view',
+            'occupancy.manage',
         ];
 
         foreach ($permissions as $permission) {
@@ -66,6 +70,10 @@ class RolePermissionSeeder extends Seeder
             'spaces.view',
             'spaces.create',
             'spaces.edit',
+            'availability.view',
+            'availability.manage',
+            'occupancy.view',
+            'occupancy.manage',
         ]);
 
         Role::findOrCreate('viewer')->syncPermissions([
@@ -76,6 +84,8 @@ class RolePermissionSeeder extends Seeder
             'companies.view',
             'audits.view',
             'spaces.view',
+            'availability.view',
+            'occupancy.view',
         ]);
 
         app()[PermissionRegistrar::class]->forgetCachedPermissions();

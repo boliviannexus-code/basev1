@@ -5,8 +5,10 @@ use App\Http\Controllers\Web\Admin\SpaceApprovalController;
 use App\Http\Controllers\Web\AdminDataTableController;
 use App\Http\Controllers\Web\AuditController;
 use App\Http\Controllers\Web\AuthController;
+use App\Http\Controllers\Web\AvailabilityController;
 use App\Http\Controllers\Web\CompanyController;
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\OccupancyController;
 use App\Http\Controllers\Web\PermissionController;
 use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\Spaces\SharedSpaceRegistrationStepperController;
@@ -27,6 +29,25 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/', DashboardController::class)->name('dashboard');
     Route::get('audits', [AuditController::class, 'index'])->middleware('permission:audits.view')->name('audits.index');
     Route::get('audits/{audit}', [AuditController::class, 'show'])->middleware('permission:audits.view')->name('audits.show');
+    Route::prefix('occupancy')
+        ->name('occupancy.')
+        ->middleware(['company_user'])
+        ->group(function (): void {
+            Route::get('/', [OccupancyController::class, 'index'])->middleware('permission:occupancy.view')->name('index');
+            Route::get('week-data', [OccupancyController::class, 'weekData'])->middleware('permission:occupancy.view')->name('week-data');
+            Route::post('blocks', [OccupancyController::class, 'storeBlock'])->middleware('permission:occupancy.manage')->name('blocks.store');
+            Route::patch('blocks/{occupancyBlock}', [OccupancyController::class, 'updateBlock'])->whereNumber('occupancyBlock')->middleware('permission:occupancy.manage')->name('blocks.update');
+            Route::delete('blocks/{occupancyBlock}', [OccupancyController::class, 'destroyBlock'])->whereNumber('occupancyBlock')->middleware('permission:occupancy.manage')->name('blocks.destroy');
+        });
+    Route::prefix('availability')
+        ->name('availability.')
+        ->middleware(['company_user'])
+        ->group(function (): void {
+            Route::get('/', [AvailabilityController::class, 'index'])->middleware('permission:availability.view')->name('index');
+            Route::get('grid-data', [AvailabilityController::class, 'gridData'])->middleware('permission:availability.view')->name('grid-data');
+            Route::patch('day', [AvailabilityController::class, 'storeDay'])->middleware('permission:availability.manage')->name('day.store');
+            Route::post('bulk', [AvailabilityController::class, 'bulkUpdate'])->middleware('permission:availability.manage')->name('bulk');
+        });
     Route::prefix('spaces')
         ->name('spaces.')
         ->middleware(['company_user'])

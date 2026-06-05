@@ -97,6 +97,16 @@ class Space extends Model
         return $this->hasMany(SpaceReviewNote::class)->latest();
     }
 
+    public function occupancyBlocks(): HasMany
+    {
+        return $this->hasMany(OccupancyBlock::class);
+    }
+
+    public function availabilityDays(): HasMany
+    {
+        return $this->hasMany(AvailabilityDay::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

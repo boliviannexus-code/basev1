@@ -66,4 +66,14 @@ class SpaceRoom extends Model
             ->withPivot(['id', 'company_id'])
             ->withTimestamps();
     }
+
+    public function occupancyBlocks(): HasMany
+    {
+        return $this->hasMany(OccupancyBlock::class);
+    }
+
+    public function availabilityDays(): HasMany
+    {
+        return $this->hasMany(AvailabilityDay::class);
+    }
 }
