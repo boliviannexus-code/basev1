@@ -45,12 +45,12 @@ class CompanyController extends Controller
         if ($request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Empresa creada correctamente.',
+                'message' => 'Liga deportiva creada correctamente.',
                 'data' => ['id' => $company->id],
             ], 201);
         }
 
-        return redirect()->route('companies.index')->with('success', 'Empresa creada correctamente.');
+        return redirect()->route('companies.index')->with('success', 'Liga deportiva creada correctamente.');
     }
 
     public function show(Request $request, Company $company): View
@@ -84,12 +84,12 @@ class CompanyController extends Controller
         if ($request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Empresa actualizada correctamente.',
+                'message' => 'Liga deportiva actualizada correctamente.',
                 'data' => ['id' => $company->id],
             ]);
         }
 
-        return redirect()->route('companies.index')->with('success', 'Empresa actualizada correctamente.');
+        return redirect()->route('companies.index')->with('success', 'Liga deportiva actualizada correctamente.');
     }
 
     public function destroy(Company $company): RedirectResponse
@@ -98,6 +98,6 @@ class CompanyController extends Controller
 
         $this->companies->delete($company);
 
-        return redirect()->route('companies.index')->with('success', 'Empresa eliminada correctamente.');
+        return redirect()->route('companies.index')->with('success', 'Liga deportiva eliminada correctamente.');
     }
 }

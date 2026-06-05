@@ -48,6 +48,14 @@ class User extends Authenticatable implements Auditable
         return $this->belongsTo(Company::class);
     }
 
+    public function fingerprintTemplates(): HasMany
+    {
+        return $this->hasMany(FingerprintTemplate::class);
+    }
+
+    public function biometricFingerprints(): HasMany
+    {
+        return $this->hasMany(BiometricFingerprint::class);
     public function tourBookings(): HasMany
     {
         return $this->hasMany(TourBooking::class);

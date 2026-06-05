@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Player;
+use App\Models\Team;
 use App\Models\ActivityType;
 use App\Models\Category;
 use App\Models\GuideType;
@@ -16,6 +18,106 @@ use Yajra\DataTables\Facades\DataTables;
 
 class AdminDataTableController extends Controller
 {
+    public function players(Request $request): JsonResponse
+    {
+        abort_unless(auth()->user()?->can('players.view'), 403);
+
+        $query = Player::query()
+            ->select('players.*')
+            ->when($request->filled('is_active'), fn ($query) => $query->where('players.is_active', (bool) $request->boolean('is_active')));
+
+        return DataTables::eloquent($query)
+            ->filter(function ($query) use ($request): void {
+                $search = trim((string) data_get($request->input('search'), 'value', ''));
+
+                if ($search === '') {
+                    return;
+                }
+
+                $like = '%'.str($search)->lower()->toString().'%';
+                $normalizedCi = '%'.Player::normalizeCi($search).'%';
+                $terms = str($search)
+                    ->lower()
+                    ->squish()
+                    ->explode(' ')
+                    ->filter()
+                    ->values();
+
+                $query->where(function ($searchQuery) use ($like, $normalizedCi, $terms): void {
+                    $searchQuery
+                        ->where(function ($builder) use ($like, $normalizedCi): void {
+                            $builder
+                                ->whereRaw('LOWER(players.first_name) LIKE ?', [$like])
+                                ->orWhereRaw('LOWER(players.last_name) LIKE ?', [$like])
+                                ->orWhereRaw("LOWER(CONCAT(players.first_name, ' ', players.last_name)) LIKE ?", [$like])
+                                ->orWhereRaw('LOWER(players.internal_code) LIKE ?', [$like])
+                                ->orWhere('players.ci_normalized', 'like', $normalizedCi)
+                                ->orWhereRaw('LOWER(players.notes) LIKE ?', [$like]);
+                        })
+                        ->orWhere(function ($termQuery) use ($terms): void {
+                            $terms->each(function (string $term) use ($termQuery): void {
+                                $termLike = '%'.$term.'%';
+                                $termCi = '%'.Player::normalizeCi($term).'%';
+
+                                $termQuery->where(function ($builder) use ($termLike, $termCi): void {
+                                    $builder
+                                        ->whereRaw('LOWER(players.first_name) LIKE ?', [$termLike])
+                                        ->orWhereRaw('LOWER(players.last_name) LIKE ?', [$termLike])
+                                        ->orWhereRaw("LOWER(CONCAT(players.first_name, ' ', players.last_name)) LIKE ?", [$termLike])
+                                        ->orWhereRaw('LOWER(players.internal_code) LIKE ?', [$termLike])
+                                        ->orWhere('players.ci_normalized', 'like', $termCi)
+                                        ->orWhereRaw('LOWER(players.notes) LIKE ?', [$termLike]);
+                                });
+                            });
+                        });
+                });
+            })
+            ->addColumn('full_name', fn (Player $player): string => '<div class="fw-semibold">'.e($player->full_name).'</div><div class="text-body-secondary small">'.e(str($player->notes ?: '-')->limit(80)).'</div>')
+            ->editColumn('birth_date', fn (Player $player): string => trim(($player->birth_date?->format('Y-m-d') ?? '-').' <span class="text-body-secondary small">('.($player->age() ?? '-').' anos)</span>'))
+            ->editColumn('is_active', fn (Player $player): string => '<span class="badge text-bg-'.($player->is_active ? 'success' : 'secondary').'">'.($player->is_active ? 'Activo' : 'Inactivo').'</span>')
+            ->addColumn('actions', fn (Player $player): string => $this->playerActions($player))
+            ->rawColumns(['full_name', 'birth_date', 'is_active', 'actions'])
+            ->toJson();
+    }
+
+    public function teams(Request $request): JsonResponse
+    {
+        abort_unless(auth()->user()?->can('teams.view'), 403);
+
+        $query = CompanyContext::scope(Team::query())
+            ->select('teams.*', 'companies.name as company_name')
+            ->leftJoin('companies', 'companies.id', '=', 'teams.company_id')
+            ->with('pendingUpdateRequest')
+            ->when($request->filled('is_active'), fn ($query) => $query->where('teams.is_active', (bool) $request->boolean('is_active')));
+
+        return DataTables::eloquent($query)
+            ->filter(function ($query) use ($request): void {
+                $search = trim((string) data_get($request->input('search'), 'value', ''));
+
+                if ($search === '') {
+                    return;
+                }
+
+                $like = '%'.str($search)->lower()->toString().'%';
+                $normalized = '%'.Team::normalizeName($search).'%';
+
+                $query->where(function ($builder) use ($like, $normalized): void {
+                    $builder
+                        ->where('teams.name_normalized', 'like', $normalized)
+                        ->orWhereRaw('LOWER(teams.notes) LIKE ?', [$like])
+                        ->orWhereRaw('LOWER(companies.name) LIKE ?', [$like]);
+                });
+            })
+            ->addColumn('team_name', function (Team $team): string {
+                $pending = $team->pendingUpdateRequest ? '<span class="badge text-bg-warning mt-1">Edicion pendiente</span>' : '';
+
+                return '<div class="fw-semibold">'.e($team->name).'</div><div class="text-body-secondary small">'.e(str($team->notes ?: '-')->limit(80)).'</div>'.$pending;
+            })
+            ->editColumn('founded_at', fn (Team $team): string => $team->founded_at?->format('Y-m-d') ?? '-')
+            ->addColumn('company_name', fn (Team $team): string => e($team->company_name ?: '-'))
+            ->editColumn('is_active', fn (Team $team): string => '<span class="badge text-bg-'.($team->is_active ? 'success' : 'secondary').'">'.($team->is_active ? 'Activo' : 'Inactivo').'</span>')
+            ->addColumn('actions', fn (Team $team): string => $this->teamActions($team))
+            ->rawColumns(['team_name', 'is_active', 'actions'])
     public function categories(): JsonResponse
     {
         abort_unless(auth()->user()?->can('categories.view'), 403);
@@ -141,5 +243,41 @@ class AdminDataTableController extends Controller
         $url = route('audits.show', $auditId);
 
         return '<a class="btn btn-outline-primary btn-sm" href="'.$url.'" data-modal-url="'.$url.'" data-modal-title="Detalle de auditoria">Ver</a>';
+    }
+
+    private function playerActions(Player $player): string
+    {
+        $actions = '<a class="btn btn-outline-secondary btn-sm" href="'.route('players.show', $player).'" data-modal-url="'.route('players.show', $player).'" data-modal-title="Detalle de jugador">Ver</a>';
+
+        if (auth()->user()?->can('players.update')) {
+            $actions .= ' <a class="btn btn-outline-primary btn-sm" href="'.route('players.edit', $player).'" data-modal-url="'.route('players.edit', $player).'" data-modal-title="Editar jugador">Editar</a>';
+        }
+
+        if (auth()->user()?->can('players.delete')) {
+            $actions .= ' <form class="d-inline" method="POST" action="'.route('players.destroy', $player).'" data-confirm-delete="Eliminar jugador?">'
+                .csrf_field()
+                .method_field('DELETE')
+                .'<button class="btn btn-outline-danger btn-sm" type="submit">Eliminar</button></form>';
+        }
+
+        return $actions;
+    }
+
+    private function teamActions(Team $team): string
+    {
+        $actions = '<a class="btn btn-outline-secondary btn-sm" href="'.route('teams.show', $team).'" data-modal-url="'.route('teams.show', $team).'" data-modal-title="Detalle de equipo">Ver</a>';
+
+        if (auth()->user()?->can('teams.update')) {
+            $actions .= ' <a class="btn btn-outline-primary btn-sm" href="'.route('teams.edit', $team).'" data-modal-url="'.route('teams.edit', $team).'" data-modal-title="Editar equipo">Editar</a>';
+        }
+
+        if (auth()->user()?->can('teams.delete')) {
+            $actions .= ' <form class="d-inline" method="POST" action="'.route('teams.destroy', $team).'" data-confirm-delete="Eliminar equipo?">'
+                .csrf_field()
+                .method_field('DELETE')
+                .'<button class="btn btn-outline-danger btn-sm" type="submit">Eliminar</button></form>';
+        }
+
+        return $actions;
     }
 }

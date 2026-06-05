@@ -15,7 +15,7 @@ class CompanyCrudTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_user_can_create_company_with_report_data_and_logo(): void
+    public function test_user_can_create_sports_league_with_report_data_and_logo(): void
     {
         Storage::fake('public');
         $user = $this->userWithCompanyPermissions();
@@ -23,9 +23,7 @@ class CompanyCrudTest extends TestCase
         $this
             ->actingAs($user)
             ->post(route('companies.store'), [
-                'name' => 'Empresa Demo',
-                'legal_name' => 'Empresa Demo SRL',
-                'tax_id' => '1234567',
+                'name' => 'Liga Demo',
                 'phone' => '70000000',
                 'email' => 'demo@example.com',
                 'address' => 'Av. Siempre Viva',
@@ -39,22 +37,42 @@ class CompanyCrudTest extends TestCase
 
         $company = Company::query()->firstOrFail();
 
-        $this->assertSame('Empresa Demo', $company->name);
-        $this->assertSame('Empresa Demo SRL', $company->legal_name);
+        $this->assertSame('Liga Demo', $company->name);
         $this->assertNotNull($company->logo_path);
         Storage::disk('public')->assertExists($company->logo_path);
+    }
+
+    public function test_company_logo_is_rendered_from_storage_in_index_without_public_symlink(): void
+    {
+        Storage::fake('public');
+        $user = $this->userWithCompanyPermissions();
+        $company = Company::factory()->create([
+            'name' => 'Liga Con Logo',
+            'logo_path' => 'companies/logos/demo.png',
+        ]);
+        Storage::disk('public')->put(
+            $company->logo_path,
+            file_get_contents(UploadedFile::fake()->image('logo.png')->getRealPath())
+        );
+
+        $this
+            ->actingAs($user)
+            ->get(route('companies.index'))
+            ->assertOk()
+            ->assertSee('data:image/png;base64', false)
+            ->assertDontSee('/storage/companies/logos/demo.png', false);
     }
 
     public function test_user_can_assign_company_to_user(): void
     {
         $actor = $this->userWithUserPermissions();
-        $company = Company::factory()->create(['name' => 'Empresa Asignada']);
+        $company = Company::factory()->create(['name' => 'Liga Asignada']);
 
         $this
             ->actingAs($actor)
             ->post(route('users.store'), [
                 'company_id' => $company->id,
-                'name' => 'Cajero Empresa',
+                'name' => 'Cajero Liga',
                 'email' => 'cashier@example.com',
                 'password' => 'password123',
                 'password_confirmation' => 'password123',
@@ -71,7 +89,7 @@ class CompanyCrudTest extends TestCase
             ->actingAs($actor)
             ->get(route('users.index'))
             ->assertOk()
-            ->assertSee('Empresa Asignada');
+            ->assertSee('Liga Asignada');
     }
 
     private function userWithCompanyPermissions(): User

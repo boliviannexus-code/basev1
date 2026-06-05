@@ -13,8 +13,8 @@ use OwenIt\Auditing\Models\Audit;
 class AuditController extends Controller
 {
     public const AUDITABLE_TYPES = [
-        \App\Models\Company::class => 'Empresas',
-        \App\Models\User::class => 'Usuarios',
+        Company::class => 'Ligas deportivas',
+        User::class => 'Usuarios',
     ];
 
     public function index(Request $request): View

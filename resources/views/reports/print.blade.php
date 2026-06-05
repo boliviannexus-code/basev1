@@ -155,10 +155,9 @@
                     <div class="report-logo-placeholder">{{ str($company?->name ?? 'POS')->substr(0, 2)->upper() }}</div>
                 @endif
                 <div>
-                    <div class="h1 mb-1">{{ $company?->name ?? 'Todas las empresas' }}</div>
-                    <div class="text-body-secondary">{{ $company?->legal_name ?: 'Reporte consolidado' }}</div>
+                    <div class="h1 mb-1">{{ $company?->name ?? 'Todas las ligas deportivas' }}</div>
+                    <div class="text-body-secondary">{{ $company ? 'Reporte de liga deportiva' : 'Reporte consolidado' }}</div>
                     <div class="small text-body-secondary">
-                        {{ $company?->tax_id ? 'NIT/Documento: '.$company->tax_id.' · ' : '' }}
                         {{ $company?->phone ?: '' }}
                     </div>
                     <div class="small text-body-secondary">{{ $company?->address ?: '' }}</div>
@@ -195,7 +194,7 @@
         </section>
 
         <footer class="report-footer">
-            {{ $company?->report_footer ?: 'Documento generado desde Inventario POS.' }}
+            {{ $company?->report_footer ?: 'Reporte generado desde Inventario POS.' }}
         </footer>
     </main>
 </body>

@@ -9,7 +9,7 @@
         <form class="stock-filter-bar" id="audit-filters" autocomplete="off" data-datatable-filters>
             @if ($companies->count() > 1)
                 <div>
-                    <label class="form-label" for="audit-filter-company">Empresa</label>
+                    <label class="form-label" for="audit-filter-company">Liga deportiva</label>
                     <select class="form-select form-select-sm" id="audit-filter-company" name="company_id" data-tom-select data-placeholder="Todas">
                         <option value="">Todas</option>
                         @foreach ($companies as $company)
@@ -76,7 +76,7 @@
             <thead>
                 <tr>
                     <th>Fecha</th>
-                    <th>Empresa</th>
+                    <th>Liga deportiva</th>
                     <th>Usuario</th>
                     <th>Accion</th>
                     <th>Modulo</th>

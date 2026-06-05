@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'digitalpersona' => [
+        'auth_endpoint' => env('DIGITALPERSONA_AUTH_ENDPOINT'),
+    ],
+
+    'biometric_engine' => [
+        'url' => env('BIOMETRIC_ENGINE_URL', 'http://host.docker.internal:8001'),
+        'threshold' => (float) env('BIOMETRIC_ENGINE_THRESHOLD', 40),
+    ],
+
 ];

@@ -24,7 +24,7 @@
                 <tr>
                     <th>Nombre</th>
                     <th>Email</th>
-                    <th>Empresa</th>
+                    <th>Liga deportiva</th>
                     <th>Roles</th>
                     <th>Estado</th>
                     <th>Creado</th>
@@ -36,7 +36,7 @@
                     <tr class="{{ $user->trashed() ? 'table-light text-body-secondary' : '' }}">
                         <td>{{ $user->name }}</td>
                         <td>{{ $user->email }}</td>
-                        <td>{{ $user->company?->name ?? 'Sin empresa' }}</td>
+                        <td>{{ $user->company?->name ?? 'Sin liga deportiva' }}</td>
                         <td>
                             @forelse ($user->roles as $role)
                                 <span class="badge text-bg-primary">{{ role_label($role->name) }}</span>

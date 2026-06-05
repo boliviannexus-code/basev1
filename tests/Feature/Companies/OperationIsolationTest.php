@@ -7,9 +7,9 @@ use App\Models\Branch;
 use App\Models\CashRegister;
 use App\Models\Company;
 use App\Models\InventoryMovement;
+use App\Models\PointOfSale;
 use App\Models\Product;
 use App\Models\Purchase;
-use App\Models\PointOfSale;
 use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\User;
@@ -247,12 +247,12 @@ class OperationIsolationTest extends TestCase
     }
 
     /**
-     * @param array<int, string> $permissions
+     * @param  array<int, string>  $permissions
      */
     private function companyUser(array $permissions): array
     {
-        $company = Company::factory()->create(['name' => 'Empresa A']);
-        $otherCompany = Company::factory()->create(['name' => 'Empresa B']);
+        $company = Company::factory()->create(['name' => 'Liga A']);
+        $otherCompany = Company::factory()->create(['name' => 'Liga B']);
         $user = User::factory()->for($company)->create();
 
         foreach ($permissions as $permission) {
