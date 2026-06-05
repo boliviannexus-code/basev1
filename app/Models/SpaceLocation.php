@@ -17,10 +17,13 @@ class SpaceLocation extends Model
         'state_or_region',
         'city',
         'zone_or_neighborhood',
+        'address_text',
         'address',
         'reference',
+        'reference_text',
         'latitude',
         'longitude',
+        'google_place_id',
         'postal_code',
     ];
 

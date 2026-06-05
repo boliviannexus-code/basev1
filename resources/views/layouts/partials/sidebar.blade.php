@@ -2,11 +2,11 @@
     $organizationOpen = request()->routeIs('companies.*');
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*');
     $globalAdminOpen = request()->routeIs('admin.accommodation-catalogs.*', 'admin.spaces.*');
-    $spacesOpen = request()->routeIs('spaces.*', 'availability.*', 'occupancy.*');
+    $spacesOpen = request()->routeIs('spaces.*', 'availability.*', 'occupancy.*', 'admin.reservations.*');
 
     $canOrganization = auth()->user()?->can('companies.view');
     $canSpaces = auth()->user()?->company_id !== null
-        && (auth()->user()?->can('spaces.view') || auth()->user()?->can('spaces.create') || auth()->user()?->can('availability.view') || auth()->user()?->can('occupancy.view'));
+        && (auth()->user()?->can('spaces.view') || auth()->user()?->can('spaces.create') || auth()->user()?->can('availability.view') || auth()->user()?->can('occupancy.view') || auth()->user()?->can('reservations.view'));
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('roles.view')
         || auth()->user()?->can('permissions.view')
@@ -91,6 +91,14 @@
                                         <a class="nav-link" href="{{ route('occupancy.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-calendar-stats"></i></span>
                                             <span class="nav-link-title">Ocupabilidad</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('reservations.view')
+                                    <li class="nav-item {{ request()->routeIs('admin.reservations.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('admin.reservations.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-calendar-check"></i></span>
+                                            <span class="nav-link-title">Reservas entrantes</span>
                                         </a>
                                     </li>
                                 @endcan

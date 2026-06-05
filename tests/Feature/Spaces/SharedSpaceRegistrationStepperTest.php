@@ -10,6 +10,7 @@ use App\Models\RoomService;
 use App\Models\SharedSpaceType;
 use App\Models\Space;
 use App\Models\SpaceMode;
+use App\Models\SpaceRoom;
 use App\Models\User;
 use Database\Seeders\AccommodationCatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -109,9 +110,12 @@ class SharedSpaceRegistrationStepperTest extends TestCase
                 'city' => 'Copacabana',
                 'zone_or_neighborhood' => 'Centro',
                 'address' => 'Av. Costanera 456',
+                'address_text' => 'Av. Costanera 456',
                 'reference' => 'Frente al lago',
+                'reference_text' => 'Frente al lago',
                 'latitude' => '-16.1650000',
                 'longitude' => '-69.0850000',
+                'google_place_id' => 'place-shared-456',
             ])
             ->assertRedirect(route('spaces.shared.review', $space));
 
@@ -389,6 +393,145 @@ class SharedSpaceRegistrationStepperTest extends TestCase
             ]);
     }
 
+    public function test_company_user_can_reorder_shared_rooms(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        $space = Space::factory()->create([
+            'company_id' => $user->company_id,
+            'space_mode_id' => SpaceMode::where('slug', 'compartido')->firstOrFail()->id,
+            'shared_space_type_id' => SharedSpaceType::where('slug', 'hostal')->firstOrFail()->id,
+            'private_space_type_id' => null,
+        ]);
+        $bathroomType = BathroomType::where('slug', 'privado')->firstOrFail();
+        $roomA = $space->rooms()->create([
+            'company_id' => $user->company_id,
+            'name' => 'Habitacion A',
+            'title' => 'Habitacion A',
+            'bathroom_type_id' => $bathroomType->id,
+            'status' => 'active',
+            'sort_order' => 1,
+        ]);
+        $roomB = $space->rooms()->create([
+            'company_id' => $user->company_id,
+            'name' => 'Habitacion B',
+            'title' => 'Habitacion B',
+            'bathroom_type_id' => $bathroomType->id,
+            'status' => 'active',
+            'sort_order' => 2,
+        ]);
+        $roomC = $space->rooms()->create([
+            'company_id' => $user->company_id,
+            'name' => 'Habitacion C',
+            'title' => 'Habitacion C',
+            'bathroom_type_id' => $bathroomType->id,
+            'status' => 'active',
+            'sort_order' => 3,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->patchJson(route('spaces.shared.rooms.order', $space), [
+                'room_ids' => [$roomC->id, $roomA->id, $roomB->id],
+            ])
+            ->assertOk()
+            ->assertJson(['success' => true]);
+
+        $this->assertSame([1, 2, 3], [
+            $roomC->refresh()->sort_order,
+            $roomA->refresh()->sort_order,
+            $roomB->refresh()->sort_order,
+        ]);
+        $this->assertSame(
+            ['Habitacion C', 'Habitacion A', 'Habitacion B'],
+            $space->refresh()->rooms()->pluck('name')->all(),
+        );
+    }
+
+    public function test_company_user_can_copy_room_services_to_one_room_replacing_previous_services(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        [$space, $sourceRoom, $targetRoom] = $this->sharedSpaceWithRooms($user);
+        $services = RoomService::active()->limit(3)->get();
+        $sourceRoom->roomServices()->sync([
+            $services[0]->id => ['company_id' => $space->company_id],
+            $services[1]->id => ['company_id' => $space->company_id],
+        ]);
+        $targetRoom->roomServices()->sync([
+            $services[2]->id => ['company_id' => $space->company_id],
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Requested-With', 'XMLHttpRequest')
+            ->postJson(route('spaces.shared.room-services.copy', [$space, $sourceRoom]), [
+                'target_room_ids' => [$targetRoom->id],
+            ])
+            ->assertOk()
+            ->assertJson(['success' => true]);
+
+        $this->assertSame(
+            $sourceRoom->roomServices()->pluck('room_services.id')->sort()->values()->all(),
+            $targetRoom->roomServices()->pluck('room_services.id')->sort()->values()->all(),
+        );
+        $this->assertFalse($targetRoom->roomServices()->whereKey($services[2]->id)->exists());
+    }
+
+    public function test_company_user_can_copy_room_services_to_multiple_rooms(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        [$space, $sourceRoom, $targetRoomA, $targetRoomB] = $this->sharedSpaceWithRooms($user, 3);
+        $serviceIds = RoomService::active()->limit(2)->pluck('id');
+        $sourceRoom->roomServices()->sync($serviceIds->mapWithKeys(fn (int $id): array => [$id => ['company_id' => $space->company_id]])->all());
+
+        $this
+            ->actingAs($user)
+            ->withHeader('X-Requested-With', 'XMLHttpRequest')
+            ->postJson(route('spaces.shared.room-services.copy', [$space, $sourceRoom]), [
+                'target_room_ids' => [$targetRoomA->id, $targetRoomB->id],
+            ])
+            ->assertOk();
+
+        $expected = $serviceIds->sort()->values()->all();
+        $this->assertSame($expected, $targetRoomA->roomServices()->pluck('room_services.id')->sort()->values()->all());
+        $this->assertSame($expected, $targetRoomB->roomServices()->pluck('room_services.id')->sort()->values()->all());
+    }
+
+    public function test_copy_room_services_rejects_room_from_other_space(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        [$space, $sourceRoom] = $this->sharedSpaceWithRooms($user);
+        [$otherSpace, $otherRoom] = $this->sharedSpaceWithRooms($user);
+
+        $this
+            ->actingAs($user)
+            ->postJson(route('spaces.shared.room-services.copy', [$space, $sourceRoom]), [
+                'target_room_ids' => [$otherRoom->id],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('target_room_ids');
+
+        $this->assertNotSame($space->id, $otherSpace->id);
+    }
+
+    public function test_copy_room_services_rejects_same_source_room_as_target(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        [$space, $sourceRoom] = $this->sharedSpaceWithRooms($user);
+
+        $this
+            ->actingAs($user)
+            ->postJson(route('spaces.shared.room-services.copy', [$space, $sourceRoom]), [
+                'target_room_ids' => [$sourceRoom->id],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('target_room_ids');
+    }
+
     private function companyUserWithSpacePermission(): User
     {
         Permission::findOrCreate('spaces.create');
@@ -399,5 +542,27 @@ class SharedSpaceRegistrationStepperTest extends TestCase
         $user->givePermissionTo('spaces.create');
 
         return $user;
+    }
+
+    private function sharedSpaceWithRooms(User $user, int $roomCount = 2): array
+    {
+        $space = Space::factory()->create([
+            'company_id' => $user->company_id,
+            'space_mode_id' => SpaceMode::where('slug', 'compartido')->firstOrFail()->id,
+            'shared_space_type_id' => SharedSpaceType::where('slug', 'hostal')->firstOrFail()->id,
+            'private_space_type_id' => null,
+        ]);
+        $bathroomType = BathroomType::where('slug', 'privado')->firstOrFail();
+        $rooms = collect(range(1, $roomCount))
+            ->map(fn (int $index): SpaceRoom => $space->rooms()->create([
+                'company_id' => $user->company_id,
+                'name' => "Habitacion {$index}",
+                'title' => "Habitacion {$index}",
+                'bathroom_type_id' => $bathroomType->id,
+                'status' => 'active',
+                'sort_order' => $index,
+            ]));
+
+        return [$space, ...$rooms->all()];
     }
 }

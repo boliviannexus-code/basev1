@@ -19,7 +19,7 @@
                         <dt class="col-sm-4">Tipo</dt>
                         <dd class="col-sm-8">{{ $space->sharedSpaceType?->name ?: $space->privateSpaceType?->name ?: '-' }}</dd>
                         <dt class="col-sm-4">Estado</dt>
-                        <dd class="col-sm-8">{{ ['draft' => 'Borrador', 'completed' => 'Terminado', 'needs_corrections' => 'Con correcciones', 'approved' => 'Aprobado', 'active' => 'Habilitado', 'inactive' => 'Inactivo'][$space->status] ?? $space->status }}</dd>
+                        <dd class="col-sm-8">{{ ['draft' => 'Borrador', 'completed' => 'Terminado', 'needs_corrections' => 'Con correcciones', 'in_review' => 'En revision', 'approved' => 'Aprobado', 'active' => 'Habilitado', 'inactive' => 'Inactivo'][$space->status] ?? $space->status }}</dd>
                         <dt class="col-sm-4">Capacidad</dt>
                         <dd class="col-sm-8">{{ $space->max_capacity ?: 'Pendiente' }}</dd>
                         <dt class="col-sm-4">Progreso</dt>

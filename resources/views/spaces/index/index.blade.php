@@ -13,9 +13,8 @@
         <x-slot:actions>
             @can('spaces.create')
                 <div class="btn-list">
-                    <a class="btn btn-primary btn-sm" href="{{ route('spaces.private.create') }}"><i class="ti ti-home-plus me-1"></i>Nuevo privado</a>
-                    <a class="btn btn-outline-primary btn-sm" href="{{ route('spaces.shared.create') }}"><i class="ti ti-building-plus me-1"></i>Nuevo compartido</a>
-                </div>
+                    <a class="btn btn-primary btn-sm" href="{{ route('spaces.private.create') }}"><i class="ti ti-home-plus me-1"></i>Nuevo Espacio</a>
+                        </div>
             @endcan
         </x-slot:actions>
 

@@ -36,7 +36,7 @@
                         <dd class="col-sm-8">{{ $space->rooms->flatMap->beds->sum('quantity') }}</dd>
                         <dt class="col-sm-4">Estado</dt>
                         <dd class="col-sm-8">
-                            @php($statusMap = ['draft' => ['Borrador', 'secondary'], 'completed' => ['Terminado', 'info'], 'needs_corrections' => ['Con correcciones', 'warning'], 'approved' => ['Aprobado', 'primary'], 'active' => ['Habilitado', 'success'], 'inactive' => ['Inactivo', 'warning']])
+                            @php($statusMap = ['draft' => ['Borrador', 'secondary'], 'completed' => ['Terminado', 'info'], 'needs_corrections' => ['Con correcciones', 'warning'], 'in_review' => ['En revision', 'purple'], 'approved' => ['Aprobado', 'primary'], 'active' => ['Habilitado', 'success'], 'inactive' => ['Inactivo', 'warning']])
                             <span class="badge text-bg-{{ $statusMap[$space->status][1] ?? 'secondary' }}">{{ $statusMap[$space->status][0] ?? $space->status }}</span>
                         </dd>
                         <dt class="col-sm-4">Descripcion corta</dt>

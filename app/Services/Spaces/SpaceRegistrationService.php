@@ -127,10 +127,13 @@ class SpaceRegistrationService
                 'state_or_region' => $data['state_or_region'] ?? null,
                 'city' => $data['city'],
                 'zone_or_neighborhood' => $data['zone_or_neighborhood'] ?? null,
+                'address_text' => $data['address_text'] ?? $data['address'],
                 'address' => $data['address'],
                 'reference' => $data['reference'] ?? null,
+                'reference_text' => $data['reference_text'] ?? ($data['reference'] ?? null),
                 'latitude' => $data['latitude'] ?? null,
                 'longitude' => $data['longitude'] ?? null,
+                'google_place_id' => $data['google_place_id'] ?? null,
                 'postal_code' => $data['postal_code'] ?? null,
             ],
         );

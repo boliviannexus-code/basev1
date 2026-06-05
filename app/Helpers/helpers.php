@@ -34,6 +34,7 @@ if (! function_exists('permission_module_label')) {
             'accommodation-catalogs' => 'Catalogos de alojamientos',
             'spaces' => 'Alojamientos',
             'availability' => 'Disponibilidad',
+            'reservations' => 'Reservas',
         ];
 
         return $labels[$module] ?? str($module)->replace(['-', '_'], ' ')->headline()->toString();

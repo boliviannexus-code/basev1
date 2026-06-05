@@ -7,57 +7,64 @@
 @section('content')
     <div data-refresh-container>
     @include('spaces.shared.partials.stepper')
-    @foreach ($space->rooms as $room)
-        <x-ui.card :title="$room->title" class="mb-3">
-            <div class="card-body">
-                <form class="row g-2 align-items-end mb-3" method="POST" action="{{ route('spaces.shared.beds.store', [$space, $room]) }}" data-ajax-form novalidate>
+    <div class="shared-bed-grid">
+        @foreach ($space->rooms as $room)
+            @php
+                $bedCount = $room->beds->sum('quantity');
+                $capacity = $room->max_capacity ?? 0;
+            @endphp
+            <section class="shared-bed-card">
+                <div class="shared-bed-card-header">
+                    <div class="min-w-0">
+                        <h3>Hab {{ $room->title ?: $room->name }}</h3>
+                        {{-- <div class="text-body-secondary small">{{ $room->name ?: $room->room_number ?: 'Habitacion' }}</div> --}}
+                    </div>
+                    <div class="shared-bed-stats">
+                        <span title="Camas"><i class="ti ti-bed"></i>{{ $bedCount }}</span>
+                        <span title="Capacidad"><i class="ti ti-users"></i>{{ $capacity }}</span>
+                    </div>
+                </div>
+
+                <form class="shared-bed-form" method="POST" action="{{ route('spaces.shared.beds.store', [$space, $room]) }}" data-ajax-form novalidate>
                     @csrf
-                    <div class="col-md-7">
-                        <label class="form-label">Tipo de cama</label>
-                        <select class="form-select" name="bed_type_id" required>
-                            <option value="">Seleccionar</option>
-                            @foreach ($bedTypes as $type)
-                                <option value="{{ $type->id }}">{{ $type->name }} ({{ $type->capacity }})</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Cantidad</label>
-                        <input class="form-control" name="quantity" type="number" min="1" value="1" required>
-                    </div>
-                    <div class="col-md-2">
-                        <button class="btn btn-primary w-100" type="submit">Agregar</button>
-                    </div>
+                    <select class="form-select form-select-sm" name="bed_type_id" aria-label="Tipo de cama" required>
+                        <option value="">Tipo de cama</option>
+                        @foreach ($bedTypes as $type)
+                            <option value="{{ $type->id }}">{{ $type->name }} · {{ $type->capacity }}</option>
+                        @endforeach
+                    </select>
+                    <input class="form-control form-control-sm shared-bed-quantity" name="quantity" type="number" min="1" value="1" aria-label="Cantidad" required>
+                    <button class="btn btn-primary btn-sm shared-bed-add" type="submit" title="Agregar cama">
+                        <i class="ti ti-plus"></i>
+                    </button>
                 </form>
-                <table class="table table-sm align-middle mb-0">
-                    <thead><tr><th>Cama</th><th>Cantidad</th><th>Capacidad/cama</th><th>Total</th><th></th></tr></thead>
-                    <tbody>
-                        @forelse ($room->beds as $bed)
-                            <tr>
-                                <td>{{ $bed->bedType?->name }}</td>
-                                <td>{{ $bed->quantity }}</td>
-                                <td>{{ $bed->capacity_per_bed }}</td>
-                                <td>{{ $bed->total_capacity }}</td>
-                                <td class="text-end">
-                                    <form method="POST" action="{{ route('spaces.shared.beds.destroy', [$space, $room, $bed]) }}" data-ajax-form data-confirm-delete="Quitar cama?">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button class="btn btn-outline-danger btn-sm" type="submit">Quitar</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        @empty
-                            <x-ui.empty-row colspan="5" message="Esta habitacion aun no tiene camas." />
-                        @endforelse
-                    </tbody>
-                </table>
-                <div class="text-body-secondary small mt-2">Capacidad calculada: {{ $room->max_capacity ?? 0 }}</div>
-            </div>
-        </x-ui.card>
-    @endforeach
+
+                <div class="shared-bed-list">
+                    @forelse ($room->beds as $bed)
+                        <div class="shared-bed-row">
+                            <div class="shared-bed-main">
+                                <strong>{{ $bed->bedType?->name }} {{ $bed->quantity  }}</strong>
+                                {{-- <span>{{ $bed->quantity }} x {{ $bed->capacity_per_bed }} = {{ $bed->total_capacity }}</span> --}}
+                            </div>
+                            <form method="POST" action="{{ route('spaces.shared.beds.destroy', [$space, $room, $bed]) }}" data-ajax-form data-confirm-delete="Quitar cama?">
+                                @csrf
+                                @method('DELETE')
+                                <button class="btn btn-outline-danger btn-icon btn-sm" type="submit" title="Quitar cama" aria-label="Quitar cama">
+                                    <i class="ti ti-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    @empty
+                        <div class="shared-bed-empty">Sin camas registradas.</div>
+                    @endforelse
+                </div>
+            </section>
+        @endforeach
+    </div>
     <div class="d-flex justify-content-between mt-4">
         <a class="btn btn-outline-secondary" href="{{ route('spaces.shared.rooms.edit', $space) }}">Volver</a>
         <a class="btn btn-primary" href="{{ route('spaces.shared.room-services.edit', $space) }}">Continuar</a>
     </div>
     </div>
 @endsection
+Termin

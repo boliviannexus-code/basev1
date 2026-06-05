@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Spaces;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Spaces\Shared\StoreSharedRoomBedRequest;
+use App\Http\Requests\Spaces\Shared\CopySharedRoomServicesRequest;
 use App\Http\Requests\Spaces\Shared\StoreSharedRoomPhotosRequest;
 use App\Http\Requests\Spaces\Shared\StoreSharedRoomRequest;
 use App\Http\Requests\Spaces\Shared\StoreSharedRoomServicesRequest;
@@ -82,7 +83,7 @@ class SharedSpaceRegistrationStepperController extends Controller
     {
         Gate::authorize('spaces.create');
 
-        return $this->stepView('rooms', $space->load('rooms.bathroomType'), [
+        return $this->stepView('rooms', $space->load('rooms.bathroomType', 'rooms.beds'), [
             'bathroomTypes' => BathroomType::active()->ordered()->get(),
         ]);
     }
@@ -99,6 +100,7 @@ class SharedSpaceRegistrationStepperController extends Controller
             'status' => $data['status'],
             'company_id' => $space->company_id,
             'max_capacity' => 0,
+            'sort_order' => ((int) $space->rooms()->max('sort_order')) + 1,
         ]);
 
         $this->capacity->recalculateSharedSpaceCapacity($space);
@@ -120,6 +122,39 @@ class SharedSpaceRegistrationStepperController extends Controller
         ]);
 
         return $this->stepResponse($request, 'Habitacion actualizada.', route('spaces.shared.rooms.edit', $space), back());
+    }
+
+    public function sortRooms(Request $request, Space $space): JsonResponse
+    {
+        Gate::authorize('spaces.create');
+        $this->ensureSharedSpace($space);
+        $this->ensureEditable($space);
+
+        $data = $request->validate([
+            'room_ids' => ['required', 'array', 'min:1'],
+            'room_ids.*' => ['required', 'integer'],
+        ]);
+
+        $roomIds = collect($data['room_ids'])->map(fn ($id): int => (int) $id)->values();
+        $validRoomIds = $space->rooms()
+            ->whereIn('id', $roomIds)
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->sort()
+            ->values();
+
+        abort_unless($validRoomIds->all() === $roomIds->sort()->values()->all(), 422);
+
+        foreach ($roomIds as $index => $roomId) {
+            $space->rooms()
+                ->whereKey($roomId)
+                ->update(['sort_order' => $index + 1]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Orden de habitaciones actualizado.',
+        ]);
     }
 
     public function destroyRoom(Request $request, Space $space, SpaceRoom $room): RedirectResponse|JsonResponse
@@ -197,6 +232,24 @@ class SharedSpaceRegistrationStepperController extends Controller
         $room->roomServices()->sync($syncPayload);
 
         return $this->stepResponse($request, 'Servicios de habitacion guardados.', route('spaces.shared.room-services.edit', $space), back());
+    }
+
+    public function copyRoomServices(CopySharedRoomServicesRequest $request, Space $space, SpaceRoom $room): RedirectResponse|JsonResponse
+    {
+        $this->ensureRoomBelongsToSpace($space, $room);
+        $this->ensureEditable($space);
+
+        $sourceServiceIds = $room->roomServices()->pluck('room_services.id');
+        $syncPayload = $sourceServiceIds
+            ->mapWithKeys(fn (int $id): array => [$id => ['company_id' => $space->company_id]])
+            ->all();
+
+        $space->rooms()
+            ->whereIn('id', $request->validated('target_room_ids'))
+            ->get()
+            ->each(fn (SpaceRoom $targetRoom): mixed => $targetRoom->roomServices()->sync($syncPayload));
+
+        return $this->stepResponse($request, 'Servicios copiados a las habitaciones seleccionadas.', route('spaces.shared.room-services.edit', $space), back());
     }
 
     public function editPhotos(Space $space): View

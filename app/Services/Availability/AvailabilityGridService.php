@@ -410,6 +410,11 @@ class AvailabilityGridService
     private function roomLabel(SpaceRoom $room): string
     {
         $label = $room->name ?: $room->title ?: 'Habitacion';
+
+        if (filled($room->room_number) && trim((string) $room->room_number) !== trim($label)) {
+            $label .= ' - Hab. '.$room->room_number;
+        }
+
         $beds = $room->beds
             ->map(fn ($bed): string => trim($bed->quantity.' '.($bed->bedType?->name ?: 'cama')))
             ->filter()

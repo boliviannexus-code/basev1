@@ -9,7 +9,11 @@
         $spaceLabel = fn ($space) => $space->spaceMode?->slug === 'compartido'
             ? ($space->name ?: $space->title)
             : trim(($space->title ?: $space->name).(((int) $space->max_capacity > 0) ? ' - Cap. '.$space->max_capacity : ''));
-        $roomLabel = fn ($room) => trim(($room->name ?: $room->title).' - '.$room->beds->map(fn ($bed) => trim($bed->quantity.' '.($bed->bedType?->name ?: 'cama')))->filter()->implode(', '), ' -');
+        $roomLabel = fn ($room) => collect([
+            $room->name ?: $room->title ?: 'Habitacion',
+            filled($room->room_number) && trim((string) $room->room_number) !== trim((string) ($room->name ?: $room->title ?: 'Habitacion')) ? 'Hab. '.$room->room_number : null,
+            $room->beds->map(fn ($bed) => trim($bed->quantity.' '.($bed->bedType?->name ?: 'cama')))->filter()->implode(', '),
+        ])->filter()->implode(' - ');
         $spacesPayload = $spaces->map(fn ($space) => [
             'id' => $space->id,
             'name' => $spaceLabel($space),

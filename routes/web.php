@@ -3,6 +3,7 @@
 use App\Http\Controllers\Web\Admin\AccommodationCatalogController;
 use App\Http\Controllers\Web\Admin\SpaceApprovalController;
 use App\Http\Controllers\Web\AdminDataTableController;
+use App\Http\Controllers\Web\AdminReservationController;
 use App\Http\Controllers\Web\AuditController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\AvailabilityController;
@@ -10,6 +11,8 @@ use App\Http\Controllers\Web\CompanyController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\OccupancyController;
 use App\Http\Controllers\Web\PermissionController;
+use App\Http\Controllers\Web\PublicSite\PublicAccommodationController;
+use App\Http\Controllers\Web\PublicSite\PublicReservationController;
 use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\Spaces\SharedSpaceRegistrationStepperController;
 use App\Http\Controllers\Web\Spaces\SpaceController;
@@ -18,6 +21,15 @@ use App\Http\Controllers\Web\UserController;
 use App\Support\AccommodationCatalogRegistry;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/', [PublicAccommodationController::class, 'index'])->name('public.accommodations.index');
+Route::get('espacios/buscar', [PublicAccommodationController::class, 'search'])->name('public.accommodations.search');
+Route::get('espacios/{space}', [PublicAccommodationController::class, 'show'])->whereNumber('space')->name('public.accommodations.show');
+Route::redirect('alojamientos', '/');
+Route::get('alojamientos/buscar', [PublicAccommodationController::class, 'legacySearch']);
+Route::get('alojamientos/{space}', [PublicAccommodationController::class, 'legacyShow'])->whereNumber('space');
+Route::get('reservas/iniciar', [PublicReservationController::class, 'start'])->name('public.reservations.start');
+Route::post('reservas', [PublicReservationController::class, 'store'])->name('public.reservations.store');
+
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('login', [AuthController::class, 'login'])->name('login.store');
@@ -25,8 +37,13 @@ Route::middleware('guest')->group(function (): void {
 
 Route::middleware('auth')->group(function (): void {
     Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+    Route::get('reservas', [PublicReservationController::class, 'index'])->name('public.reservations.index');
+    Route::get('reservas/{reservation}', [PublicReservationController::class, 'show'])->whereNumber('reservation')->name('public.reservations.show');
+    Route::get('reservas/{reservation}/editar', [PublicReservationController::class, 'edit'])->whereNumber('reservation')->name('public.reservations.edit');
+    Route::put('reservas/{reservation}', [PublicReservationController::class, 'update'])->whereNumber('reservation')->name('public.reservations.update');
+    Route::post('reservas/{reservation}/comprobante', [PublicReservationController::class, 'submitPaymentProof'])->whereNumber('reservation')->name('public.reservations.payment-proof');
 
-    Route::get('/', DashboardController::class)->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('audits', [AuditController::class, 'index'])->middleware('permission:audits.view')->name('audits.index');
     Route::get('audits/{audit}', [AuditController::class, 'show'])->middleware('permission:audits.view')->name('audits.show');
     Route::prefix('occupancy')
@@ -38,6 +55,16 @@ Route::middleware('auth')->group(function (): void {
             Route::post('blocks', [OccupancyController::class, 'storeBlock'])->middleware('permission:occupancy.manage')->name('blocks.store');
             Route::patch('blocks/{occupancyBlock}', [OccupancyController::class, 'updateBlock'])->whereNumber('occupancyBlock')->middleware('permission:occupancy.manage')->name('blocks.update');
             Route::delete('blocks/{occupancyBlock}', [OccupancyController::class, 'destroyBlock'])->whereNumber('occupancyBlock')->middleware('permission:occupancy.manage')->name('blocks.destroy');
+        });
+    Route::prefix('admin/reservations')
+        ->name('admin.reservations.')
+        ->middleware(['company_user'])
+        ->group(function (): void {
+            Route::get('/', [AdminReservationController::class, 'index'])->middleware('permission:reservations.view')->name('index');
+            Route::get('{reservation}', [AdminReservationController::class, 'show'])->whereNumber('reservation')->middleware('permission:reservations.view')->name('show');
+            Route::patch('{reservation}/approve', [AdminReservationController::class, 'approve'])->whereNumber('reservation')->middleware('permission:reservations.manage')->name('approve');
+            Route::patch('{reservation}/reject', [AdminReservationController::class, 'reject'])->whereNumber('reservation')->middleware('permission:reservations.manage')->name('reject');
+            Route::patch('{reservation}/cancel', [AdminReservationController::class, 'cancel'])->whereNumber('reservation')->middleware('permission:reservations.manage')->name('cancel');
         });
     Route::prefix('availability')
         ->name('availability.')
@@ -89,6 +116,7 @@ Route::middleware('auth')->group(function (): void {
             Route::put('{space}/details', [SharedSpaceRegistrationStepperController::class, 'storeDetails'])->name('details.store');
             Route::get('{space}/rooms', [SharedSpaceRegistrationStepperController::class, 'editRooms'])->name('rooms.edit');
             Route::post('{space}/rooms', [SharedSpaceRegistrationStepperController::class, 'storeRoom'])->name('rooms.store');
+            Route::patch('{space}/rooms/order', [SharedSpaceRegistrationStepperController::class, 'sortRooms'])->name('rooms.order');
             Route::put('{space}/rooms/{room}', [SharedSpaceRegistrationStepperController::class, 'updateRoom'])->name('rooms.update');
             Route::delete('{space}/rooms/{room}', [SharedSpaceRegistrationStepperController::class, 'destroyRoom'])->name('rooms.destroy');
             Route::get('{space}/beds', [SharedSpaceRegistrationStepperController::class, 'editBeds'])->name('beds.edit');
@@ -96,6 +124,7 @@ Route::middleware('auth')->group(function (): void {
             Route::delete('{space}/rooms/{room}/beds/{bed}', [SharedSpaceRegistrationStepperController::class, 'destroyBed'])->name('beds.destroy');
             Route::get('{space}/room-services', [SharedSpaceRegistrationStepperController::class, 'editRoomServices'])->name('room-services.edit');
             Route::put('{space}/rooms/{room}/services', [SharedSpaceRegistrationStepperController::class, 'storeRoomServices'])->name('room-services.store');
+            Route::post('{space}/rooms/{room}/services/copy', [SharedSpaceRegistrationStepperController::class, 'copyRoomServices'])->name('room-services.copy');
             Route::get('{space}/photos', [SharedSpaceRegistrationStepperController::class, 'editPhotos'])->name('photos.edit');
             Route::put('{space}/photos', [SharedSpaceRegistrationStepperController::class, 'storePhotos'])->name('photos.store');
             Route::delete('{space}/photos/{photo}', [SharedSpaceRegistrationStepperController::class, 'destroyPhoto'])->name('photos.destroy');
@@ -130,6 +159,7 @@ Route::middleware('auth')->group(function (): void {
             Route::get('{space}', [SpaceApprovalController::class, 'show'])->whereNumber('space')->name('show');
             Route::patch('{space}/approve', [SpaceApprovalController::class, 'approve'])->whereNumber('space')->name('approve');
             Route::patch('{space}/corrections', [SpaceApprovalController::class, 'requestCorrections'])->whereNumber('space')->name('corrections');
+            Route::patch('{space}/suspend-review', [SpaceApprovalController::class, 'suspendForReview'])->whereNumber('space')->name('suspend-review');
         });
     Route::prefix('companies')->name('companies.')->group(function (): void {
         Route::get('/', [CompanyController::class, 'index'])->middleware('permission:companies.view')->name('index');

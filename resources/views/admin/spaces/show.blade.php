@@ -11,9 +11,15 @@
             'draft' => ['Borrador', 'secondary'],
             'completed' => ['Terminado', 'info'],
             'needs_corrections' => ['Con correcciones', 'warning'],
+            'in_review' => ['En revision', 'purple'],
             'approved' => ['Aprobado', 'primary'],
             'active' => ['Habilitado', 'success'],
             'inactive' => ['Inactivo', 'warning'],
+        ];
+        $noteLabels = [
+            'approval' => 'Aprobacion',
+            'correction' => 'Correccion solicitada',
+            'suspension' => 'Suspension temporal',
         ];
     @endphp
 
@@ -75,7 +81,7 @@
                         <div class="border-bottom pb-3 mb-3">
                             <div class="d-flex justify-content-between gap-3">
                                 <div class="fw-semibold">
-                                    {{ $note->type === 'approval' ? 'Aprobacion' : 'Correccion solicitada' }}
+                                    {{ $noteLabels[$note->type] ?? str($note->type)->replace('_', ' ')->headline() }}
                                 </div>
                                 <div class="text-body-secondary small">{{ $note->created_at?->format('Y-m-d H:i') }}</div>
                             </div>
@@ -117,7 +123,7 @@
                 </div>
             </x-ui.card>
 
-            @if (in_array($space->status, ['completed', 'needs_corrections'], true))
+            @if (in_array($space->status, ['completed', 'needs_corrections', 'approved', 'active', 'inactive'], true))
                 <x-ui.card title="Decision" class="mt-3">
                     <div class="card-body">
                         @if ($space->status === 'completed')
@@ -130,16 +136,33 @@
                             </form>
                         @endif
 
-                        <form method="POST" action="{{ route('admin.spaces.corrections', $space) }}">
-                            @csrf
-                            @method('PATCH')
-                            <label class="form-label" for="correction-message">Observaciones / correcciones</label>
-                            <textarea class="form-control @error('message') is-invalid @enderror" id="correction-message" name="message" rows="5" minlength="10" required>{{ old('message') }}</textarea>
-                            <div class="invalid-feedback">{{ $errors->first('message') }}</div>
-                            <button class="btn btn-warning w-100 mt-3" type="submit">
-                                <i class="ti ti-message-report me-1"></i>Enviar correcciones
-                            </button>
-                        </form>
+                        @if (in_array($space->status, ['completed', 'needs_corrections'], true))
+                            <form method="POST" action="{{ route('admin.spaces.corrections', $space) }}">
+                                @csrf
+                                @method('PATCH')
+                                <label class="form-label" for="correction-message">Observaciones / correcciones</label>
+                                <textarea class="form-control @error('message') is-invalid @enderror" id="correction-message" name="message" rows="5" minlength="10" required>{{ old('message') }}</textarea>
+                                <div class="invalid-feedback">{{ $errors->first('message') }}</div>
+                                <button class="btn btn-warning w-100 mt-3" type="submit">
+                                    <i class="ti ti-message-report me-1"></i>Enviar correcciones
+                                </button>
+                            </form>
+                        @endif
+
+                        @if (in_array($space->status, ['approved', 'active', 'inactive'], true))
+                            <hr>
+                            <form method="POST" action="{{ route('admin.spaces.suspend-review', $space) }}">
+                                @csrf
+                                @method('PATCH')
+                                <label class="form-label" for="suspend-message">Observaciones para revision</label>
+                                <textarea class="form-control @error('message') is-invalid @enderror" id="suspend-message" name="message" rows="5" minlength="10" required>{{ old('message') }}</textarea>
+                                <div class="form-hint">El alojamiento dejara de estar habilitado y quedara en estado En revision.</div>
+                                <div class="invalid-feedback">{{ $errors->first('message') }}</div>
+                                <button class="btn btn-danger w-100 mt-3" type="submit">
+                                    <i class="ti ti-ban me-1"></i>Suspender y enviar a revision
+                                </button>
+                            </form>
+                        @endif
                     </div>
                 </x-ui.card>
             @endif

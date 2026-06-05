@@ -25,7 +25,10 @@
                         $statusMap = [
                             'completed' => ['Terminado', 'info'],
                             'needs_corrections' => ['Con correcciones', 'warning'],
+                            'in_review' => ['En revision', 'purple'],
                             'approved' => ['Aprobado', 'primary'],
+                            'active' => ['Habilitado', 'success'],
+                            'inactive' => ['Inactivo', 'warning'],
                         ];
                     @endphp
                     <tr>

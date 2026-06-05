@@ -143,6 +143,9 @@ async function refreshContainer(url) {
         initTomSelects(fresh);
         initAdminDataTables();
         initCharacterCounters(fresh);
+        initSpaceLocationMaps(fresh);
+        initSharedRoomSort(fresh);
+        initPhotoUploadPreviews(fresh);
     }
 }
 
@@ -233,6 +236,387 @@ function initCharacterCounters(scope = document) {
         field.dataset.characterCounterInitialized = '1';
         update();
     });
+}
+
+let googleMapsLoaderPromise = null;
+
+function loadGoogleMaps(apiKey) {
+    if (window.google?.maps?.places) {
+        return Promise.resolve(window.google);
+    }
+
+    if (googleMapsLoaderPromise) {
+        return googleMapsLoaderPromise;
+    }
+
+    googleMapsLoaderPromise = new Promise((resolve, reject) => {
+        const callback = `initGoogleMaps${Date.now()}`;
+        window[callback] = () => {
+            delete window[callback];
+            resolve(window.google);
+        };
+
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey.trim())}&libraries=places&v=weekly&auth_referrer_policy=origin&callback=${callback}`;
+        script.async = true;
+        script.defer = true;
+        script.onerror = () => reject(new Error('No se pudo cargar Google Maps.'));
+        document.head.appendChild(script);
+    });
+
+    return googleMapsLoaderPromise;
+}
+
+function initSpaceLocationMaps(scope = document) {
+    scope.querySelectorAll('[data-space-location-map]').forEach((root) => {
+        if (root.dataset.locationMapInitialized === '1') {
+            return;
+        }
+
+        const apiKey = root.dataset.googleMapsKey;
+        const canvas = root.querySelector('[data-location-canvas]');
+        const form = root.closest('form');
+
+        if (!apiKey || !canvas || !form) {
+            syncSpaceLocationAliasFields(form);
+            return;
+        }
+
+        root.dataset.locationMapInitialized = '1';
+        loadGoogleMaps(apiKey)
+            .then(() => mountSpaceLocationMap(root, form, canvas))
+            .catch((error) => {
+                canvas.innerHTML = `<div class="space-location-map-fallback">${error.message}</div>`;
+            });
+    });
+}
+
+function mountSpaceLocationMap(root, form, canvas) {
+    const fields = {
+        search: root.querySelector('[data-location-search]'),
+        country: form.querySelector('[data-location-field="country"]'),
+        state: form.querySelector('[data-location-field="state_or_region"]'),
+        city: form.querySelector('[data-location-field="city"]'),
+        zone: form.querySelector('[data-location-field="zone_or_neighborhood"]'),
+        address: form.querySelector('[data-location-field="address"]'),
+        addressText: form.querySelector('[data-location-field="address_text"]'),
+        reference: form.querySelector('[data-location-field="reference"]'),
+        referenceText: form.querySelector('[data-location-field="reference_text"]'),
+        latitude: form.querySelector('[data-location-field="latitude"]'),
+        longitude: form.querySelector('[data-location-field="longitude"]'),
+        placeId: form.querySelector('[data-location-field="google_place_id"]'),
+    };
+    const center = {
+        lat: Number(root.dataset.lat || -16.2902),
+        lng: Number(root.dataset.lng || -63.5887),
+    };
+    const map = new google.maps.Map(canvas, {
+        center,
+        zoom: root.dataset.hasLocation === '1' ? 16 : 6,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: true,
+    });
+    const marker = new google.maps.Marker({
+        map,
+        position: center,
+        draggable: true,
+    });
+    const geocoder = new google.maps.Geocoder();
+
+    const setPosition = (latLng, shouldReverseGeocode = false) => {
+        const lat = typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat;
+        const lng = typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng;
+        marker.setPosition({ lat, lng });
+        map.panTo({ lat, lng });
+        fields.latitude.value = lat.toFixed(7);
+        fields.longitude.value = lng.toFixed(7);
+
+        if (shouldReverseGeocode) {
+            fields.placeId.value = '';
+            reverseGeocode(geocoder, { lat, lng }, fields);
+        }
+    };
+
+    if (fields.search) {
+        const autocomplete = new google.maps.places.Autocomplete(fields.search, {
+            componentRestrictions: { country: 'bo' },
+            fields: ['address_components', 'formatted_address', 'geometry', 'name', 'place_id'],
+        });
+        autocomplete.addListener('place_changed', () => {
+            const place = autocomplete.getPlace();
+
+            if (!place.geometry?.location) {
+                return;
+            }
+
+            fillLocationFieldsFromPlace(place, fields);
+            setPosition(place.geometry.location, false);
+            map.setZoom(17);
+        });
+    }
+
+    map.addListener('click', (event) => setPosition(event.latLng, true));
+    marker.addListener('dragend', (event) => setPosition(event.latLng, true));
+
+    fields.address?.addEventListener('input', () => syncSpaceLocationAliasFields(form));
+    fields.reference?.addEventListener('input', () => syncSpaceLocationAliasFields(form));
+    syncSpaceLocationAliasFields(form);
+}
+
+function reverseGeocode(geocoder, location, fields) {
+    geocoder.geocode({ location }, (results, status) => {
+        if (status !== 'OK' || !results?.[0]) {
+            return;
+        }
+
+        fillLocationFieldsFromPlace(results[0], fields);
+    });
+}
+
+function fillLocationFieldsFromPlace(place, fields) {
+    const components = place.address_components ?? [];
+    const byType = (type) => components.find((component) => component.types.includes(type))?.long_name ?? '';
+    const city = byType('locality') || byType('administrative_area_level_2') || byType('administrative_area_level_1');
+    const route = byType('route');
+    const streetNumber = byType('street_number');
+    const neighborhood = byType('sublocality') || byType('neighborhood');
+    const address = place.formatted_address || [route, streetNumber].filter(Boolean).join(' ') || place.name || '';
+
+    if (fields.country && byType('country')) fields.country.value = byType('country');
+    if (fields.state && byType('administrative_area_level_1')) fields.state.value = byType('administrative_area_level_1');
+    if (fields.city && city) fields.city.value = city;
+    if (fields.zone && neighborhood) fields.zone.value = neighborhood;
+    if (fields.address && address) fields.address.value = address;
+    if (fields.addressText && address) fields.addressText.value = address;
+    if (fields.placeId) fields.placeId.value = place.place_id ?? '';
+}
+
+function syncSpaceLocationAliasFields(form) {
+    const address = form.querySelector('[data-location-field="address"]');
+    const addressText = form.querySelector('[data-location-field="address_text"]');
+    const reference = form.querySelector('[data-location-field="reference"]');
+    const referenceText = form.querySelector('[data-location-field="reference_text"]');
+
+    if (address && addressText) {
+        addressText.value = address.value;
+    }
+
+    if (reference && referenceText) {
+        referenceText.value = reference.value;
+    }
+}
+
+function initPublicAccommodationSearch(scope = document) {
+    scope.querySelectorAll('[data-public-accommodation-search]').forEach((form) => {
+        if (form.dataset.publicSearchInitialized === '1') {
+            return;
+        }
+
+        const apiKey = form.dataset.googleMapsKey;
+        const input = form.querySelector('[data-public-destination-search]');
+
+        if (!apiKey || !input) {
+            return;
+        }
+
+        form.dataset.publicSearchInitialized = '1';
+        loadGoogleMaps(apiKey)
+            .then(() => mountPublicDestinationSearch(form, input))
+            .catch(() => {
+                clearPublicDestinationFields(form);
+            });
+    });
+}
+
+function mountPublicDestinationSearch(form, input) {
+    const autocomplete = new google.maps.places.Autocomplete(input, {
+        componentRestrictions: { country: 'bo' },
+        fields: ['address_components', 'formatted_address', 'geometry', 'name'],
+        types: ['(regions)'],
+    });
+
+    input.addEventListener('input', () => clearPublicDestinationFields(form));
+
+    autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+
+        if (!place.geometry?.location) {
+            clearPublicDestinationFields(form);
+
+            return;
+        }
+
+        fillPublicDestinationFields(form, place);
+    });
+}
+
+function fillPublicDestinationFields(form, place) {
+    const components = place.address_components ?? [];
+    const byType = (type) => components.find((component) => component.types.includes(type))?.long_name ?? '';
+    const city = byType('locality') || byType('administrative_area_level_2');
+    const state = byType('administrative_area_level_1');
+    const country = byType('country');
+    const location = place.geometry.location;
+    const fields = publicDestinationFields(form);
+
+    if (place.formatted_address || place.name) {
+        const input = form.querySelector('[data-public-destination-search]');
+        input.value = place.formatted_address || place.name;
+    }
+
+    if (fields.latitude) fields.latitude.value = location.lat().toFixed(7);
+    if (fields.longitude) fields.longitude.value = location.lng().toFixed(7);
+    if (fields.city) fields.city.value = city;
+    if (fields.state) fields.state.value = state;
+    if (fields.country) fields.country.value = country;
+}
+
+function clearPublicDestinationFields(form) {
+    Object.values(publicDestinationFields(form)).forEach((field) => {
+        if (field) {
+            field.value = '';
+        }
+    });
+}
+
+function publicDestinationFields(form) {
+    return {
+        latitude: form.querySelector('[data-public-destination-field="latitude"]'),
+        longitude: form.querySelector('[data-public-destination-field="longitude"]'),
+        city: form.querySelector('[data-public-destination-field="city"]'),
+        state: form.querySelector('[data-public-destination-field="state"]'),
+        country: form.querySelector('[data-public-destination-field="country"]'),
+    };
+}
+
+function initSharedRoomSort(scope = document) {
+    scope.querySelectorAll('[data-room-sort-list]').forEach((list) => {
+        if (list.dataset.roomSortInitialized === '1') {
+            return;
+        }
+
+        let draggedRow = null;
+
+        const saveOrder = async () => {
+            const roomIds = [...list.querySelectorAll('[data-room-id]')].map((row) => row.dataset.roomId);
+            const response = await fetch(list.dataset.sortUrl, {
+                method: 'PATCH',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ room_ids: roomIds }),
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok || payload.success === false) {
+                throw new Error(payload.message ?? 'No se pudo actualizar el orden.');
+            }
+
+            toast.fire({ icon: 'success', title: payload.message ?? 'Orden actualizado.' });
+        };
+
+        list.querySelectorAll('[data-room-id]').forEach((row) => {
+            row.addEventListener('dragstart', (event) => {
+                draggedRow = row;
+                row.classList.add('is-dragging');
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', row.dataset.roomId);
+            });
+
+            row.addEventListener('dragend', () => {
+                row.classList.remove('is-dragging');
+                draggedRow = null;
+                saveOrder().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+            });
+
+            row.addEventListener('dragover', (event) => {
+                event.preventDefault();
+
+                if (!draggedRow || draggedRow === row) {
+                    return;
+                }
+
+                const rect = row.getBoundingClientRect();
+                const after = event.clientY > rect.top + rect.height / 2;
+                list.insertBefore(draggedRow, after ? row.nextSibling : row);
+            });
+        });
+
+        list.dataset.roomSortInitialized = '1';
+    });
+}
+
+function formatFileSize(bytes) {
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function validatePhotoInput(input) {
+    const files = [...input.files];
+    const maxSizeKb = Number(input.dataset.photoMaxSize ?? 4096);
+    const maxFiles = Number(input.dataset.photoMaxFiles ?? 1);
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const errorTarget = input.closest('.col-md-6, .col-12, form')?.querySelector('[data-photo-error]');
+    const preview = document.querySelector(input.dataset.photoPreview ?? '');
+    const errors = [];
+
+    if (files.length > maxFiles) {
+        errors.push(`Selecciona maximo ${maxFiles} archivo${maxFiles === 1 ? '' : 's'}.`);
+    }
+
+    files.forEach((file) => {
+        if (!allowedTypes.includes(file.type)) {
+            errors.push(`${file.name}: formato no permitido.`);
+        }
+
+        if (file.size > maxSizeKb * 1024) {
+            errors.push(`${file.name}: pesa ${formatFileSize(file.size)} y el maximo es ${(maxSizeKb / 1024).toFixed(0)} MB.`);
+        }
+    });
+
+    input.classList.toggle('is-invalid', errors.length > 0);
+    input.dataset.photoInvalid = errors.length > 0 ? '1' : '0';
+
+    if (errorTarget) {
+        errorTarget.textContent = errors[0] ?? '';
+    }
+
+    if (preview) {
+        preview.innerHTML = '';
+
+        if (errors.length > 0) {
+            preview.innerHTML = `<div class="photo-upload-error">${errors.join('<br>')}</div>`;
+        } else {
+            files.forEach((file) => {
+                const item = document.createElement('div');
+                item.className = 'photo-upload-preview-item';
+                item.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="${file.name}"><span>${file.name}</span>`;
+                preview.append(item);
+            });
+        }
+    }
+
+    return errors.length === 0;
+}
+
+function initPhotoUploadPreviews(scope = document) {
+    scope.querySelectorAll('[data-photo-input]').forEach((input) => {
+        if (input.dataset.photoPreviewInitialized === '1') {
+            return;
+        }
+
+        input.addEventListener('change', () => validatePhotoInput(input));
+        input.dataset.photoPreviewInitialized = '1';
+    });
+}
+
+function validatePhotoUploadForm(form) {
+    const inputs = [...form.querySelectorAll('[data-photo-input]')];
+
+    return inputs.every((input) => validatePhotoInput(input));
 }
 
 function confirmVoidPurchase(form) {
@@ -2314,8 +2698,15 @@ function initAvailabilityGrid() {
     root.querySelector('[data-availability-today]')?.addEventListener('click', () => loadGridData(gridData.current_period).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
     root.querySelector('[data-availability-next]')?.addEventListener('click', () => loadGridData(gridData.next_period).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
     root.querySelector('[data-availability-bulk-open]')?.addEventListener('click', openBulkModal);
-    datePicker.addEventListener('change', () => loadGridData(datePicker.value).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+    datePicker.addEventListener('change', (event) => {
+        event.preventDefault();
+        loadGridData(datePicker.value).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+    });
     filtersForm.addEventListener('change', () => loadGridData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
+    filtersForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        loadGridData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+    });
     filtersForm.addEventListener('reset', () => window.setTimeout(() => loadGridData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })), 0));
     bulkForm.querySelector('[data-availability-bulk-space]')?.addEventListener('change', fillBulkRooms);
     bulkForm.addEventListener('submit', (event) => {
@@ -2342,17 +2733,37 @@ initCashExpenseModal();
 initCashCloseModal();
 initAdminDataTables();
 initCharacterCounters();
+initSpaceLocationMaps();
+initPublicAccommodationSearch();
+initSharedRoomSort();
+initPhotoUploadPreviews();
 initOccupancyWeekGrid();
 initAvailabilityGrid();
 
 document.addEventListener('click', (event) => {
     const modalTrigger = event.target.closest('[data-modal-url]');
+    const roomServicesCopyAll = event.target.closest('[data-room-services-copy-all]');
 
     if (modalTrigger) {
         event.preventDefault();
         openAjaxModal(modalTrigger);
 
         return;
+    }
+
+    if (roomServicesCopyAll) {
+        event.preventDefault();
+        const form = roomServicesCopyAll.closest('form');
+        const select = form?.querySelector('select[name="target_room_ids[]"]');
+        const values = [...(select?.options ?? [])].map((option) => option.value);
+
+        if (select?.tomselect) {
+            select.tomselect.setValue(values);
+        } else if (select) {
+            [...select.options].forEach((option) => {
+                option.selected = true;
+            });
+        }
     }
 });
 
@@ -2397,6 +2808,13 @@ document.addEventListener('submit', (event) => {
 
     if (ajaxForm) {
         event.preventDefault();
+
+        if (ajaxForm.matches('[data-photo-upload-form]') && !validatePhotoUploadForm(ajaxForm)) {
+            Swal.fire({ icon: 'error', title: 'Fotografias', text: 'Revisa el formato, cantidad o peso de las fotografias antes de guardar.' });
+
+            return;
+        }
+
         submitAjaxForm(ajaxForm);
     }
 });

@@ -25,6 +25,7 @@ class SpaceRoom extends Model
         'max_capacity',
         'photos_skipped',
         'status',
+        'sort_order',
     ];
 
     protected function casts(): array
@@ -32,6 +33,7 @@ class SpaceRoom extends Model
         return [
             'max_capacity' => 'integer',
             'photos_skipped' => 'boolean',
+            'sort_order' => 'integer',
         ];
     }
 
@@ -75,5 +77,10 @@ class SpaceRoom extends Model
     public function availabilityDays(): HasMany
     {
         return $this->hasMany(AvailabilityDay::class);
+    }
+
+    public function reservations(): HasMany
+    {
+        return $this->hasMany(Reservation::class);
     }
 }

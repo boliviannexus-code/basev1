@@ -80,9 +80,12 @@ class PrivateSpaceRegistrationStepperTest extends TestCase
                 'city' => 'Copacabana',
                 'zone_or_neighborhood' => 'Centro',
                 'address' => 'Av. Costanera 123',
+                'address_text' => 'Av. Costanera 123',
                 'reference' => 'A dos cuadras del muelle',
+                'reference_text' => 'A dos cuadras del muelle',
                 'latitude' => '-16.1650000',
                 'longitude' => '-69.0850000',
+                'google_place_id' => 'place-private-123',
             ])
             ->assertRedirect(route('spaces.private.review', $space));
 
@@ -108,6 +111,8 @@ class PrivateSpaceRegistrationStepperTest extends TestCase
             'company_id' => $user->company_id,
             'space_id' => $space->id,
             'city' => 'Copacabana',
+            'address_text' => 'Av. Costanera 123',
+            'google_place_id' => 'place-private-123',
         ]);
     }
 

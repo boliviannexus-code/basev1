@@ -115,6 +115,53 @@ class SpaceApprovalTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_super_admin_can_suspend_active_space_and_send_it_to_review(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        Permission::findOrCreate('spaces.view');
+        $superAdmin = $this->superAdmin();
+        $company = Company::factory()->create();
+        $companyUser = User::factory()->create(['company_id' => $company->id]);
+        $companyUser->givePermissionTo('spaces.view');
+        $space = $this->completedSpace($company->id, [
+            'status' => 'active',
+            'approved_by' => $superAdmin->id,
+            'approved_at' => now(),
+        ]);
+        $message = 'Suspension temporal por revision de datos sensibles del alojamiento.';
+
+        $this
+            ->actingAs($superAdmin)
+            ->get(route('admin.spaces.show', $space))
+            ->assertOk()
+            ->assertSee('Suspender y enviar a revision');
+
+        $this
+            ->actingAs($superAdmin)
+            ->patch(route('admin.spaces.suspend-review', $space), [
+                'message' => $message,
+            ])
+            ->assertRedirect();
+
+        $space->refresh();
+        $this->assertSame('in_review', $space->status);
+        $this->assertNull($space->approved_by);
+        $this->assertNull($space->approved_at);
+        $this->assertDatabaseHas('space_review_notes', [
+            'space_id' => $space->id,
+            'user_id' => $superAdmin->id,
+            'type' => 'suspension',
+            'message' => $message,
+        ]);
+
+        $this
+            ->actingAs($companyUser)
+            ->get(route('spaces.show', $space))
+            ->assertOk()
+            ->assertSee('En revision')
+            ->assertSee($message);
+    }
+
     private function superAdmin(): User
     {
         Permission::findOrCreate('spaces.approve');

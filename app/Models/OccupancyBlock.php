@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class OccupancyBlock extends Model
@@ -63,5 +64,15 @@ class OccupancyBlock extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function reservation(): HasOne
+    {
+        return $this->hasOne(Reservation::class, 'occupancy_block_id');
+    }
+
+    public function reservationRoom(): HasOne
+    {
+        return $this->hasOne(ReservationRoom::class, 'occupancy_block_id');
     }
 }

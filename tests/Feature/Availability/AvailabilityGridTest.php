@@ -7,6 +7,7 @@ use App\Models\BathroomType;
 use App\Models\Company;
 use App\Models\OccupancyBlock;
 use App\Models\PrivateSpaceType;
+use App\Models\RoomBed;
 use App\Models\SharedSpaceType;
 use App\Models\Space;
 use App\Models\SpaceMode;
@@ -47,7 +48,7 @@ class AvailabilityGridTest extends TestCase
             $this->assertCount(30, $response['dates']);
             $this->assertTrue($labels->contains('Casa visible - Cap. 4'));
             $this->assertTrue($labels->contains('Hotel Central'));
-            $this->assertTrue($labels->contains($room->name));
+            $this->assertTrue($labels->contains('Habitacion A - Hab. 101 - 2 Cama individual'));
             $this->assertFalse($labels->contains('Casa borrador - Cap. 4'));
             $this->assertFalse($labels->contains('Casa externa - Cap. 4'));
             $this->assertSame($private->id, collect($response['rows'])->firstWhere('label', 'Casa visible - Cap. 4')['space_id']);
@@ -262,17 +263,26 @@ class AvailabilityGridTest extends TestCase
             'company_id' => $company->id,
             'space_id' => $space->id,
             'bathroom_type_id' => $bathroomType->id,
-            'name' => '101',
-            'title' => '101',
+            'name' => 'Habitacion A',
+            'room_number' => '101',
+            'title' => 'Habitacion A',
             'status' => 'active',
         ]);
         $roomB = SpaceRoom::factory()->create([
             'company_id' => $company->id,
             'space_id' => $space->id,
             'bathroom_type_id' => $bathroomType->id,
-            'name' => '102',
-            'title' => '102',
+            'name' => 'Habitacion B',
+            'room_number' => '102',
+            'title' => 'Habitacion B',
             'status' => 'active',
+        ]);
+        RoomBed::factory()->create([
+            'company_id' => $company->id,
+            'space_room_id' => $roomA->id,
+            'quantity' => 2,
+            'capacity_per_bed' => 1,
+            'total_capacity' => 2,
         ]);
 
         return [$space, $roomA, $roomB];

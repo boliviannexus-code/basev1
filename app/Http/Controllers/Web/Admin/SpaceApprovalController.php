@@ -17,7 +17,7 @@ class SpaceApprovalController extends Controller
 
         $spaces = Space::query()
             ->with(['company', 'spaceMode', 'privateSpaceType', 'sharedSpaceType', 'approvedBy'])
-            ->whereIn('status', ['completed', 'needs_corrections', 'approved'])
+            ->whereIn('status', ['completed', 'needs_corrections', 'in_review', 'approved', 'active', 'inactive'])
             ->latest('updated_at')
             ->paginate(15);
 
@@ -93,5 +93,29 @@ class SpaceApprovalController extends Controller
         ]);
 
         return back()->with('success', 'Correcciones enviadas correctamente.');
+    }
+
+    public function suspendForReview(Request $request, Space $space): RedirectResponse
+    {
+        Gate::authorize('spaces.approve');
+        abort_unless(in_array($space->status, ['completed', 'needs_corrections', 'approved', 'active', 'inactive'], true), 422);
+
+        $data = $request->validate([
+            'message' => ['required', 'string', 'min:10', 'max:3000'],
+        ]);
+
+        $space->reviewNotes()->create([
+            'user_id' => auth()->id(),
+            'type' => 'suspension',
+            'message' => $data['message'],
+        ]);
+
+        $space->update([
+            'status' => 'in_review',
+            'approved_by' => null,
+            'approved_at' => null,
+        ]);
+
+        return back()->with('success', 'Alojamiento suspendido y enviado a revision correctamente.');
     }
 }

@@ -72,7 +72,7 @@ class Space extends Model
 
     public function rooms(): HasMany
     {
-        return $this->hasMany(SpaceRoom::class);
+        return $this->hasMany(SpaceRoom::class)->orderBy('sort_order')->orderBy('id');
     }
 
     public function photos(): HasMany
@@ -105,6 +105,11 @@ class Space extends Model
     public function availabilityDays(): HasMany
     {
         return $this->hasMany(AvailabilityDay::class);
+    }
+
+    public function reservations(): HasMany
+    {
+        return $this->hasMany(Reservation::class);
     }
 
     public function creator(): BelongsTo

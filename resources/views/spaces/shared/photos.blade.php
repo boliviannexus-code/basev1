@@ -13,19 +13,23 @@
     @endphp
     <x-ui.card title="Fotografias generales" class="mb-3">
         <div class="card-body">
-            <form method="POST" action="{{ route('spaces.shared.photos.store', $space) }}" enctype="multipart/form-data" data-ajax-form>
+            <form method="POST" action="{{ route('spaces.shared.photos.store', $space) }}" enctype="multipart/form-data" data-ajax-form data-photo-upload-form>
                 @csrf
                 @method('PUT')
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Foto principal</label>
-                        <input class="form-control" name="main_photo" type="file" accept="image/jpeg,image/png,image/webp">
+                        <input class="form-control" name="main_photo" type="file" accept="image/jpeg,image/png,image/webp" data-photo-input data-photo-max-size="4096" data-photo-max-files="1" data-photo-preview="#shared-main-photo-preview">
                         <div class="form-hint">1 foto principal del alojamiento.</div>
+                        <div class="invalid-feedback" data-photo-error></div>
+                        <div class="photo-upload-preview mt-2" id="shared-main-photo-preview" data-photo-preview></div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Galeria complementaria</label>
-                        <input class="form-control" name="gallery_photos[]" type="file" accept="image/jpeg,image/png,image/webp" multiple>
-                        <div class="form-hint">Maximo 3 fotografias de galeria.</div>
+                        <input class="form-control" name="gallery_photos[]" type="file" accept="image/jpeg,image/png,image/webp" multiple data-photo-input data-photo-max-size="4096" data-photo-max-files="3" data-photo-preview="#shared-gallery-photos-preview">
+                        <div class="form-hint">Maximo 3 fotografias de galeria. JPG, PNG o WebP. Maximo 4 MB cada una.</div>
+                        <div class="invalid-feedback" data-photo-error></div>
+                        <div class="photo-upload-preview mt-2" id="shared-gallery-photos-preview" data-photo-preview></div>
                     </div>
                     <div class="col-12">
                         <label class="form-check">
@@ -47,6 +51,7 @@
                             <div class="text-body-secondary small mb-2">Principal</div>
                             <div class="space-photo-item space-photo-item-main">
                                 <img class="space-photo-preview" src="{{ Storage::disk('public')->url($mainPhoto->path) }}" alt="{{ $space->name }}">
+                                <div class="photo-loaded-message">Foto cargada. Eliminala para subir una nueva principal.</div>
                                 <form method="POST" action="{{ route('spaces.shared.photos.destroy', [$space, $mainPhoto]) }}" data-ajax-form data-confirm-delete="Eliminar fotografia principal?">
                                     @csrf
                                     @method('DELETE')
@@ -64,6 +69,7 @@
                             @foreach ($galleryPhotos as $photo)
                                 <div class="space-photo-item">
                                     <img class="space-photo-thumb" src="{{ Storage::disk('public')->url($photo->path) }}" alt="{{ $photo->alt_text ?: $space->name }}">
+                                    <div class="photo-loaded-message">Cargada</div>
                                     <form method="POST" action="{{ route('spaces.shared.photos.destroy', [$space, $photo]) }}" data-ajax-form data-confirm-delete="Eliminar fotografia?">
                                         @csrf
                                         @method('DELETE')
@@ -83,19 +89,23 @@
     @foreach ($space->rooms as $room)
         <x-ui.card :title="'Fotos: '.$room->title" class="mb-3">
             <div class="card-body">
-                <form method="POST" action="{{ route('spaces.shared.room-photos.store', [$space, $room]) }}" enctype="multipart/form-data" data-ajax-form>
+                <form method="POST" action="{{ route('spaces.shared.room-photos.store', [$space, $room]) }}" enctype="multipart/form-data" data-ajax-form data-photo-upload-form>
                     @csrf
                     @method('PUT')
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Foto principal de habitacion</label>
-                            <input class="form-control" name="main_photo" type="file" accept="image/jpeg,image/png,image/webp">
-                            <div class="form-hint">1 foto principal de la habitacion.</div>
+                            <input class="form-control" name="main_photo" type="file" accept="image/jpeg,image/png,image/webp" data-photo-input data-photo-max-size="4096" data-photo-max-files="1" data-photo-preview="#room-main-photo-preview-{{ $room->id }}">
+                            <div class="form-hint">1 foto principal de la habitacion. Maximo 4 MB.</div>
+                            <div class="invalid-feedback" data-photo-error></div>
+                            <div class="photo-upload-preview mt-2" id="room-main-photo-preview-{{ $room->id }}" data-photo-preview></div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Galeria de habitacion</label>
-                            <input class="form-control" name="gallery_photos[]" type="file" accept="image/jpeg,image/png,image/webp" multiple>
-                            <div class="form-hint">Maximo 3 fotografias de habitacion.</div>
+                            <input class="form-control" name="gallery_photos[]" type="file" accept="image/jpeg,image/png,image/webp" multiple data-photo-input data-photo-max-size="4096" data-photo-max-files="3" data-photo-preview="#room-gallery-photos-preview-{{ $room->id }}">
+                            <div class="form-hint">Maximo 3 fotografias de habitacion. JPG, PNG o WebP. Maximo 4 MB cada una.</div>
+                            <div class="invalid-feedback" data-photo-error></div>
+                            <div class="photo-upload-preview mt-2" id="room-gallery-photos-preview-{{ $room->id }}" data-photo-preview></div>
                         </div>
                         <div class="col-12">
                             <label class="form-check">
@@ -113,6 +123,7 @@
                             @foreach ($room->photos as $photo)
                                 <div class="space-photo-item">
                                     <img class="space-photo-thumb" src="{{ Storage::disk('public')->url($photo->path) }}" alt="{{ $room->title }}">
+                                    <div class="photo-loaded-message">Cargada. Eliminala para reemplazar.</div>
                                     <form method="POST" action="{{ route('spaces.shared.room-photos.destroy', [$space, $room, $photo]) }}" data-ajax-form data-confirm-delete="Eliminar fotografia de habitacion?">
                                         @csrf
                                         @method('DELETE')
