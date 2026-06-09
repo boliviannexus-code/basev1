@@ -62,6 +62,7 @@
                         <td>
                             <div>{{ $reservation->guest_name }}</div>
                             <div class="text-muted small">{{ $reservation->guest_email }}</div>
+                            <div class="text-muted small">Canal: {{ $reservation->reservationChannel?->name ?: 'Sin canal' }}</div>
                         </td>
                         <td>
                             <div>{{ $reservation->space->title ?: $reservation->space->name }}</div>

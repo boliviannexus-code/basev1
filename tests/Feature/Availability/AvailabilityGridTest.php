@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Availability;
 
-use App\Models\AvailabilityDay;
+use App\Models\AvailabilityStatus;
 use App\Models\BathroomType;
 use App\Models\Company;
 use App\Models\OccupancyBlock;
@@ -23,7 +23,7 @@ class AvailabilityGridTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_grid_shows_active_company_resources_for_thirty_days(): void
+    public function test_grid_shows_active_company_resources_for_week(): void
     {
         Carbon::setTestNow('2026-06-10 10:00:00');
 
@@ -37,15 +37,16 @@ class AvailabilityGridTest extends TestCase
 
             $response = $this
                 ->actingAs($user)
-                ->getJson(route('availability.grid-data'))
+                ->getJson(route('availability.week-data'))
                 ->assertOk()
                 ->json();
 
             $labels = collect($response['rows'])->pluck('label');
 
-            $this->assertSame('2026-06-10', $response['start_date']);
-            $this->assertSame('2026-07-09', $response['end_date']);
-            $this->assertCount(30, $response['dates']);
+            $this->assertSame('2026-06-10', $response['week_start']);
+            $this->assertSame('2026-06-16', $response['week_end']);
+            $this->assertFalse($response['can_go_previous']);
+            $this->assertCount(7, $response['dates']);
             $this->assertTrue($labels->contains('Casa visible - Cap. 4'));
             $this->assertTrue($labels->contains('Hotel Central'));
             $this->assertTrue($labels->contains('Habitacion A - Hab. 101 - 2 Cama individual'));
@@ -58,7 +59,7 @@ class AvailabilityGridTest extends TestCase
         }
     }
 
-    public function test_private_space_day_can_be_saved(): void
+    public function test_private_space_status_can_be_saved(): void
     {
         $this->seed(AccommodationCatalogSeeder::class);
         [$user, $company] = $this->companyUser();
@@ -66,26 +67,27 @@ class AvailabilityGridTest extends TestCase
 
         $this
             ->actingAs($user)
-            ->patchJson(route('availability.day.store'), [
+            ->postJson(route('availability.status.store'), [
                 'space_id' => $space->id,
                 'date' => '2026-06-12',
-                'price' => '150.50',
                 'status' => 'closed',
+                'notes' => 'Mantenimiento',
             ])
             ->assertOk()
             ->assertJson(['success' => true]);
 
-        $this->assertDatabaseHas('availability_days', [
+        $this->assertDatabaseHas('availability_statuses', [
             'company_id' => $company->id,
             'space_id' => $space->id,
             'space_room_id' => null,
             'date' => '2026-06-12',
-            'price' => '150.50',
             'status' => 'closed',
+            'source' => 'manual',
+            'notes' => 'Mantenimiento',
         ]);
     }
 
-    public function test_day_without_price_is_presented_as_closed_and_cannot_be_enabled(): void
+    public function test_missing_status_is_presented_as_available(): void
     {
         $this->seed(AccommodationCatalogSeeder::class);
         [$user, $company] = $this->companyUser();
@@ -93,26 +95,88 @@ class AvailabilityGridTest extends TestCase
 
         $rows = $this
             ->actingAs($user)
-            ->getJson(route('availability.grid-data', ['start_date' => '2026-06-12']))
+            ->getJson(route('availability.week-data', ['week_start' => '2026-06-12']))
             ->assertOk()
             ->json('rows');
 
         $cell = collect(collect($rows)->firstWhere('space_id', $space->id)['cells'])->firstWhere('date', '2026-06-12');
 
-        $this->assertSame('closed', $cell['status']);
-        $this->assertSame('closed', $cell['stored_status']);
-        $this->assertFalse($cell['has_price']);
+        $this->assertSame('available', $cell['status']);
+        $this->assertNull($cell['source']);
+        $this->assertNull($cell['availability_status_id']);
+    }
+
+    public function test_grid_clamps_past_requested_date_to_today(): void
+    {
+        Carbon::setTestNow('2026-06-10 10:00:00');
+
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user] = $this->companyUser();
+
+            $response = $this
+                ->actingAs($user)
+                ->getJson(route('availability.week-data', ['week_start' => '2026-06-01']))
+                ->assertOk()
+                ->json();
+
+            $this->assertSame('2026-06-10', $response['week_start']);
+            $this->assertSame('2026-06-16', $response['week_end']);
+            $this->assertFalse($response['can_go_previous']);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_returning_manual_status_to_available_soft_deletes_record(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        [$user, $company] = $this->companyUser();
+        $space = $this->privateSpace($company);
+        $status = AvailabilityStatus::query()->create([
+            'company_id' => $company->id,
+            'space_id' => $space->id,
+            'space_room_id' => null,
+            'date' => '2026-06-12',
+            'status' => 'reserved',
+            'source' => 'manual',
+        ]);
 
         $this
             ->actingAs($user)
-            ->patchJson(route('availability.day.store'), [
+            ->patchJson(route('availability.status.update', $status), [
                 'space_id' => $space->id,
                 'date' => '2026-06-12',
-                'price' => null,
                 'status' => 'available',
             ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors('price');
+            ->assertOk();
+
+        $this->assertSoftDeleted('availability_statuses', [
+            'id' => $status->id,
+        ]);
+    }
+
+    public function test_past_date_status_cannot_be_saved(): void
+    {
+        Carbon::setTestNow('2026-06-10 10:00:00');
+
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user, $company] = $this->companyUser();
+            $space = $this->privateSpace($company);
+
+            $this
+                ->actingAs($user)
+                ->postJson(route('availability.status.store'), [
+                    'space_id' => $space->id,
+                    'date' => '2026-06-09',
+                    'status' => 'closed',
+                ])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('date');
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_shared_space_requires_room_for_day_save(): void
@@ -123,10 +187,9 @@ class AvailabilityGridTest extends TestCase
 
         $this
             ->actingAs($user)
-            ->patchJson(route('availability.day.store'), [
+            ->postJson(route('availability.status.store'), [
                 'space_id' => $space->id,
                 'date' => '2026-06-12',
-                'price' => '90',
                 'status' => 'available',
             ])
             ->assertUnprocessable()
@@ -141,81 +204,90 @@ class AvailabilityGridTest extends TestCase
 
         $this
             ->actingAs($user)
-            ->patchJson(route('availability.day.store'), [
+            ->postJson(route('availability.status.store'), [
                 'space_id' => $otherSpace->id,
                 'date' => '2026-06-12',
-                'price' => '80',
-                'status' => 'available',
+                'status' => 'closed',
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('space_id');
     }
 
-    public function test_bulk_update_applies_price_and_status_to_matching_resources(): void
+    public function test_shared_rooms_can_have_different_statuses_on_same_date(): void
     {
         $this->seed(AccommodationCatalogSeeder::class);
         [$user, $company] = $this->companyUser();
-        $space = $this->privateSpace($company);
-        $this->sharedSpaceWithRooms($company);
+        [$space, $roomA, $roomB] = $this->sharedSpaceWithRooms($company);
 
-        $response = $this
+        $this
             ->actingAs($user)
-            ->postJson(route('availability.bulk'), [
-                'type' => 'private',
+            ->postJson(route('availability.status.store'), [
                 'space_id' => $space->id,
-                'start_date' => '2026-06-12',
-                'end_date' => '2026-06-14',
-                'apply_price' => true,
-                'price' => '120',
-                'apply_status' => true,
+                'space_room_id' => $roomA->id,
+                'date' => '2026-06-12',
                 'status' => 'closed',
             ])
-            ->assertOk()
-            ->json();
+            ->assertOk();
 
-        $this->assertSame(3, $response['data']['count']);
-        $this->assertSame(3, AvailabilityDay::query()
-            ->where('company_id', $company->id)
-            ->where('space_id', $space->id)
-            ->where('price', '120')
-            ->where('status', 'closed')
-            ->count());
+        $this
+            ->actingAs($user)
+            ->postJson(route('availability.status.store'), [
+                'space_id' => $space->id,
+                'space_room_id' => $roomB->id,
+                'date' => '2026-06-12',
+                'status' => 'occupied',
+            ])
+            ->assertOk();
+
+        $rows = $this
+            ->actingAs($user)
+            ->getJson(route('availability.week-data', ['week_start' => '2026-06-12']))
+            ->assertOk()
+            ->json('rows');
+        $roomARow = collect($rows)->firstWhere('room_id', $roomA->id);
+        $roomBRow = collect($rows)->firstWhere('room_id', $roomB->id);
+
+        $this->assertSame('closed', collect($roomARow['cells'])->firstWhere('date', '2026-06-12')['status']);
+        $this->assertSame('occupied', collect($roomBRow['cells'])->firstWhere('date', '2026-06-12')['status']);
     }
 
-    public function test_occupancy_block_marks_available_day_as_sold_out(): void
+    public function test_occupancy_block_is_reflected_and_locked_in_availability_grid(): void
     {
         $this->seed(AccommodationCatalogSeeder::class);
         [$user, $company] = $this->companyUser();
         $space = $this->privateSpace($company);
-
-        AvailabilityDay::factory()->create([
+        $block = OccupancyBlock::factory()->create([
             'company_id' => $company->id,
             'space_id' => $space->id,
             'space_room_id' => null,
-            'date' => '2026-06-12',
-            'price' => '150',
-            'status' => 'available',
-        ]);
-
-        OccupancyBlock::factory()->create([
-            'company_id' => $company->id,
-            'space_id' => $space->id,
-            'space_room_id' => null,
+            'type' => 'maintenance',
+            'title' => 'Mantenimiento',
             'start_date' => '2026-06-12',
             'end_date' => '2026-06-12',
         ]);
 
         $rows = $this
             ->actingAs($user)
-            ->getJson(route('availability.grid-data', ['start_date' => '2026-06-12']))
+            ->getJson(route('availability.week-data', ['week_start' => '2026-06-12']))
             ->assertOk()
             ->json('rows');
 
         $cell = collect(collect($rows)->firstWhere('space_id', $space->id)['cells'])->firstWhere('date', '2026-06-12');
 
-        $this->assertSame('sold_out', $cell['status']);
-        $this->assertSame('available', $cell['stored_status']);
-        $this->assertTrue($cell['is_sold_out']);
+        $this->assertSame('closed', $cell['status']);
+        $this->assertSame('ocupabilidad', $cell['source']);
+        $this->assertSame($block->id, $cell['occupancy_block_id']);
+        $this->assertSame([], $cell['actions']);
+
+        $this
+            ->actingAs($user)
+            ->postJson(route('availability.status.store'), [
+                'space_id' => $space->id,
+                'date' => '2026-06-12',
+                'status' => 'available',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('status');
     }
 
     private function companyUser(): array

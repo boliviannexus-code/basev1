@@ -2,7 +2,7 @@
 
 @section('title', 'Disponibilidad | '.config('app.name', 'Base Admin'))
 @section('page-title', 'Disponibilidad')
-@section('page-subtitle', 'Control diario de precios y disponibilidad por espacio o habitacion')
+@section('page-subtitle', 'Estados diarios por espacio privado o habitación compartida')
 
 @section('content')
     @php
@@ -27,9 +27,9 @@
 
     <div
         data-availability
-        data-grid-data-url="{{ route('availability.grid-data') }}"
-        data-store-day-url="{{ route('availability.day.store') }}"
-        data-bulk-url="{{ route('availability.bulk') }}"
+        data-week-data-url="{{ route('availability.week-data') }}"
+        data-store-status-url="{{ route('availability.status.store') }}"
+        data-update-status-url-template="{{ route('availability.status.update', ['availabilityStatus' => '__ID__']) }}"
         data-spaces='@json($spacesPayload)'
         data-initial-grid='@json($initialGrid)'
         data-can-manage="{{ auth()->user()?->can('availability.manage') ? '1' : '0' }}"
@@ -39,18 +39,12 @@
                 <button class="btn btn-outline-secondary btn-sm" type="button" data-availability-prev>
                     <i class="ti ti-chevron-left"></i>
                 </button>
-                <button class="btn btn-outline-secondary btn-sm" type="button" data-availability-today>Hoy</button>
+                <button class="btn btn-outline-secondary btn-sm" type="button" data-availability-today>Esta semana</button>
                 <button class="btn btn-outline-secondary btn-sm" type="button" data-availability-next>
                     <i class="ti ti-chevron-right"></i>
                 </button>
-                <input class="form-control form-control-sm availability-date" type="date" value="{{ $initialGrid['start_date'] }}" data-availability-picker>
+                <input class="form-control form-control-sm availability-date" type="date" value="{{ $initialGrid['week_start'] }}" min="{{ now()->toDateString() }}" data-availability-picker>
             </div>
-
-            @can('availability.manage')
-                <button class="btn btn-primary btn-sm" type="button" data-availability-bulk-open>
-                    <i class="ti ti-stack-push me-1"></i>Accion en bloque
-                </button>
-            @endcan
         </div>
 
         <form class="availability-filters" autocomplete="off" data-availability-filters>
@@ -63,7 +57,7 @@
                 </select>
             </div>
             <div>
-                <label class="form-label" for="availability-filter-space">Alojamiento</label>
+                <label class="form-label" for="availability-filter-space">Espacio</label>
                 <select class="form-select form-select-sm" id="availability-filter-space" name="space_id">
                     <option value="">Todos</option>
                     @foreach ($spaces as $space)
@@ -77,7 +71,8 @@
                     <option value="">Todos</option>
                     <option value="available">Disponible</option>
                     <option value="closed">Cerrado</option>
-                    <option value="sold_out">Agotado</option>
+                    <option value="reserved">Reservado</option>
+                    <option value="occupied">Ocupado</option>
                 </select>
             </div>
             <div class="align-self-end">
@@ -87,82 +82,63 @@
             </div>
         </form>
 
+        <div class="availability-legend">
+            <span><i class="availability-dot availability-dot-available"></i>Disponible</span>
+            <span><i class="availability-dot availability-dot-closed"></i>Cerrado</span>
+            <span><i class="availability-dot availability-dot-reserved"></i>Reservado</span>
+            <span><i class="availability-dot availability-dot-occupied"></i>Ocupado</span>
+        </div>
+
         <x-ui.card>
             <div class="card-body p-0">
                 <div class="availability-grid-shell" data-availability-grid></div>
             </div>
         </x-ui.card>
 
-        <div class="modal fade" tabindex="-1" aria-hidden="true" data-availability-bulk-modal>
-            <div class="modal-dialog modal-lg modal-dialog-centered">
-                <form class="modal-content" data-availability-bulk-form autocomplete="off">
+        <div class="row g-3 mt-1" data-availability-summary></div>
+
+        <div class="modal fade" tabindex="-1" aria-hidden="true" data-availability-status-modal>
+            <div class="modal-dialog modal-dialog-centered">
+                <form class="modal-content" data-availability-status-form autocomplete="off">
                     <div class="modal-header">
-                        <h5 class="modal-title">Accion en bloque</h5>
+                        <h5 class="modal-title">Cambiar disponibilidad</h5>
                         <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label" for="availability-bulk-type">Tipo</label>
-                                <select class="form-select" id="availability-bulk-type" name="type" data-availability-bulk-type>
-                                    <option value="all">Todos</option>
-                                    <option value="private">Privados</option>
-                                    <option value="shared">Compartidos</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label" for="availability-bulk-space">Alojamiento</label>
-                                <select class="form-select" id="availability-bulk-space" name="space_id" data-availability-bulk-space>
-                                    <option value="">Todos</option>
-                                    @foreach ($spaces as $space)
-                                        <option value="{{ $space->id }}">{{ $spaceLabel($space) }}</option>
-                                    @endforeach
-                                </select>
-                                <div class="invalid-feedback" data-error-for="space_id"></div>
-                            </div>
-                            <div class="col-md-6 d-none" data-availability-bulk-room-wrap>
-                                <label class="form-label" for="availability-bulk-room">Habitacion</label>
-                                <select class="form-select" id="availability-bulk-room" name="space_room_id" data-availability-bulk-room>
-                                    <option value="">Todas</option>
-                                </select>
-                                <div class="invalid-feedback" data-error-for="space_room_id"></div>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label" for="availability-bulk-start">Fecha inicio</label>
-                                <input class="form-control" id="availability-bulk-start" name="start_date" type="date" required data-availability-bulk-start>
-                                <div class="invalid-feedback" data-error-for="start_date"></div>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label" for="availability-bulk-end">Fecha fin</label>
-                                <input class="form-control" id="availability-bulk-end" name="end_date" type="date" required data-availability-bulk-end>
-                                <div class="invalid-feedback" data-error-for="end_date"></div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-check mb-2">
-                                    <input class="form-check-input" name="apply_price" type="checkbox" value="1" data-availability-bulk-apply-price>
-                                    <span class="form-check-label">Aplicar precio</span>
-                                </label>
-                                <input class="form-control" name="price" type="number" min="0" step="0.01" placeholder="Precio" data-availability-bulk-price>
-                                <div class="invalid-feedback" data-error-for="apply_price"></div>
-                                <div class="invalid-feedback" data-error-for="price"></div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-check mb-2">
-                                    <input class="form-check-input" name="apply_status" type="checkbox" value="1" data-availability-bulk-apply-status>
-                                    <span class="form-check-label">Aplicar estado</span>
-                                </label>
-                                <select class="form-select" name="status" data-availability-bulk-status>
-                                    <option value="available">Disponible</option>
-                                    <option value="closed">Cerrado</option>
-                                </select>
-                                <div class="invalid-feedback" data-error-for="status"></div>
-                            </div>
+                        <input type="hidden" name="space_id" data-availability-status-field="space_id">
+                        <input type="hidden" name="space_room_id" data-availability-status-field="space_room_id">
+                        <input type="hidden" name="room_bed_unit_id" data-availability-status-field="room_bed_unit_id">
+                        <input type="hidden" name="date" data-availability-status-field="date">
+                        <input type="hidden" name="availability_status_id" data-availability-status-field="availability_status_id">
+
+                        <dl class="availability-status-meta">
+                            <div><dt>Espacio</dt><dd data-availability-status-label="space"></dd></div>
+                            <div><dt>Habitación</dt><dd data-availability-status-label="room"></dd></div>
+                            <div><dt>Cama</dt><dd data-availability-status-label="bed_unit"></dd></div>
+                            <div><dt>Fecha</dt><dd data-availability-status-label="date"></dd></div>
+                        </dl>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="availability-status">Estado</label>
+                            <select class="form-select" id="availability-status" name="status" data-availability-status-field="status" required>
+                                <option value="available">Disponible</option>
+                                <option value="closed">Cerrado</option>
+                                <option value="reserved">Reservado</option>
+                                <option value="occupied">Ocupado</option>
+                            </select>
+                            <div class="invalid-feedback" data-error-for="status"></div>
+                        </div>
+
+                        <div>
+                            <label class="form-label" for="availability-notes">Nota opcional</label>
+                            <textarea class="form-control" id="availability-notes" name="notes" rows="3" data-availability-status-field="notes" placeholder="Mantenimiento, uso interno, separación manual..."></textarea>
+                            <div class="invalid-feedback" data-error-for="notes"></div>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
                         @can('availability.manage')
-                            <button class="btn btn-primary" type="submit">Aplicar</button>
+                            <button class="btn btn-primary" type="submit">Guardar estado</button>
                         @endcan
                     </div>
                 </form>

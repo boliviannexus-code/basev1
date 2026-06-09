@@ -11,7 +11,7 @@ trait BelongsToCompany
     public static function bootBelongsToCompany(): void
     {
         static::addGlobalScope('company', function (Builder $builder): void {
-            CompanyContext::scope($builder);
+            CompanyContext::scope($builder, column: $builder->getModel()->qualifyColumn('company_id'));
         });
 
         static::creating(function (Model $model): void {
@@ -25,6 +25,6 @@ trait BelongsToCompany
 
     public function scopeForCompany(Builder $query, int $companyId): Builder
     {
-        return $query->withoutGlobalScope('company')->where('company_id', $companyId);
+        return $query->withoutGlobalScope('company')->where($query->getModel()->qualifyColumn('company_id'), $companyId);
     }
 }

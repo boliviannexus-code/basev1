@@ -33,6 +33,13 @@ class PublicReservationController extends Controller
             ->unique()
             ->values()
             ->all();
+        $data['room_bed_unit_ids'] = collect($request->input('room_bed_unit_ids', []))
+            ->filter(fn ($id): bool => filled($id))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+        $data['package_id'] = $request->filled('package_id') ? (int) $request->input('package_id') : null;
 
         if (! filled($data['space_id'] ?? null) || ! filled($data['check_in'] ?? null) || ! filled($data['check_out'] ?? null)) {
             throw ValidationException::withMessages([
@@ -67,7 +74,7 @@ class PublicReservationController extends Controller
     {
         $reservations = Reservation::query()
             ->withoutGlobalScope('company')
-            ->with(['space', 'room', 'rooms'])
+            ->with(['space', 'room', 'rooms', 'bedUnitItems.bedUnit.room', 'accommodationPackage'])
             ->where('user_id', $request->user()->id)
             ->latest()
             ->paginate(10);
@@ -79,7 +86,7 @@ class PublicReservationController extends Controller
     {
         $reservation = Reservation::query()
             ->withoutGlobalScope('company')
-            ->with(['space.location', 'room', 'rooms', 'roomItems.room', 'company'])
+            ->with(['space.location', 'room', 'rooms', 'roomItems.room', 'bedUnitItems.bedUnit.room', 'company', 'accommodationPackage'])
             ->whereKey($reservation)
             ->where('user_id', $request->user()->id)
             ->firstOrFail();
@@ -91,7 +98,7 @@ class PublicReservationController extends Controller
     {
         $reservation = Reservation::query()
             ->withoutGlobalScope('company')
-            ->with(['space.location', 'room', 'rooms'])
+            ->with(['space.location', 'room', 'rooms', 'bedUnitItems.bedUnit.room'])
             ->whereKey($reservation)
             ->where('user_id', $request->user()->id)
             ->firstOrFail();

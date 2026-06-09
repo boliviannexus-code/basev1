@@ -2,8 +2,9 @@
 
 namespace App\Services\Occupancy;
 
-use App\Models\AvailabilityDay;
+use App\Models\AvailabilityStatus;
 use App\Models\OccupancyBlock;
+use App\Models\RoomBedUnit;
 use App\Models\Space;
 use App\Models\SpaceRoom;
 use Illuminate\Support\Carbon;
@@ -27,25 +28,28 @@ class OccupancyValidationService
         }
 
         $room = $this->resolveRoom($data, $space, $companyId);
+        $bedUnit = $this->resolveBedUnit($data, $room, $companyId);
 
         $this->ensureNoOverlap(
             companyId: $companyId,
             space: $space,
             room: $room,
+            bedUnit: $bedUnit,
             startDate: $data['start_date'],
             endDate: $data['end_date'],
             ignoreBlock: $ignoreBlock,
         );
 
-        $this->ensureAvailabilityIsOpen(
+        $this->ensureAvailabilityAllowsOccupancy(
             companyId: $companyId,
             space: $space,
             room: $room,
+            bedUnit: $bedUnit,
             startDate: $data['start_date'],
             endDate: $data['end_date'],
         );
 
-        return [$space, $room];
+        return [$space, $room, $bedUnit];
     }
 
     private function resolveRoom(array $data, Space $space, int $companyId): ?SpaceRoom
@@ -85,10 +89,41 @@ class OccupancyValidationService
         return $room;
     }
 
+    private function resolveBedUnit(array $data, ?SpaceRoom $room, int $companyId): ?RoomBedUnit
+    {
+        $bedUnitId = $data['room_bed_unit_id'] ?? null;
+
+        if (! filled($bedUnitId)) {
+            return null;
+        }
+
+        if (! $room) {
+            throw ValidationException::withMessages([
+                'room_bed_unit_id' => 'Selecciona una habitacion antes de seleccionar cama.',
+            ]);
+        }
+
+        $bedUnit = RoomBedUnit::query()
+            ->where('company_id', $companyId)
+            ->where('space_room_id', $room->id)
+            ->where('status', 'active')
+            ->whereKey($bedUnitId)
+            ->first();
+
+        if (! $bedUnit) {
+            throw ValidationException::withMessages([
+                'room_bed_unit_id' => 'La cama seleccionada no pertenece a la habitacion.',
+            ]);
+        }
+
+        return $bedUnit;
+    }
+
     private function ensureNoOverlap(
         int $companyId,
         Space $space,
         ?SpaceRoom $room,
+        ?RoomBedUnit $bedUnit,
         string $startDate,
         string $endDate,
         ?OccupancyBlock $ignoreBlock,
@@ -103,7 +138,13 @@ class OccupancyValidationService
             $query->whereKeyNot($ignoreBlock->id);
         }
 
-        if ($room) {
+        if ($bedUnit) {
+            $query->where(function ($query) use ($bedUnit, $room): void {
+                $query
+                    ->where('room_bed_unit_id', $bedUnit->id)
+                    ->orWhere(fn ($query) => $query->where('space_room_id', $room->id)->whereNull('room_bed_unit_id'));
+            });
+        } elseif ($room) {
             $query->where('space_room_id', $room->id);
         } else {
             $query->where('space_id', $space->id)->whereNull('space_room_id');
@@ -114,38 +155,44 @@ class OccupancyValidationService
                 'start_date' => 'Ya existe un bloqueo activo en ese rango de fechas.',
             ]);
         }
+
     }
 
-    private function ensureAvailabilityIsOpen(
+    private function ensureAvailabilityAllowsOccupancy(
         int $companyId,
         Space $space,
         ?SpaceRoom $room,
+        ?RoomBedUnit $bedUnit,
         string $startDate,
         string $endDate,
     ): void {
-        $availabilityDays = AvailabilityDay::query()
+        $availabilityStatuses = AvailabilityStatus::query()
             ->where('company_id', $companyId)
             ->whereBetween('date', [$startDate, $endDate])
             ->when(
-                $room,
-                fn ($query) => $query->where('space_room_id', $room->id),
-                fn ($query) => $query->where('space_id', $space->id)->whereNull('space_room_id'),
+                $bedUnit,
+                fn ($query) => $query->where(fn ($query) => $query
+                    ->where('room_bed_unit_id', $bedUnit->id)
+                    ->orWhere(fn ($query) => $query->where('space_room_id', $room->id)->whereNull('room_bed_unit_id'))),
+                fn ($query) => $query->when(
+                    $room,
+                    fn ($query) => $query->where('space_room_id', $room->id),
+                    fn ($query) => $query->where('space_id', $space->id)->whereNull('space_room_id'),
+                ),
             )
             ->get()
-            ->keyBy(fn (AvailabilityDay $day): string => $day->date->toDateString());
+            ->keyBy(fn (AvailabilityStatus $status): string => $status->date->toDateString());
 
-        $hasClosedDate = collect(Carbon::parse($startDate)->daysUntil(Carbon::parse($endDate)->addDay()))
-            ->contains(function (Carbon $date) use ($availabilityDays): bool {
-                $availabilityDay = $availabilityDays->get($date->toDateString());
+        $hasBlockedDate = collect(Carbon::parse($startDate)->daysUntil(Carbon::parse($endDate)->addDay()))
+            ->contains(function (Carbon $date) use ($availabilityStatuses): bool {
+                $availabilityStatus = $availabilityStatuses->get($date->toDateString());
 
-                return ! $availabilityDay
-                    || $availabilityDay->price === null
-                    || $availabilityDay->status === 'closed';
+                return in_array($availabilityStatus?->status, ['closed', 'reserved', 'occupied'], true);
             });
 
-        if ($hasClosedDate) {
+        if ($hasBlockedDate) {
             throw ValidationException::withMessages([
-                'start_date' => 'No se puede operar sobre fechas sin precio o cerradas desde Disponibilidad.',
+                'start_date' => 'No se puede operar sobre fechas cerradas, reservadas u ocupadas desde Disponibilidad.',
             ]);
         }
     }

@@ -91,6 +91,7 @@ class CloseCashRegisterTest extends TestCase
             'amount' => 10,
         ]);
         CashRegisterExpense::query()->create([
+            'company_id' => $user->company_id,
             'cash_register_id' => $cashRegister->id,
             'point_of_sale_id' => $pointOfSale->id,
             'user_id' => $user->id,

@@ -23,4 +23,14 @@
         </select>
         <div class="invalid-feedback" data-error-for="status">{{ $errors->first('status') }}</div>
     </div>
+    <div class="col-12">
+        <label class="form-label">Modo de venta</label>
+        <select class="form-select @error('sale_mode') is-invalid @enderror" name="sale_mode" required>
+            <option value="full_room" @selected(old('sale_mode', $room->sale_mode ?? 'full_room') === 'full_room')>Habitacion completa</option>
+            <option value="bed_unit" @selected(old('sale_mode', $room->sale_mode ?? 'full_room') === 'bed_unit')>Camas fisicas individuales</option>
+            <option value="flexible" @selected(old('sale_mode', $room->sale_mode ?? 'full_room') === 'flexible')>Flexible</option>
+        </select>
+        <div class="form-hint">En flexible no se mezclan reservas de habitacion completa y camas individuales en las mismas fechas.</div>
+        <div class="invalid-feedback" data-error-for="sale_mode">{{ $errors->first('sale_mode') }}</div>
+    </div>
 </div>

@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RolePermissionSeeder::class,
             AccommodationCatalogSeeder::class,
+            CountrySeeder::class,
         ]);
 
         $admin = User::updateOrCreate(

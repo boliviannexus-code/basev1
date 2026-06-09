@@ -23,6 +23,7 @@ class SpaceRoom extends Model
         'description',
         'bathroom_type_id',
         'max_capacity',
+        'sale_mode',
         'photos_skipped',
         'status',
         'sort_order',
@@ -36,6 +37,12 @@ class SpaceRoom extends Model
             'sort_order' => 'integer',
         ];
     }
+
+    public const SALE_MODES = [
+        'full_room',
+        'bed_unit',
+        'flexible',
+    ];
 
     public function company(): BelongsTo
     {
@@ -55,6 +62,11 @@ class SpaceRoom extends Model
     public function beds(): HasMany
     {
         return $this->hasMany(RoomBed::class);
+    }
+
+    public function bedUnits(): HasMany
+    {
+        return $this->hasMany(RoomBedUnit::class)->orderBy('sort_order')->orderBy('id');
     }
 
     public function photos(): HasMany
@@ -79,8 +91,44 @@ class SpaceRoom extends Model
         return $this->hasMany(AvailabilityDay::class);
     }
 
+    public function availabilityStatuses(): HasMany
+    {
+        return $this->hasMany(AvailabilityStatus::class);
+    }
+
     public function reservations(): HasMany
     {
         return $this->hasMany(Reservation::class);
+    }
+
+    public function stays(): HasMany
+    {
+        return $this->hasMany(Stay::class);
+    }
+
+    public function reservationItems(): HasMany
+    {
+        return $this->hasMany(ReservationRoom::class);
+    }
+
+    public function hasFutureBlockingReservation(): bool
+    {
+        $today = now()->toDateString();
+        $statuses = Reservation::BLOCKING_STATUSES;
+
+        return $this->reservations()
+            ->whereIn('status', $statuses)
+            ->whereDate('check_out', '>', $today)
+            ->exists()
+            || $this->reservationItems()
+                ->whereHas('reservation', fn ($query) => $query
+                    ->whereIn('status', $statuses)
+                    ->whereDate('check_out', '>', $today))
+                ->exists()
+            || $this->bedUnits()
+                ->whereHas('reservationItems.reservation', fn ($query) => $query
+                    ->whereIn('status', $statuses)
+                    ->whereDate('check_out', '>', $today))
+                ->exists();
     }
 }

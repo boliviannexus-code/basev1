@@ -18,6 +18,7 @@ class UpdateOccupancyBlockRequest extends FormRequest
         return [
             'space_id' => ['required', 'integer'],
             'space_room_id' => ['nullable', 'integer'],
+            'room_bed_unit_id' => ['nullable', 'integer'],
             'type' => ['required', Rule::in(OccupancyBlock::TYPES)],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:3000'],

@@ -7,11 +7,11 @@
 @section('content')
     <x-ui.table-card title="Listado de metodos" data-refresh-container>
         <x-slot:actions>
-            @can('payment-methods.create')
+            @if (auth()->user()?->can('payment-methods.create') || auth()->user()?->can('occupancy.manage'))
                 <a class="btn btn-primary btn-sm" href="{{ route('payment-methods.create') }}" data-modal-url="{{ route('payment-methods.create') }}" data-modal-title="Nuevo metodo de pago">
                     Nuevo metodo
                 </a>
-            @endcan
+            @endif
         </x-slot:actions>
 
         <table

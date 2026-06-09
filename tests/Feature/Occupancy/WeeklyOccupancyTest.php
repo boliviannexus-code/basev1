@@ -3,11 +3,15 @@
 namespace Tests\Feature\Occupancy;
 
 use App\Models\AvailabilityDay;
+use App\Models\AvailabilityStatus;
 use App\Models\BathroomType;
 use App\Models\BedType;
 use App\Models\Company;
 use App\Models\OccupancyBlock;
 use App\Models\PrivateSpaceType;
+use App\Models\Reservation;
+use App\Models\ReservationBedUnit;
+use App\Models\RoomBedUnit;
 use App\Models\SharedSpaceType;
 use App\Models\Space;
 use App\Models\SpaceMode;
@@ -148,19 +152,19 @@ class WeeklyOccupancyTest extends TestCase
         $this->assertSame('available', $statuses['2026-06-06']);
     }
 
-    public function test_closed_availability_day_blocks_occupancy_grid_operations(): void
+    public function test_closed_availability_status_blocks_occupancy_grid_operations(): void
     {
         $this->seed(AccommodationCatalogSeeder::class);
         [$user, $company] = $this->companyUser();
         $space = $this->privateSpace($company);
 
-        AvailabilityDay::factory()->create([
+        AvailabilityStatus::query()->create([
             'company_id' => $company->id,
             'space_id' => $space->id,
             'space_room_id' => null,
             'date' => '2026-06-03',
-            'price' => '120',
             'status' => 'closed',
+            'source' => 'manual',
         ]);
 
         $rows = $this
@@ -171,7 +175,7 @@ class WeeklyOccupancyTest extends TestCase
 
         $cell = collect(collect($rows)->firstWhere('space_id', $space->id)['cells'])->firstWhere('date', '2026-06-03');
 
-        $this->assertSame('unavailable', $cell['status']);
+        $this->assertSame('closed', $cell['status']);
         $this->assertTrue($cell['closed_by_availability']);
         $this->assertSame([], $cell['actions']);
 
@@ -293,6 +297,212 @@ class WeeklyOccupancyTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('space_id');
+    }
+
+    public function test_cell_actions_follow_date_rules(): void
+    {
+        Carbon::setTestNow('2026-06-10 10:00:00');
+
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user, $company] = $this->companyUser();
+            $space = $this->privateSpace($company);
+
+            $pastActions = $this
+                ->actingAs($user)
+                ->getJson(route('occupancy.cell-actions', [
+                    'space_id' => $space->id,
+                    'date' => '2026-06-09',
+                ]))
+                ->assertOk()
+                ->json('actions');
+
+            $todayActions = $this
+                ->actingAs($user)
+                ->getJson(route('occupancy.cell-actions', [
+                    'space_id' => $space->id,
+                    'date' => '2026-06-10',
+                ]))
+                ->assertOk()
+                ->json('actions');
+
+            $futureActions = $this
+                ->actingAs($user)
+                ->getJson(route('occupancy.cell-actions', [
+                    'space_id' => $space->id,
+                    'date' => '2026-06-11',
+                ]))
+                ->assertOk()
+                ->json('actions');
+
+            OccupancyBlock::factory()->create([
+                'company_id' => $company->id,
+                'space_id' => $space->id,
+                'type' => 'occupied',
+                'start_date' => '2026-06-10',
+                'end_date' => '2026-06-10',
+            ]);
+
+            $occupiedTodayActions = $this
+                ->actingAs($user)
+                ->getJson(route('occupancy.cell-actions', [
+                    'space_id' => $space->id,
+                    'date' => '2026-06-10',
+                ]))
+                ->assertOk()
+                ->json('actions');
+
+            $this->assertSame([], $pastActions);
+            $this->assertSame(['check_in', 'reservation', 'block'], collect($todayActions)->pluck('key')->all());
+            $this->assertSame(['reservation', 'block'], collect($futureActions)->pluck('key')->all());
+            $this->assertSame(['check_in', 'reservation', 'block'], collect($occupiedTodayActions)->pluck('key')->all());
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_action_modals_validate_date_rules_on_backend(): void
+    {
+        Carbon::setTestNow('2026-06-10 10:00:00');
+
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user, $company] = $this->companyUser();
+            $space = $this->privateSpace($company);
+
+            $this
+                ->actingAs($user)
+                ->get(route('occupancy.check-in.modal', [
+                    'space_id' => $space->id,
+                    'date' => '2026-06-11',
+                ]), ['X-Requested-With' => 'XMLHttpRequest'])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('date');
+
+            $this
+                ->actingAs($user)
+                ->get(route('occupancy.reservation.modal', [
+                    'space_id' => $space->id,
+                    'date' => '2026-06-09',
+                ]), ['X-Requested-With' => 'XMLHttpRequest'])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('date');
+
+            $this
+                ->actingAs($user)
+                ->get(route('occupancy.check-out.modal', [
+                    'space_id' => $space->id,
+                    'date' => '2026-06-10',
+                ]), ['X-Requested-With' => 'XMLHttpRequest'])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('date');
+
+            OccupancyBlock::factory()->create([
+                'company_id' => $company->id,
+                'space_id' => $space->id,
+                'type' => 'occupied',
+                'start_date' => '2026-06-10',
+                'end_date' => '2026-06-10',
+            ]);
+
+            $this
+                ->actingAs($user)
+                ->get(route('occupancy.check-out.modal', [
+                    'space_id' => $space->id,
+                    'date' => '2026-06-10',
+                ]), ['X-Requested-With' => 'XMLHttpRequest'])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('date');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_cell_action_modal_rejects_other_company_space(): void
+    {
+        Carbon::setTestNow('2026-06-10 10:00:00');
+
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user] = $this->companyUser();
+            $otherSpace = $this->privateSpace(Company::factory()->create());
+
+            $this
+                ->actingAs($user)
+                ->getJson(route('occupancy.cell-actions', [
+                    'space_id' => $otherSpace->id,
+                    'date' => '2026-06-10',
+                ]))
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('space_id');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_bed_unit_reservation_is_visible_with_guest_name_in_occupancy_grid(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        [$user, $company] = $this->companyUser();
+        [$space, $room] = $this->sharedSpaceWithRooms($company);
+        $room->update(['sale_mode' => 'bed_unit']);
+        $bedType = BedType::where('slug', 'cama-individual')->firstOrFail();
+        $unitA = RoomBedUnit::factory()->create([
+            'company_id' => $company->id,
+            'space_room_id' => $room->id,
+            'bed_type_id' => $bedType->id,
+            'label' => 'Cama A',
+            'sort_order' => 1,
+        ]);
+        RoomBedUnit::factory()->create([
+            'company_id' => $company->id,
+            'space_room_id' => $room->id,
+            'bed_type_id' => $bedType->id,
+            'label' => 'Cama B',
+            'sort_order' => 2,
+        ]);
+        $reservation = Reservation::factory()->confirmed()->create([
+            'company_id' => $company->id,
+            'space_id' => $space->id,
+            'space_room_id' => $room->id,
+            'guest_name' => 'Ana Camacho',
+            'check_in' => '2026-06-03',
+            'check_out' => '2026-06-05',
+        ]);
+        $block = OccupancyBlock::factory()->create([
+            'company_id' => $company->id,
+            'space_id' => $space->id,
+            'space_room_id' => $room->id,
+            'room_bed_unit_id' => $unitA->id,
+            'type' => 'unavailable',
+            'title' => 'Reserva '.$reservation->code.' confirmada',
+            'start_date' => '2026-06-03',
+            'end_date' => '2026-06-04',
+        ]);
+        ReservationBedUnit::factory()->create([
+            'reservation_id' => $reservation->id,
+            'room_bed_unit_id' => $unitA->id,
+            'occupancy_block_id' => $block->id,
+            'guest_name' => 'Ana Camacho',
+        ]);
+        $reservation->update(['occupancy_block_id' => $block->id]);
+
+        $rows = $this
+            ->actingAs($user)
+            ->getJson(route('occupancy.week-data', ['week_start' => '2026-06-03']))
+            ->assertOk()
+            ->json('rows');
+
+        $roomRow = collect($rows)->firstWhere('room_id', $room->id);
+        $bedRow = collect($rows)->firstWhere('room_bed_unit_id', $unitA->id);
+        $bedCell = collect($bedRow['cells'])->firstWhere('date', '2026-06-03');
+        $roomCell = collect($roomRow['cells'])->firstWhere('date', '2026-06-03');
+
+        $this->assertSame('shared_bed_unit', $bedRow['type']);
+        $this->assertSame('Ana Camacho', $bedCell['guest_name']);
+        $this->assertSame('Ana Camacho', $bedCell['label']);
+        $this->assertSame('reserved', $roomCell['status']);
+        $this->assertSame('Parcial', $roomCell['label']);
     }
 
     private function companyUser(): array

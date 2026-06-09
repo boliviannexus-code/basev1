@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Company;
+use App\Models\ExtraChargeCategory;
+use App\Support\CountryCatalog;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -27,7 +29,12 @@ class CompanyService
 
         unset($data['logo'], $data['remove_logo']);
 
-        return Company::query()->create($data);
+        $company = Company::query()->create($data);
+
+        CountryCatalog::seedForCompany((int) $company->id);
+        ExtraChargeCategory::ensureDefaultsForCompany((int) $company->id);
+
+        return $company;
     }
 
     public function update(Company $company, array $data): Company

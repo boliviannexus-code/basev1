@@ -243,6 +243,6 @@ class SpaceRegistrationService
 
     private function ensureEditable(Space $space): void
     {
-        abort_if($space->isApprovedLocked(), 403, 'El alojamiento ya fue aprobado y no puede modificarse.');
+        abort_unless((int) $space->company_id === (int) auth()->user()?->company_id, 403);
     }
 }

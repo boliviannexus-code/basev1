@@ -1,0 +1,96 @@
+<?php
+
+namespace Tests\Feature\SpaceCash;
+
+use App\Models\Company;
+use App\Models\SpaceCashRegister;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Permission;
+use Tests\TestCase;
+
+class OpenSpaceCashRegisterTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_user_can_open_space_cash_register_without_inventory_pos(): void
+    {
+        $user = $this->userWithSpaceCashAccess();
+
+        $this
+            ->actingAs($user)
+            ->post(route('space-cash.open'), [
+                'opening_amount' => 150.25,
+            ])
+            ->assertRedirect(route('space-cash.index'));
+
+        $this->assertDatabaseHas('space_cash_registers', [
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'opening_amount' => '150.25',
+            'status' => 'open',
+        ]);
+    }
+
+    public function test_user_cannot_open_two_own_space_cash_registers(): void
+    {
+        $user = $this->userWithSpaceCashAccess();
+        SpaceCashRegister::factory()->create([
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('space-cash.open'), [
+                'opening_amount' => 10,
+            ])
+            ->assertSessionHasErrors('opening_amount');
+    }
+
+    public function test_two_users_can_open_independent_space_cash_registers_in_same_company(): void
+    {
+        $company = Company::factory()->create();
+        $firstUser = $this->userWithSpaceCashAccess($company->id);
+        $secondUser = $this->userWithSpaceCashAccess($company->id);
+
+        $this
+            ->actingAs($firstUser)
+            ->post(route('space-cash.open'), [
+                'opening_amount' => 20,
+            ])
+            ->assertRedirect(route('space-cash.index'));
+
+        $this
+            ->actingAs($secondUser)
+            ->post(route('space-cash.open'), [
+                'opening_amount' => 30,
+            ])
+            ->assertRedirect(route('space-cash.index'));
+
+        $this->assertDatabaseHas('space_cash_registers', [
+            'company_id' => $company->id,
+            'user_id' => $firstUser->id,
+            'opening_amount' => '20.00',
+            'status' => 'open',
+        ]);
+        $this->assertDatabaseHas('space_cash_registers', [
+            'company_id' => $company->id,
+            'user_id' => $secondUser->id,
+            'opening_amount' => '30.00',
+            'status' => 'open',
+        ]);
+    }
+
+    private function userWithSpaceCashAccess(?int $companyId = null): User
+    {
+        Permission::findOrCreate('space-cash.access');
+
+        $companyId ??= Company::factory()->create()->id;
+        $user = User::factory()->create(['company_id' => $companyId]);
+        $user->givePermissionTo('space-cash.access');
+
+        return $user;
+    }
+}

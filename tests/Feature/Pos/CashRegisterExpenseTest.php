@@ -40,7 +40,8 @@ class CashRegisterExpenseTest extends TestCase
 
         $this->assertDatabaseHas('cash_register_expenses', [
             'cash_register_id' => $cashRegister->id,
-            'point_of_sale_id' => $pointOfSale->id,
+            'company_id' => $user->company_id,
+            'point_of_sale_id' => null,
             'user_id' => $user->id,
             'responsible_name' => 'Maria Caja',
             'detail' => 'Compra de bolsas',

@@ -27,6 +27,9 @@ class AccommodationSearchRequest extends FormRequest
             'space_room_id' => ['nullable', 'integer', 'exists:space_rooms,id'],
             'space_room_ids' => ['nullable', 'array'],
             'space_room_ids.*' => ['integer', 'exists:space_rooms,id'],
+            'room_bed_unit_ids' => ['nullable', 'array'],
+            'room_bed_unit_ids.*' => ['integer', 'exists:room_bed_units,id'],
+            'package_id' => ['nullable', 'integer', 'exists:accommodation_packages,id'],
         ];
     }
 
@@ -45,6 +48,8 @@ class AccommodationSearchRequest extends FormRequest
             'space_id' => 'espacio',
             'space_room_id' => 'habitacion',
             'space_room_ids' => 'habitaciones',
+            'room_bed_unit_ids' => 'camas',
+            'package_id' => 'paquete',
         ];
     }
 

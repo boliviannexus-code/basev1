@@ -92,6 +92,12 @@ class Space extends Model
             ->withTimestamps();
     }
 
+    public function accommodationPackages(): BelongsToMany
+    {
+        return $this->belongsToMany(AccommodationPackage::class, 'accommodation_package_space', 'space_id', 'package_id')
+            ->withTimestamps();
+    }
+
     public function reviewNotes(): HasMany
     {
         return $this->hasMany(SpaceReviewNote::class)->latest();
@@ -107,9 +113,19 @@ class Space extends Model
         return $this->hasMany(AvailabilityDay::class);
     }
 
+    public function availabilityStatuses(): HasMany
+    {
+        return $this->hasMany(AvailabilityStatus::class);
+    }
+
     public function reservations(): HasMany
     {
         return $this->hasMany(Reservation::class);
+    }
+
+    public function stays(): HasMany
+    {
+        return $this->hasMany(Stay::class);
     }
 
     public function creator(): BelongsTo

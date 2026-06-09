@@ -96,7 +96,6 @@ class SpaceController extends Controller
     {
         Gate::authorize('spaces.edit');
         $this->ensureOwnership($space);
-        abort_if($space->isApprovedLocked(), 403, 'El alojamiento ya fue aprobado y no puede modificarse.');
 
         return redirect()->to($this->completion->continueRoute($space));
     }
@@ -242,9 +241,7 @@ class SpaceController extends Controller
             .'<a class="btn btn-outline-secondary btn-sm" href="'.e(route('spaces.show', $space)).'">Ver</a>';
 
         if (auth()->user()?->can('spaces.edit')) {
-            if (! $space->isApprovedLocked()) {
-                $html .= '<a class="btn btn-outline-info btn-sm" href="'.e(route('spaces.continue', $space)).'">Continuar</a>';
-            }
+            $html .= '<a class="btn btn-outline-info btn-sm" href="'.e(route('spaces.continue', $space)).'">Editar</a>';
 
             if ($space->status === 'active') {
                 $html .= $this->actionForm(route('spaces.deactivate', $space), 'Deshabilitar', 'warning');

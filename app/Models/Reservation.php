@@ -37,12 +37,27 @@ class Reservation extends Model
         'rejected',
     ];
 
+    public const BOOKING_TYPES = [
+        'normal',
+        'package',
+    ];
+
     protected $fillable = [
         'company_id',
         'user_id',
         'space_id',
         'space_room_id',
         'occupancy_block_id',
+        'package_id',
+        'reservation_channel_id',
+        'booking_type',
+        'package_snapshot',
+        'package_price',
+        'included_people',
+        'extra_people',
+        'extra_people_total',
+        'package_extra_nights',
+        'package_extra_nights_total',
         'code',
         'guest_name',
         'guest_email',
@@ -57,6 +72,7 @@ class Reservation extends Model
         'subtotal_amount',
         'total_amount',
         'advance_amount',
+        'deposit_amount',
         'balance_amount',
         'currency',
         'status',
@@ -81,7 +97,15 @@ class Reservation extends Model
             'subtotal_amount' => 'decimal:2',
             'total_amount' => 'decimal:2',
             'advance_amount' => 'decimal:2',
+            'deposit_amount' => 'decimal:2',
             'balance_amount' => 'decimal:2',
+            'package_snapshot' => 'array',
+            'package_price' => 'decimal:2',
+            'included_people' => 'integer',
+            'extra_people' => 'integer',
+            'extra_people_total' => 'decimal:2',
+            'package_extra_nights' => 'integer',
+            'package_extra_nights_total' => 'decimal:2',
             'hold_expires_at' => 'datetime',
             'payment_validated_at' => 'datetime',
         ];
@@ -112,6 +136,11 @@ class Reservation extends Model
         return $this->hasMany(ReservationRoom::class);
     }
 
+    public function bedUnitItems(): HasMany
+    {
+        return $this->hasMany(ReservationBedUnit::class);
+    }
+
     public function rooms(): BelongsToMany
     {
         return $this->belongsToMany(SpaceRoom::class, 'reservation_rooms')
@@ -119,9 +148,31 @@ class Reservation extends Model
             ->withTimestamps();
     }
 
+    public function bedUnits(): BelongsToMany
+    {
+        return $this->belongsToMany(RoomBedUnit::class, 'reservation_bed_units')
+            ->withPivot(['occupancy_block_id', 'guest_name', 'price_per_night', 'subtotal_amount'])
+            ->withTimestamps();
+    }
+
     public function occupancyBlock(): BelongsTo
     {
         return $this->belongsTo(OccupancyBlock::class);
+    }
+
+    public function accommodationPackage(): BelongsTo
+    {
+        return $this->belongsTo(AccommodationPackage::class, 'package_id');
+    }
+
+    public function reservationChannel(): BelongsTo
+    {
+        return $this->belongsTo(ReservationChannel::class);
+    }
+
+    public function extraCharges(): HasMany
+    {
+        return $this->hasMany(ReservationExtraCharge::class);
     }
 
     public function paymentValidator(): BelongsTo

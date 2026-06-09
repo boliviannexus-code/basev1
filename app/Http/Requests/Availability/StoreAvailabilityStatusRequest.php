@@ -2,11 +2,11 @@
 
 namespace App\Http\Requests\Availability;
 
-use App\Models\AvailabilityDay;
+use App\Models\AvailabilityStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StoreAvailabilityDayRequest extends FormRequest
+class StoreAvailabilityStatusRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -18,9 +18,10 @@ class StoreAvailabilityDayRequest extends FormRequest
         return [
             'space_id' => ['required', 'integer'],
             'space_room_id' => ['nullable', 'integer'],
-            'date' => ['required', 'date'],
-            'price' => ['nullable', 'numeric', 'min:0'],
-            'status' => ['required', Rule::in(AvailabilityDay::STATUSES)],
+            'room_bed_unit_id' => ['nullable', 'integer'],
+            'date' => ['required', 'date', 'after_or_equal:today'],
+            'status' => ['required', Rule::in(AvailabilityStatus::STATUSES)],
+            'notes' => ['nullable', 'string', 'max:1000'],
         ];
     }
 
@@ -28,7 +29,8 @@ class StoreAvailabilityDayRequest extends FormRequest
     {
         $this->merge([
             'space_room_id' => filled($this->input('space_room_id')) ? $this->input('space_room_id') : null,
-            'price' => filled($this->input('price')) ? $this->input('price') : null,
+            'room_bed_unit_id' => filled($this->input('room_bed_unit_id')) ? $this->input('room_bed_unit_id') : null,
+            'notes' => filled($this->input('notes')) ? trim((string) $this->input('notes')) : null,
         ]);
     }
 }

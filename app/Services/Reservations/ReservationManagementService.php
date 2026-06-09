@@ -12,7 +12,7 @@ class ReservationManagementService
     {
         $reservations = Reservation::query()
             ->withoutGlobalScope('company')
-            ->with(['occupancyBlock', 'roomItems.occupancyBlock'])
+            ->with(['occupancyBlock', 'roomItems.occupancyBlock', 'bedUnitItems.occupancyBlock'])
             ->where('status', 'pending_payment')
             ->where('payment_status', 'pending')
             ->whereNotNull('hold_expires_at')
@@ -112,6 +112,7 @@ class ReservationManagementService
             ->with([
                 'occupancyBlock' => fn ($query) => $query->withTrashed(),
                 'roomItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
+                'bedUnitItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
             ])
             ->whereKey($reservation->id)
             ->lockForUpdate()
@@ -130,6 +131,7 @@ class ReservationManagementService
     {
         return collect([$reservation->occupancyBlock])
             ->merge($reservation->roomItems->pluck('occupancyBlock'))
+            ->merge($reservation->bedUnitItems->pluck('occupancyBlock'))
             ->filter()
             ->unique('id')
             ->values();

@@ -29,6 +29,7 @@ class OccupancyBlock extends Model
         'company_id',
         'space_id',
         'space_room_id',
+        'room_bed_unit_id',
         'type',
         'status',
         'title',
@@ -61,6 +62,11 @@ class OccupancyBlock extends Model
         return $this->belongsTo(SpaceRoom::class, 'space_room_id');
     }
 
+    public function bedUnit(): BelongsTo
+    {
+        return $this->belongsTo(RoomBedUnit::class, 'room_bed_unit_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -74,5 +80,10 @@ class OccupancyBlock extends Model
     public function reservationRoom(): HasOne
     {
         return $this->hasOne(ReservationRoom::class, 'occupancy_block_id');
+    }
+
+    public function reservationBedUnit(): HasOne
+    {
+        return $this->hasOne(ReservationBedUnit::class, 'occupancy_block_id');
     }
 }

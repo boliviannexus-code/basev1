@@ -2,15 +2,22 @@
     $organizationOpen = request()->routeIs('companies.*');
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*');
     $globalAdminOpen = request()->routeIs('admin.accommodation-catalogs.*', 'admin.spaces.*');
-    $spacesOpen = request()->routeIs('spaces.*', 'availability.*', 'occupancy.*', 'admin.reservations.*');
+    $spacesOpen = request()->routeIs('spaces.*', 'availability.*', 'occupancy.*', 'admin.reservations.*', 'reservation-channels.*', 'extra-charge-categories.*', 'countries.*', 'exchange-rates.*', 'accommodation-packages.*', 'package-services.*');
+    $cashOpen = request()->routeIs('space-cash.*', 'payment-methods.*');
 
+    $canPublicProfile = auth()->user()?->company_id !== null;
     $canOrganization = auth()->user()?->can('companies.view');
     $canSpaces = auth()->user()?->company_id !== null
-        && (auth()->user()?->can('spaces.view') || auth()->user()?->can('spaces.create') || auth()->user()?->can('availability.view') || auth()->user()?->can('occupancy.view') || auth()->user()?->can('reservations.view'));
+        && (auth()->user()?->can('spaces.view') || auth()->user()?->can('spaces.create') || auth()->user()?->can('spaces.edit') || auth()->user()?->can('availability.view') || auth()->user()?->can('occupancy.view') || auth()->user()?->can('reservations.view') || auth()->user()?->can('reservation-channels.manage') || auth()->user()?->can('extra-charge-categories.manage') || auth()->user()?->can('countries.manage') || auth()->user()?->can('exchange-rates.manage'));
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('roles.view')
         || auth()->user()?->can('permissions.view')
         || auth()->user()?->can('audits.view');
+    $canCash = auth()->user()?->company_id !== null
+        && (auth()->user()?->can('space-cash.access')
+            || auth()->user()?->can('occupancy.manage')
+            || auth()->user()?->can('space-cash.view')
+            || auth()->user()?->can('payment-methods.view'));
     $canGlobalAdmin = \App\Support\CompanyContext::isGlobalAdmin(auth()->user())
         && (auth()->user()?->can(\App\Support\AccommodationCatalogRegistry::PERMISSION) || auth()->user()?->can('spaces.approve'));
     $sidebarCompany = \App\Support\CompanyContext::activeCompany(auth()->user());
@@ -38,6 +45,15 @@
                         <span class="nav-link-title">Dashboard</span>
                     </a>
                 </li>
+
+                @if ($canPublicProfile)
+                    <li class="nav-item {{ request()->routeIs('company.public-profile.*') ? 'active' : '' }}">
+                        <a class="nav-link" href="{{ route('company.public-profile.edit') }}">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-world-www"></i></span>
+                            <span class="nav-link-title">Perfil público</span>
+                        </a>
+                    </li>
+                @endif
 
                 @if ($canOrganization)
                     <li class="nav-item app-menu-section {{ $organizationOpen ? 'active' : '' }}">
@@ -102,6 +118,90 @@
                                         </a>
                                     </li>
                                 @endcan
+                                @can('reservation-channels.manage')
+                                    <li class="nav-item {{ request()->routeIs('reservation-channels.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('reservation-channels.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-route"></i></span>
+                                            <span class="nav-link-title">Canales de reserva</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('extra-charge-categories.manage')
+                                    <li class="nav-item {{ request()->routeIs('extra-charge-categories.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('extra-charge-categories.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-receipt"></i></span>
+                                            <span class="nav-link-title">Cargos extras</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('countries.manage')
+                                    <li class="nav-item {{ request()->routeIs('countries.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('countries.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-world"></i></span>
+                                            <span class="nav-link-title">Paises</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @if (auth()->user()?->can('exchange-rates.manage') || auth()->user()?->can('occupancy.manage'))
+                                    <li class="nav-item {{ request()->routeIs('exchange-rates.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('exchange-rates.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-currency-dollar"></i></span>
+                                            <span class="nav-link-title">Tipo de cambio</span>
+                                        </a>
+                                    </li>
+                                @endif
+                                @can('spaces.view')
+                                    <li class="nav-item {{ request()->routeIs('accommodation-packages.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('accommodation-packages.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-ticket"></i></span>
+                                            <span class="nav-link-title">Paquetes todo incluido</span>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item {{ request()->routeIs('package-services.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('package-services.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-checklist"></i></span>
+                                            <span class="nav-link-title">Servicios de paquetes</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                            </ul>
+                        </div>
+                    </li>
+                @endif
+
+                @if ($canCash)
+                    <li class="nav-item app-menu-section {{ $cashOpen ? 'active' : '' }}">
+                        <button class="nav-link app-menu-toggle {{ $cashOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-cash" aria-expanded="{{ $cashOpen ? 'true' : 'false' }}" aria-controls="menu-cash">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-cash-register"></i></span>
+                            <span class="nav-link-title">Caja y cobros</span>
+                            <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
+                        </button>
+                        <div class="collapse {{ $cashOpen ? 'show' : '' }}" id="menu-cash">
+                            <ul class="nav app-submenu">
+                                @if (auth()->user()?->can('space-cash.access') || auth()->user()?->can('occupancy.manage'))
+                                    <li class="nav-item {{ request()->routeIs('space-cash.index') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('space-cash.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-cash-register"></i></span>
+                                            <span class="nav-link-title">Caja de espacios</span>
+                                        </a>
+                                    </li>
+                                @endif
+                                @if (auth()->user()?->can('space-cash.view') || auth()->user()?->can('occupancy.manage'))
+                                    <li class="nav-item {{ request()->routeIs('space-cash.history', 'space-cash.show') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('space-cash.history') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-report-money"></i></span>
+                                            <span class="nav-link-title">Historial de cajas</span>
+                                        </a>
+                                    </li>
+                                @endif
+                                @if (auth()->user()?->can('payment-methods.view') || auth()->user()?->can('occupancy.manage'))
+                                    <li class="nav-item {{ request()->routeIs('payment-methods.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('payment-methods.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-credit-card"></i></span>
+                                            <span class="nav-link-title">Metodos de pago</span>
+                                        </a>
+                                    </li>
+                                @endif
                             </ul>
                         </div>
                     </li>

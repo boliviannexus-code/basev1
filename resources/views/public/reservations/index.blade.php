@@ -34,8 +34,12 @@
                             <strong>{{ $reservation->space->title ?: $reservation->space->name }}</strong>
                             <span>
                                 {{ $reservation->code }} · {{ $reservation->check_in->toDateString() }} al {{ $reservation->check_out->toDateString() }}
-                                @if ($reservation->rooms->count() > 1)
+                                @if ($reservation->booking_type === 'package')
+                                    · Paquete {{ $reservation->package_snapshot['name'] ?? $reservation->accommodationPackage?->name ?? 'todo incluido' }}
+                                @elseif ($reservation->rooms->count() > 1)
                                     · {{ $reservation->rooms->count() }} habitaciones
+                                @elseif ($reservation->bedUnitItems->isNotEmpty())
+                                    · {{ $reservation->bedUnitItems->count() }} cama{{ $reservation->bedUnitItems->count() === 1 ? '' : 's' }}
                                 @endif
                             </span>
                         </div>

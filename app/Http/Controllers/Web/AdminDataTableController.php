@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\PaymentMethod;
 use App\Models\User;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
@@ -42,6 +43,25 @@ class AdminDataTableController extends Controller
             ->addColumn('changes', fn (Audit $audit): string => $this->auditChangesSummary($audit))
             ->addColumn('actions', fn (Audit $audit): string => $this->auditActions((int) $audit->id))
             ->rawColumns(['event', 'actions'])
+            ->toJson();
+    }
+
+    public function paymentMethods(): JsonResponse
+    {
+        abort_unless(auth()->user()?->can('payment-methods.view'), 403);
+
+        $query = PaymentMethod::query()
+            ->where(function ($query): void {
+                $query
+                    ->where('company_id', auth()->user()?->company_id)
+                    ->orWhereNull('company_id');
+            });
+
+        return DataTables::eloquent($query)
+            ->editColumn('is_active', fn (PaymentMethod $method): string => $method->is_active ? '<span class="badge text-bg-success">Activo</span>' : '<span class="badge text-bg-secondary">Inactivo</span>')
+            ->editColumn('created_at', fn (PaymentMethod $method): string => $method->created_at?->format('Y-m-d H:i') ?? '')
+            ->addColumn('actions', fn (PaymentMethod $method): string => view('payment-methods.partials.actions', ['paymentMethod' => $method])->render())
+            ->rawColumns(['is_active', 'actions'])
             ->toJson();
     }
 

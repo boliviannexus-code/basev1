@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RoomBed extends Model
 {
@@ -42,5 +43,10 @@ class RoomBed extends Model
     public function bedType(): BelongsTo
     {
         return $this->belongsTo(BedType::class);
+    }
+
+    public function bedUnits(): HasMany
+    {
+        return $this->hasMany(RoomBedUnit::class)->orderBy('sort_order')->orderBy('id');
     }
 }

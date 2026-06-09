@@ -24,6 +24,16 @@
     <div
         data-occupancy-week
         data-week-data-url="{{ route('occupancy.week-data') }}"
+        data-cell-actions-url="{{ route('occupancy.cell-actions') }}"
+        data-check-in-summary-modal-url="{{ route('occupancy.check-in.summary-modal') }}"
+        data-check-in-modal-url="{{ route('occupancy.check-in.modal') }}"
+        data-check-in-create-url="{{ route('check-ins.create') }}"
+        data-stay-payment-create-url-template="{{ route('stays.payments.create', ['stay' => '__ID__']) }}"
+        data-check-out-modal-url="{{ route('occupancy.check-out.modal') }}"
+        data-check-out-store-url-template="{{ route('occupancy.check-out.store', ['stay' => '__ID__']) }}"
+        data-reservation-modal-url="{{ route('occupancy.reservation.modal') }}"
+        data-extra-charge-modal-url="{{ route('occupancy.extra-charge.modal') }}"
+        data-block-modal-url="{{ route('occupancy.block.modal') }}"
         data-store-url="{{ route('occupancy.blocks.store') }}"
         data-update-url-template="{{ route('occupancy.blocks.update', ['occupancyBlock' => '__ID__']) }}"
         data-destroy-url-template="{{ route('occupancy.blocks.destroy', ['occupancyBlock' => '__ID__']) }}"
@@ -43,20 +53,16 @@
                 <input class="form-control form-control-sm occupancy-week-date" type="date" value="{{ $initialWeek['week_start'] }}" data-occupancy-week-picker>
             </div>
 
-            @can('occupancy.manage')
-                <button class="btn btn-primary btn-sm" type="button" data-occupancy-new-block>
-                    <i class="ti ti-calendar-plus me-1"></i>Nuevo bloqueo
-                </button>
-            @endcan
+
         </div>
 
         <form class="occupancy-week-filters" autocomplete="off" data-occupancy-filters>
             <div>
                 <label class="form-label" for="occupancy-filter-type">Tipo</label>
                 <select class="form-select form-select-sm" id="occupancy-filter-type" name="type">
-                    <option value="all">Todos</option>
-                    <option value="private">Privados</option>
-                    <option value="shared">Compartidos</option>
+                    <option value="all" @selected(($filters['type'] ?? 'all') === 'all')>Todos</option>
+                    <option value="private" @selected(($filters['type'] ?? null) === 'private')>Privados</option>
+                    <option value="shared" @selected(($filters['type'] ?? null) === 'shared')>Compartidos</option>
                 </select>
             </div>
             <div>
@@ -64,7 +70,7 @@
                 <select class="form-select form-select-sm" id="occupancy-filter-space" name="space_id">
                     <option value="">Todos</option>
                     @foreach ($spaces as $space)
-                        <option value="{{ $space->id }}">
+                        <option value="{{ $space->id }}" @selected((string) ($filters['space_id'] ?? '') === (string) $space->id)>
                             {{ $spaceLabel($space) }}
                         </option>
                     @endforeach
@@ -73,12 +79,15 @@
             <div>
                 <label class="form-label" for="occupancy-filter-status">Estado</label>
                 <select class="form-select form-select-sm" id="occupancy-filter-status" name="status">
-                    <option value="">Todos</option>
-                    <option value="available">Libre</option>
-                    <option value="manual_block">Bloqueado</option>
-                    <option value="maintenance">Mantenimiento</option>
-                    <option value="owner_use">Uso propietario</option>
-                    <option value="unavailable">No disponible</option>
+                    <option value="" @selected(($filters['status'] ?? '') === '')>Todos</option>
+                    <option value="available" @selected(($filters['status'] ?? null) === 'available')>Libre</option>
+                    <option value="manual_block" @selected(($filters['status'] ?? null) === 'manual_block')>Bloqueado</option>
+                    <option value="maintenance" @selected(($filters['status'] ?? null) === 'maintenance')>Mantenimiento</option>
+                    <option value="owner_use" @selected(($filters['status'] ?? null) === 'owner_use')>Uso propietario</option>
+                    <option value="unavailable" @selected(($filters['status'] ?? null) === 'unavailable')>No disponible</option>
+                    <option value="reserved" @selected(($filters['status'] ?? null) === 'reserved')>Reservado</option>
+                    <option value="occupied" @selected(($filters['status'] ?? null) === 'occupied')>Ocupado</option>
+                    <option value="checked_out" @selected(($filters['status'] ?? null) === 'checked_out')>Historial</option>
                 </select>
             </div>
             <div class="align-self-end">
@@ -94,6 +103,23 @@
             </div>
         </x-ui.card>
 
+        <div class="occupancy-cell-actions-popover d-none" data-occupancy-actions-popover></div>
+
+        <div class="modal fade" tabindex="-1" aria-hidden="true" data-occupancy-action-modal>
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" data-occupancy-action-modal-title>Gestion de ocupabilidad</h5>
+                        <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body" data-occupancy-action-modal-body></div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="modal fade" tabindex="-1" aria-hidden="true" data-occupancy-modal>
             <div class="modal-dialog modal-lg modal-dialog-centered">
                 <form class="modal-content" data-occupancy-form autocomplete="off">
@@ -103,6 +129,7 @@
                     </div>
                     <div class="modal-body">
                         <input type="hidden" name="block_id" data-occupancy-block-id>
+                        <input type="hidden" name="room_bed_unit_id" data-occupancy-bed-unit-id>
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label" for="occupancy-space">Espacio</label>

@@ -26,6 +26,7 @@ use App\Models\SpaceRoom;
 use App\Services\Spaces\SpaceCapacityService;
 use App\Services\Spaces\SpacePhotoService;
 use App\Services\Spaces\SpaceRegistrationService;
+use App\Services\Spaces\RoomBedUnitService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,7 @@ class SharedSpaceRegistrationStepperController extends Controller
         private readonly SpaceRegistrationService $spaces,
         private readonly SpacePhotoService $photos,
         private readonly SpaceCapacityService $capacity,
+        private readonly RoomBedUnitService $bedUnits,
     ) {}
 
     public function create(): View
@@ -98,6 +100,7 @@ class SharedSpaceRegistrationStepperController extends Controller
             'title' => $data['name'],
             'bathroom_type_id' => $data['bathroom_type_id'],
             'status' => $data['status'],
+            'sale_mode' => $data['sale_mode'],
             'company_id' => $space->company_id,
             'max_capacity' => 0,
             'sort_order' => ((int) $space->rooms()->max('sort_order')) + 1,
@@ -111,7 +114,7 @@ class SharedSpaceRegistrationStepperController extends Controller
     public function updateRoom(StoreSharedRoomRequest $request, Space $space, SpaceRoom $room): RedirectResponse|JsonResponse
     {
         $this->ensureRoomBelongsToSpace($space, $room);
-        $this->ensureEditable($space);
+        $this->ensureRoomEditable($room);
         $data = $request->validated();
 
         $room->update([
@@ -119,7 +122,11 @@ class SharedSpaceRegistrationStepperController extends Controller
             'title' => $data['name'],
             'bathroom_type_id' => $data['bathroom_type_id'],
             'status' => $data['status'],
+            'sale_mode' => $data['sale_mode'],
         ]);
+
+        $this->capacity->recalculateRoomCapacity($room);
+        $this->capacity->recalculateSharedSpaceCapacity($space);
 
         return $this->stepResponse($request, 'Habitacion actualizada.', route('spaces.shared.rooms.edit', $space), back());
     }
@@ -161,7 +168,7 @@ class SharedSpaceRegistrationStepperController extends Controller
     {
         Gate::authorize('spaces.create');
         $this->ensureRoomBelongsToSpace($space, $room);
-        $this->ensureEditable($space);
+        $this->ensureRoomEditable($room);
 
         $room->delete();
         $this->capacity->recalculateSharedSpaceCapacity($space);
@@ -173,7 +180,7 @@ class SharedSpaceRegistrationStepperController extends Controller
     {
         Gate::authorize('spaces.create');
 
-        return $this->stepView('beds', $space->load('rooms.beds.bedType'), [
+        return $this->stepView('beds', $space->load('rooms.beds.bedType', 'rooms.bedUnits.bedType'), [
             'bedTypes' => BedType::active()->ordered()->get(),
         ]);
     }
@@ -181,11 +188,11 @@ class SharedSpaceRegistrationStepperController extends Controller
     public function storeBed(StoreSharedRoomBedRequest $request, Space $space, SpaceRoom $room): RedirectResponse|JsonResponse
     {
         $this->ensureRoomBelongsToSpace($space, $room);
-        $this->ensureEditable($space);
+        $this->ensureRoomEditable($room);
         $bedType = BedType::active()->findOrFail($request->validated('bed_type_id'));
         $quantity = (int) $request->validated('quantity');
 
-        $room->beds()->create([
+        $bed = $room->beds()->create([
             'company_id' => $space->company_id,
             'bed_type_id' => $bedType->id,
             'quantity' => $quantity,
@@ -193,6 +200,7 @@ class SharedSpaceRegistrationStepperController extends Controller
             'total_capacity' => $quantity * $bedType->capacity,
         ]);
 
+        $this->bedUnits->createUnitsForBed($bed);
         $this->capacity->recalculateRoomCapacity($room);
         $this->capacity->recalculateSharedSpaceCapacity($space);
 
@@ -203,9 +211,10 @@ class SharedSpaceRegistrationStepperController extends Controller
     {
         Gate::authorize('spaces.create');
         $this->ensureRoomBelongsToSpace($space, $room);
-        $this->ensureEditable($space);
+        $this->ensureRoomEditable($room);
         abort_unless((int) $bed->space_room_id === (int) $room->id, 404);
 
+        $this->bedUnits->deleteUnitsForBed($bed);
         $bed->delete();
         $this->capacity->recalculateRoomCapacity($room);
         $this->capacity->recalculateSharedSpaceCapacity($space);
@@ -225,7 +234,7 @@ class SharedSpaceRegistrationStepperController extends Controller
     public function storeRoomServices(StoreSharedRoomServicesRequest $request, Space $space, SpaceRoom $room): RedirectResponse|JsonResponse
     {
         $this->ensureRoomBelongsToSpace($space, $room);
-        $this->ensureEditable($space);
+        $this->ensureRoomEditable($room);
         $serviceIds = RoomService::active()->whereIn('id', $request->validated('room_services') ?? [])->pluck('id');
         $syncPayload = $serviceIds->mapWithKeys(fn (int $id): array => [$id => ['company_id' => $space->company_id]])->all();
 
@@ -237,17 +246,19 @@ class SharedSpaceRegistrationStepperController extends Controller
     public function copyRoomServices(CopySharedRoomServicesRequest $request, Space $space, SpaceRoom $room): RedirectResponse|JsonResponse
     {
         $this->ensureRoomBelongsToSpace($space, $room);
-        $this->ensureEditable($space);
+        $this->ensureRoomEditable($room);
 
         $sourceServiceIds = $room->roomServices()->pluck('room_services.id');
         $syncPayload = $sourceServiceIds
             ->mapWithKeys(fn (int $id): array => [$id => ['company_id' => $space->company_id]])
             ->all();
 
-        $space->rooms()
+        $targetRooms = $space->rooms()
             ->whereIn('id', $request->validated('target_room_ids'))
-            ->get()
-            ->each(fn (SpaceRoom $targetRoom): mixed => $targetRoom->roomServices()->sync($syncPayload));
+            ->get();
+
+        $targetRooms->each(fn (SpaceRoom $targetRoom): null => $this->ensureRoomEditable($targetRoom));
+        $targetRooms->each(fn (SpaceRoom $targetRoom): mixed => $targetRoom->roomServices()->sync($syncPayload));
 
         return $this->stepResponse($request, 'Servicios copiados a las habitaciones seleccionadas.', route('spaces.shared.room-services.edit', $space), back());
     }
@@ -294,7 +305,7 @@ class SharedSpaceRegistrationStepperController extends Controller
     public function storeRoomPhotos(StoreSharedRoomPhotosRequest $request, Space $space, SpaceRoom $room): RedirectResponse|JsonResponse
     {
         $this->ensureRoomBelongsToSpace($space, $room);
-        $this->ensureEditable($space);
+        $this->ensureRoomEditable($room);
         $room->update(['photos_skipped' => $request->boolean('photos_skipped')]);
 
         if ($room->photos_skipped) {
@@ -316,7 +327,7 @@ class SharedSpaceRegistrationStepperController extends Controller
     {
         Gate::authorize('spaces.create');
         $this->ensureRoomBelongsToSpace($space, $room);
-        $this->ensureEditable($space);
+        $this->ensureRoomEditable($room);
         abort_unless((int) $photo->space_room_id === (int) $room->id && (int) $photo->company_id === (int) $space->company_id, 404);
 
         $this->photos->deleteRoomPhoto($photo);
@@ -424,7 +435,18 @@ class SharedSpaceRegistrationStepperController extends Controller
 
     private function ensureEditable(Space $space): void
     {
-        abort_if($space->isApprovedLocked(), 403, 'El alojamiento ya fue aprobado y no puede modificarse.');
+        abort_unless((int) $space->company_id === (int) auth()->user()?->company_id, 403);
+    }
+
+    private function ensureRoomEditable(SpaceRoom $room): void
+    {
+        if (! $room->hasFutureBlockingReservation()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'room' => 'No puedes modificar esta habitacion porque tiene una reserva futura pendiente o confirmada.',
+        ]);
     }
 
     private function stepResponse(Request $request, string $message, string $refreshUrl, ?RedirectResponse $fallback = null): RedirectResponse|JsonResponse

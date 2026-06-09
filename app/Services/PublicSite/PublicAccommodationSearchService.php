@@ -2,8 +2,9 @@
 
 namespace App\Services\PublicSite;
 
-use App\Models\AvailabilityDay;
+use App\Models\AvailabilityStatus;
 use App\Models\OccupancyBlock;
+use App\Models\RoomBedUnit;
 use App\Models\Space;
 use App\Models\SpaceRoom;
 use Carbon\CarbonImmutable;
@@ -155,6 +156,17 @@ class PublicAccommodationSearchService
         $rooms = $space->rooms
             ->where('status', 'active')
             ->filter(function (SpaceRoom $room) use ($space, $filters, $dateRange): bool {
+                if ($this->roomSellsBeds($room)) {
+                    $availableBedUnits = $this->availableBedUnits($space, $room, $filters, $dateRange);
+                    $room->setRelation('availableBedUnits', $availableBedUnits);
+
+                    return $dateRange === []
+                        ? $availableBedUnits->isNotEmpty()
+                        : $this->hasAvailableDays($space, $room, $dateRange)
+                            && ! $this->hasActiveBlock($space, $room, $filters)
+                            && $availableBedUnits->isNotEmpty();
+                }
+
                 if ($dateRange === []) {
                     return true;
                 }
@@ -163,7 +175,17 @@ class PublicAccommodationSearchService
                     && ! $this->hasActiveBlock($space, $room, $filters);
             })
             ->values();
-        $capacity = $rooms->sum(fn (SpaceRoom $room): int => $this->roomCapacity($room));
+        $capacity = $rooms->sum(function (SpaceRoom $room): int {
+            if ($this->roomSellsBeds($room)) {
+                $availableBedUnits = $room->relationLoaded('availableBedUnits')
+                    ? $room->getRelation('availableBedUnits')
+                    : $room->bedUnits->where('status', 'active')->values();
+
+                return (int) $availableBedUnits->sum(fn (RoomBedUnit $unit): int => (int) ($unit->bedType?->capacity ?: 1));
+            }
+
+            return $this->roomCapacity($room);
+        });
         $priceFrom = $this->sharedPriceFrom($space, $rooms, $dateRange);
         $isAvailable = $rooms->isNotEmpty() && $capacity >= $guests;
 
@@ -183,17 +205,15 @@ class PublicAccommodationSearchService
             return false;
         }
 
-        $count = AvailabilityDay::query()
+        return ! AvailabilityStatus::query()
             ->withoutGlobalScope('company')
             ->where('company_id', $space->company_id)
             ->where('space_id', $space->id)
             ->when($room, fn (Builder $query): Builder => $query->where('space_room_id', $room->id), fn (Builder $query): Builder => $query->whereNull('space_room_id'))
+            ->whereNull('room_bed_unit_id')
             ->whereIn('date', $dateRange)
-            ->where('status', 'available')
-            ->whereNotNull('price')
-            ->count();
-
-        return $count === count($dateRange);
+            ->whereIn('status', ['closed', 'reserved', 'occupied'])
+            ->exists();
     }
 
     private function hasActiveBlock(Space $space, ?SpaceRoom $room, array $filters): bool
@@ -210,11 +230,67 @@ class PublicAccommodationSearchService
             ->where('company_id', $space->company_id)
             ->where('space_id', $space->id)
             ->when($room, fn (Builder $query): Builder => $query->where('space_room_id', $room->id), fn (Builder $query): Builder => $query->whereNull('space_room_id'))
+            ->whereNull('room_bed_unit_id')
             ->where('status', 'active')
             ->where(function (Builder $query): void {
                 $query
                     ->whereDoesntHave('reservation', fn (Builder $reservation): Builder => $this->expiredPendingHold($reservation))
                     ->whereDoesntHave('reservationRoom.reservation', fn (Builder $reservation): Builder => $this->expiredPendingHold($reservation));
+            })
+            ->whereDate('start_date', '<=', $lastNight)
+            ->whereDate('end_date', '>=', $checkIn)
+            ->exists();
+    }
+
+    private function availableBedUnits(Space $space, SpaceRoom $room, array $filters, array $dateRange): Collection
+    {
+        $units = $room->bedUnits
+            ->where('status', 'active')
+            ->sortBy('sort_order')
+            ->values();
+
+        if ($dateRange === []) {
+            return $units;
+        }
+
+        return $units
+            ->filter(fn (RoomBedUnit $unit): bool => ! $this->hasUnavailableStatusForBedUnit($space, $unit, $dateRange)
+                && ! $this->hasActiveBlockForBedUnit($space, $unit, $filters))
+            ->values();
+    }
+
+    private function hasUnavailableStatusForBedUnit(Space $space, RoomBedUnit $unit, array $dateRange): bool
+    {
+        return AvailabilityStatus::query()
+            ->withoutGlobalScope('company')
+            ->where('company_id', $space->company_id)
+            ->where('space_id', $space->id)
+            ->where('space_room_id', $unit->space_room_id)
+            ->where('room_bed_unit_id', $unit->id)
+            ->whereIn('date', $dateRange)
+            ->whereIn('status', ['closed', 'reserved', 'occupied'])
+            ->exists();
+    }
+
+    private function hasActiveBlockForBedUnit(Space $space, RoomBedUnit $unit, array $filters): bool
+    {
+        if (! $this->hasDateRange($filters)) {
+            return false;
+        }
+
+        $checkIn = CarbonImmutable::parse($filters['check_in'])->toDateString();
+        $lastNight = CarbonImmutable::parse($filters['check_out'])->subDay()->toDateString();
+
+        return OccupancyBlock::query()
+            ->withoutGlobalScope('company')
+            ->where('company_id', $space->company_id)
+            ->where('space_id', $space->id)
+            ->where('room_bed_unit_id', $unit->id)
+            ->where('status', 'active')
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereDoesntHave('reservation', fn (Builder $reservation): Builder => $this->expiredPendingHold($reservation))
+                    ->whereDoesntHave('reservationBedUnit.reservation', fn (Builder $reservation): Builder => $this->expiredPendingHold($reservation));
             })
             ->whereDate('start_date', '<=', $lastNight)
             ->whereDate('end_date', '>=', $checkIn)
@@ -233,19 +309,9 @@ class PublicAccommodationSearchService
 
     private function privatePriceFrom(Space $space, array $dateRange): ?float
     {
-        $query = AvailabilityDay::query()
-            ->withoutGlobalScope('company')
-            ->where('company_id', $space->company_id)
-            ->where('space_id', $space->id)
-            ->whereNull('space_room_id')
-            ->where('status', 'available')
-            ->whereNotNull('price');
-
-        if ($dateRange !== []) {
-            $query->whereIn('date', $dateRange);
-        }
-
-        $price = $query->min('price');
+        $price = $space->accommodationPackages
+            ->where('is_active', true)
+            ->min('price');
 
         return $price === null ? null : (float) $price;
     }
@@ -256,19 +322,9 @@ class PublicAccommodationSearchService
             return null;
         }
 
-        $query = AvailabilityDay::query()
-            ->withoutGlobalScope('company')
-            ->where('company_id', $space->company_id)
-            ->where('space_id', $space->id)
-            ->whereIn('space_room_id', $rooms->pluck('id'))
-            ->where('status', 'available')
-            ->whereNotNull('price');
-
-        if ($dateRange !== []) {
-            $query->whereIn('date', $dateRange);
-        }
-
-        $price = $query->min('price');
+        $price = $space->accommodationPackages
+            ->where('is_active', true)
+            ->min('price');
 
         return $price === null ? null : (float) $price;
     }
@@ -297,6 +353,13 @@ class PublicAccommodationSearchService
         $bedsCapacity = (int) $room->beds->sum('total_capacity');
 
         return (int) ($room->max_capacity ?: $bedsCapacity);
+    }
+
+    private function roomSellsBeds(SpaceRoom $room): bool
+    {
+        return in_array($room->sale_mode, ['bed_unit', 'flexible'], true)
+            && $room->relationLoaded('bedUnits')
+            && $room->bedUnits->where('status', 'active')->isNotEmpty();
     }
 
     private function typeLabel(Space $space, string $mode): string
@@ -333,6 +396,7 @@ class PublicAccommodationSearchService
                 'check_in',
                 'check_out',
                 'guests',
+                'package_id',
             ])
             ->filter(fn ($value): bool => $value !== null && $value !== '')
             ->all();
@@ -467,8 +531,18 @@ class PublicAccommodationSearchService
             'location',
             'photos' => fn ($query) => $query->orderBy('sort_order'),
             'generalServices' => fn ($query) => $query->orderBy('name'),
+            'accommodationPackages' => fn ($query) => $query
+                ->where('is_active', true)
+                ->with(['services' => fn ($serviceQuery) => $serviceQuery
+                    ->where('package_services.is_active', true)
+                    ->orderByPivot('sort_order')
+                    ->orderBy('package_services.name')])
+                ->orderByDesc('is_featured')
+                ->orderBy('sort_order')
+                ->orderBy('name'),
             'rooms' => fn ($query) => $query->where('status', 'active')->orderBy('sort_order')->orderBy('id'),
             'rooms.beds.bedType',
+            'rooms.bedUnits.bedType',
             'rooms.photos' => fn ($query) => $query->orderBy('sort_order'),
             'rooms.roomServices' => fn ($query) => $query->orderBy('name'),
         ];

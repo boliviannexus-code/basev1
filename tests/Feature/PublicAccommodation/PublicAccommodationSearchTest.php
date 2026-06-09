@@ -3,8 +3,10 @@
 namespace Tests\Feature\PublicAccommodation;
 
 use App\Models\AvailabilityDay;
+use App\Models\AccommodationPackage;
 use App\Models\Company;
 use App\Models\OccupancyBlock;
+use App\Models\PackageService;
 use App\Models\PrivateSpaceType;
 use App\Models\Reservation;
 use App\Models\RoomBed;
@@ -219,6 +221,50 @@ class PublicAccommodationSearchTest extends TestCase
             ->assertSee('Precio del espacio')
             ->assertSee('Precio por noche')
             ->assertDontSee('Precio por persona');
+    }
+
+    public function test_private_detail_page_shows_commercial_package_presentation_before_reservation(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $company = Company::factory()->create();
+        $space = $this->privateSpace($company, ['title' => 'Casa Paquete Comercial']);
+        $package = $this->packageFor($company, $space, [
+            'name' => 'Escapada Romantica',
+            'badges' => ['Ideal para pareja', 'Experiencia romantica', 'Todo incluido'],
+            'price_display_text' => '990 Bs la pareja',
+            'conditions' => 'Valido fines de semana segun disponibilidad.',
+        ]);
+        $service = PackageService::query()->create([
+            'company_id' => $company->id,
+            'name' => 'Cena especial',
+            'type' => 'alimentacion',
+            'icon' => 'tools-kitchen-2',
+            'is_active' => true,
+            'sort_order' => 1,
+        ]);
+        $package->services()->attach($service->id, [
+            'inclusion_type' => 'included',
+            'sort_order' => 1,
+        ]);
+        $this->openPrivate($space, '2026-07-01', '2026-07-02');
+
+        $this->get(route('public.accommodations.show', [
+            'space' => $space,
+            'check_in' => '2026-07-01',
+            'check_out' => '2026-07-03',
+            'guests' => 2,
+        ]))
+            ->assertOk()
+            ->assertSee('Paquetes disponibles')
+            ->assertSee('Escapada Romantica')
+            ->assertSee('Ideal para pareja')
+            ->assertSee('Experiencia romantica')
+            ->assertSee('Todo incluido')
+            ->assertSee('990 Bs la pareja')
+            ->assertSee('Cena especial')
+            ->assertSee('Valido fines de semana segun disponibilidad.')
+            ->assertSee('La reserva se confirma despues de validar el adelanto por QR')
+            ->assertDontSee('Acceso para guardar tu reserva');
     }
 
     public function test_guest_can_create_pending_payment_private_reservation_with_price_per_space(): void
@@ -522,6 +568,102 @@ class PublicAccommodationSearchTest extends TestCase
             ->assertSessionHasErrors('space_room_ids');
     }
 
+    public function test_guest_can_create_package_reservation_with_fixed_price_and_extra_people(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $company = Company::factory()->create();
+        $space = $this->privateSpace($company, ['title' => 'Casa Paquete', 'max_capacity' => 5]);
+        $package = $this->packageFor($company, $space, [
+            'name' => 'Escapada Familiar',
+            'price' => 500,
+            'included_people' => 2,
+            'max_people' => 5,
+            'extra_person_price' => 90,
+            'nights_included' => 2,
+        ]);
+        $service = PackageService::query()->create([
+            'company_id' => $company->id,
+            'name' => 'Desayuno incluido',
+            'type' => 'alimentacion',
+            'is_active' => true,
+            'sort_order' => 1,
+        ]);
+        $package->services()->attach($service->id, [
+            'inclusion_type' => 'included',
+            'sort_order' => 1,
+        ]);
+        $this->openPrivate($space, '2026-07-01', '2026-07-02');
+
+        $response = $this->post(route('public.reservations.store'), [
+            'space_id' => $space->id,
+            'package_id' => $package->id,
+            'check_in' => '2026-07-01',
+            'check_out' => '2026-07-03',
+            'guests' => 4,
+            'guest_name' => 'Ana Perez',
+            'guest_email' => 'ana-package@example.com',
+            'guest_phone' => '76543210',
+            'account_mode' => 'register',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ]);
+
+        $reservation = Reservation::query()->withoutGlobalScope('company')->firstOrFail();
+
+        $response->assertRedirect(route('public.reservations.show', $reservation->id));
+        $this->assertSame('package', $reservation->booking_type);
+        $this->assertSame($package->id, $reservation->package_id);
+        $this->assertSame('500.00', $reservation->package_price);
+        $this->assertSame(2, $reservation->included_people);
+        $this->assertSame(2, $reservation->extra_people);
+        $this->assertSame('180.00', $reservation->extra_people_total);
+        $this->assertSame(0, $reservation->package_extra_nights);
+        $this->assertSame('0.00', $reservation->package_extra_nights_total);
+        $this->assertSame('680.00', $reservation->total_amount);
+        $this->assertSame('340.00', $reservation->advance_amount);
+        $this->assertSame('340.00', $reservation->deposit_amount);
+        $this->assertSame('340.00', $reservation->balance_amount);
+        $this->assertSame('Escapada Familiar', $reservation->package_snapshot['name']);
+        $this->assertSame('Desayuno incluido', $reservation->package_snapshot['services'][0]['name']);
+        $this->assertDatabaseHas('occupancy_blocks', [
+            'company_id' => $company->id,
+            'space_id' => $space->id,
+            'space_room_id' => null,
+            'status' => 'active',
+            'start_date' => '2026-07-01',
+            'end_date' => '2026-07-02',
+        ]);
+    }
+
+    public function test_package_reservation_rejects_guests_above_package_maximum(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $company = Company::factory()->create();
+        $space = $this->privateSpace($company, ['title' => 'Casa Maximo', 'max_capacity' => 6]);
+        $package = $this->packageFor($company, $space, [
+            'included_people' => 2,
+            'max_people' => 4,
+            'extra_person_price' => 80,
+        ]);
+        $this->openPrivate($space, '2026-07-01', '2026-07-02');
+
+        $this->post(route('public.reservations.store'), [
+            'space_id' => $space->id,
+            'package_id' => $package->id,
+            'check_in' => '2026-07-01',
+            'check_out' => '2026-07-03',
+            'guests' => 5,
+            'guest_name' => 'Ana Perez',
+            'guest_email' => 'ana-package-max@example.com',
+            'guest_phone' => '76543210',
+            'account_mode' => 'register',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])
+            ->assertRedirect()
+            ->assertSessionHasErrors('guests');
+    }
+
     private function privateSpace(Company $company, array $attributes = [], array $locationAttributes = []): Space
     {
         $space = Space::factory()->create([
@@ -596,6 +738,33 @@ class PublicAccommodationSearchTest extends TestCase
                 'status' => $status,
             ]);
         }
+    }
+
+    private function packageFor(Company $company, Space $space, array $attributes = []): AccommodationPackage
+    {
+        $package = AccommodationPackage::query()->create([
+            'company_id' => $company->id,
+            'name' => 'Paquete Romantico',
+            'slug' => 'paquete-romantico',
+            'short_description' => 'Todo incluido para reservar el espacio completo.',
+            'commercial_description' => 'Incluye alojamiento y servicios seleccionados.',
+            'conditions' => 'Sujeto a disponibilidad.',
+            'price' => 500,
+            'currency' => 'BOB',
+            'included_people' => 2,
+            'max_people' => 4,
+            'extra_person_price' => 80,
+            'requires_full_private_space' => true,
+            'nights_included' => 2,
+            'is_active' => true,
+            'is_featured' => false,
+            'sort_order' => 1,
+            ...$attributes,
+        ]);
+
+        $package->spaces()->attach($space->id);
+
+        return $package;
     }
 
     private function sharedRoom(Company $company, Space $space, string $name, int $capacity): SpaceRoom

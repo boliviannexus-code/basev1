@@ -3,9 +3,12 @@
 namespace App\Services\PublicSite;
 
 use App\Models\AvailabilityDay;
+use App\Models\AccommodationPackage;
 use App\Models\OccupancyBlock;
 use App\Models\Reservation;
+use App\Models\ReservationBedUnit;
 use App\Models\ReservationRoom;
+use App\Models\RoomBedUnit;
 use App\Models\Space;
 use App\Models\SpaceRoom;
 use App\Models\User;
@@ -28,14 +31,20 @@ class PublicReservationService
 
     public function quote(array $data): array
     {
-        [$space, $rooms] = $this->resolveResource($data);
+        [$space, $rooms, $bedUnits] = $this->resolveResource($data);
         $this->reservationManagement->expireOverduePending((int) $space->company_id);
 
         $nightDates = $this->nightDates($data['check_in'], $data['check_out']);
+        if (filled($data['package_id'] ?? null)) {
+            return $this->quotePackage($space, $data, $nightDates);
+        }
+
         $guests = (int) $data['guests'];
         $isShared = $space->spaceMode?->slug === 'compartido';
         $capacity = $isShared
-            ? $rooms->sum(fn (SpaceRoom $room): int => $this->roomCapacity($room))
+            ? ($bedUnits->isNotEmpty()
+                ? $bedUnits->sum(fn (RoomBedUnit $unit): int => (int) ($unit->bedType?->capacity ?: 1))
+                : $rooms->sum(fn (SpaceRoom $room): int => $this->roomCapacity($room)))
             : (int) $space->max_capacity;
 
         if ($capacity < $guests) {
@@ -45,9 +54,45 @@ class PublicReservationService
         }
 
         $roomItems = collect();
+        $bedUnitItems = collect();
         $availabilityDays = collect();
 
-        if ($isShared) {
+        if ($isShared && $bedUnits->isNotEmpty()) {
+            $bedUnitItems = $bedUnits->map(function (RoomBedUnit $unit) use ($space, $nightDates, $data): array {
+                $room = $unit->room;
+                $roomAvailabilityDays = $this->availabilityDays($space, $room, $nightDates);
+
+                if ($roomAvailabilityDays->count() !== count($nightDates)) {
+                    throw ValidationException::withMessages([
+                        'room_bed_unit_ids' => 'Una o mas camas seleccionadas no tienen precio o estan cerradas.',
+                    ]);
+                }
+
+                if ($this->hasActiveBlock($space, $room, $data['check_in'], $data['check_out'])
+                    || $this->hasActiveBlockForBedUnit($space, $unit, $data['check_in'], $data['check_out'])) {
+                    throw ValidationException::withMessages([
+                        'room_bed_unit_ids' => 'Una o mas camas seleccionadas ya no estan disponibles.',
+                    ]);
+                }
+
+                if ($this->hasRoomLevelReservation($space, $room, $data['check_in'], $data['check_out'])) {
+                    throw ValidationException::withMessages([
+                        'room_bed_unit_ids' => 'La habitacion de una cama seleccionada ya esta reservada completa.',
+                    ]);
+                }
+
+                $roomCapacity = max(1, $this->roomCapacity($room));
+                $subtotal = round((float) $roomAvailabilityDays->sum(fn (AvailabilityDay $day): float => ((float) $day->price) / $roomCapacity), 2);
+
+                return [
+                    'bed_unit' => $unit,
+                    'room' => $room,
+                    'capacity' => (int) ($unit->bedType?->capacity ?: 1),
+                    'price_per_night' => round($subtotal / count($nightDates), 2),
+                    'subtotal_amount' => $subtotal,
+                ];
+            })->values();
+        } elseif ($isShared) {
             $roomItems = $rooms->map(function (SpaceRoom $room) use ($space, $nightDates, $data): array {
                 $roomAvailabilityDays = $this->availabilityDays($space, $room, $nightDates);
 
@@ -57,9 +102,16 @@ class PublicReservationService
                     ]);
                 }
 
-                if ($this->hasActiveBlock($space, $room, $data['check_in'], $data['check_out'])) {
+                if ($this->hasActiveBlock($space, $room, $data['check_in'], $data['check_out'])
+                    || $this->hasActiveBlockForAnyBedUnit($space, $room, $data['check_in'], $data['check_out'])) {
                     throw ValidationException::withMessages([
                         'space_room_ids' => 'Una o mas habitaciones seleccionadas ya no estan disponibles.',
+                    ]);
+                }
+
+                if ($this->hasBedUnitReservation($space, $room, $data['check_in'], $data['check_out'])) {
+                    throw ValidationException::withMessages([
+                        'space_room_ids' => 'Una o mas habitaciones tienen camas reservadas y no pueden venderse completas.',
                     ]);
                 }
 
@@ -91,7 +143,7 @@ class PublicReservationService
 
         $nights = count($nightDates);
         $subtotal = $isShared
-            ? round((float) $roomItems->sum('subtotal_amount'), 2)
+            ? round((float) ($bedUnitItems->isNotEmpty() ? $bedUnitItems->sum('subtotal_amount') : $roomItems->sum('subtotal_amount')), 2)
             : round((float) $availabilityDays->sum(fn (AvailabilityDay $day): float => (float) $day->price), 2);
         $total = $subtotal;
         $advance = $this->advanceAmount($total);
@@ -103,6 +155,8 @@ class PublicReservationService
             'room' => $rooms->count() === 1 ? $rooms->first() : null,
             'rooms' => $rooms,
             'room_items' => $roomItems,
+            'bed_units' => $bedUnits,
+            'bed_unit_items' => $bedUnitItems,
             'check_in' => $data['check_in'],
             'check_out' => $data['check_out'],
             'nights' => $nights,
@@ -126,6 +180,7 @@ class PublicReservationService
             $quote = $this->quote($data);
             $space = $quote['space'];
             $rooms = $quote['rooms'];
+            $bedUnits = $quote['bed_units'];
             $room = $quote['room'];
             $lastNight = CarbonImmutable::parse($quote['check_out'])->subDay()->toDateString();
 
@@ -135,6 +190,15 @@ class PublicReservationService
                 'space_id' => $space->id,
                 'space_room_id' => $room?->id,
                 'code' => $this->code(),
+                'package_id' => ($quote['package'] ?? null)?->id,
+                'booking_type' => $quote['booking_type'] ?? 'normal',
+                'package_snapshot' => $quote['package_snapshot'] ?? null,
+                'package_price' => $quote['package_price'] ?? null,
+                'included_people' => $quote['included_people'] ?? null,
+                'extra_people' => $quote['extra_people'] ?? null,
+                'extra_people_total' => $quote['extra_people_total'] ?? null,
+                'package_extra_nights' => $quote['package_extra_nights'] ?? null,
+                'package_extra_nights_total' => $quote['package_extra_nights_total'] ?? null,
                 'guest_name' => $data['guest_name'],
                 'guest_email' => $data['guest_email'],
                 'guest_phone' => $data['guest_phone'] ?? null,
@@ -148,6 +212,7 @@ class PublicReservationService
                 'subtotal_amount' => $quote['subtotal_amount'],
                 'total_amount' => $quote['total_amount'],
                 'advance_amount' => $quote['advance_amount'],
+                'deposit_amount' => $quote['advance_amount'],
                 'balance_amount' => $quote['balance_amount'],
                 'currency' => 'BOB',
                 'status' => 'pending_payment',
@@ -174,7 +239,44 @@ class PublicReservationService
                 $reservation->update(['occupancy_block_id' => $block->id]);
             }
 
-            if ($rooms->isNotEmpty()) {
+            if ($bedUnits->isNotEmpty()) {
+                $firstBlockId = null;
+
+                foreach ($quote['bed_unit_items'] as $item) {
+                    $block = null;
+
+                    if ($reservation->shouldBlockAvailability()) {
+                        $block = OccupancyBlock::query()->create([
+                            'company_id' => $space->company_id,
+                            'space_id' => $space->id,
+                            'space_room_id' => $item['room']->id,
+                            'room_bed_unit_id' => $item['bed_unit']->id,
+                            'type' => 'unavailable',
+                            'status' => 'active',
+                            'title' => 'Solicitud '.$reservation->code.' pendiente de pago',
+                            'description' => 'Bloqueo temporal de cama generado desde el flujo publico de reservas.',
+                            'start_date' => $quote['check_in'],
+                            'end_date' => $lastNight,
+                            'created_by' => null,
+                        ]);
+                    }
+
+                    $firstBlockId ??= $block?->id;
+
+                    ReservationBedUnit::query()->create([
+                        'reservation_id' => $reservation->id,
+                        'room_bed_unit_id' => $item['bed_unit']->id,
+                        'occupancy_block_id' => $block?->id,
+                        'guest_name' => $reservation->guest_name,
+                        'price_per_night' => $item['price_per_night'],
+                        'subtotal_amount' => $item['subtotal_amount'],
+                    ]);
+                }
+
+                if ($firstBlockId !== null) {
+                    $reservation->update(['occupancy_block_id' => $firstBlockId]);
+                }
+            } elseif ($rooms->isNotEmpty()) {
                 $firstBlockId = null;
 
                 foreach ($quote['room_items'] as $item) {
@@ -212,7 +314,7 @@ class PublicReservationService
                 }
             }
 
-            return $reservation->load(['space.location', 'room', 'rooms', 'roomItems.occupancyBlock', 'occupancyBlock']);
+            return $reservation->load(['space.location', 'room', 'rooms', 'roomItems.occupancyBlock', 'bedUnits', 'bedUnitItems.occupancyBlock', 'occupancyBlock']);
         });
     }
 
@@ -260,7 +362,7 @@ class PublicReservationService
     {
         $space = Space::query()
             ->withoutGlobalScope('company')
-            ->with(['company', 'spaceMode', 'location', 'photos', 'rooms.beds'])
+            ->with(['company', 'spaceMode', 'location', 'photos', 'rooms.beds', 'rooms.bedUnits.bedType'])
             ->where('status', 'active')
             ->whereHas('company', fn (Builder $query): Builder => $query->where('is_active', true))
             ->whereKey($data['space_id'])
@@ -274,21 +376,54 @@ class PublicReservationService
 
         $isShared = $space->spaceMode?->slug === 'compartido';
         $roomIds = $this->roomIds($data);
+        $bedUnitIds = $this->bedUnitIds($data);
 
-        if (! $isShared && (filled($data['space_room_id'] ?? null) || $roomIds !== [])) {
+        if (! $isShared && (filled($data['space_room_id'] ?? null) || $roomIds !== [] || $bedUnitIds !== [])) {
             throw ValidationException::withMessages([
                 'space_room_id' => 'Un alojamiento privado no permite seleccionar habitacion.',
             ]);
         }
 
         if (! $isShared) {
-            return [$space, collect()];
+            return [$space, collect(), collect()];
         }
 
-        if ($roomIds === []) {
+        if ($roomIds !== [] && $bedUnitIds !== []) {
             throw ValidationException::withMessages([
-                'space_room_ids' => 'Selecciona al menos una habitacion para continuar.',
+                'room_bed_unit_ids' => 'Selecciona habitaciones completas o camas individuales, no ambas a la vez.',
             ]);
+        }
+
+        if ($roomIds === [] && $bedUnitIds === []) {
+            throw ValidationException::withMessages([
+                'space_room_ids' => 'Selecciona al menos una habitacion o cama para continuar.',
+            ]);
+        }
+
+        if ($bedUnitIds !== []) {
+            $bedUnits = RoomBedUnit::query()
+                ->withoutGlobalScope('company')
+                ->with(['room.beds', 'bedType'])
+                ->where('company_id', $space->company_id)
+                ->where('status', 'active')
+                ->whereIn('id', $bedUnitIds)
+                ->get()
+                ->sortBy(fn (RoomBedUnit $unit): int => array_search((int) $unit->id, $bedUnitIds, true))
+                ->values();
+
+            if ($bedUnits->count() !== count($bedUnitIds) || $bedUnits->contains(fn (RoomBedUnit $unit): bool => (int) $unit->room?->space_id !== (int) $space->id)) {
+                throw ValidationException::withMessages([
+                    'room_bed_unit_ids' => 'Una o mas camas seleccionadas no pertenecen al alojamiento.',
+                ]);
+            }
+
+            if ($bedUnits->contains(fn (RoomBedUnit $unit): bool => ! in_array($unit->room?->sale_mode, ['bed_unit', 'flexible'], true))) {
+                throw ValidationException::withMessages([
+                    'room_bed_unit_ids' => 'Una o mas habitaciones no estan configuradas para vender camas individuales.',
+                ]);
+            }
+
+            return [$space, $bedUnits->pluck('room')->unique('id')->values(), $bedUnits];
         }
 
         $rooms = SpaceRoom::query()
@@ -308,7 +443,158 @@ class PublicReservationService
             ]);
         }
 
-        return [$space, $rooms];
+        if ($rooms->contains(fn (SpaceRoom $room): bool => ! in_array($room->sale_mode, ['full_room', 'flexible'], true))) {
+            throw ValidationException::withMessages([
+                'space_room_ids' => 'Una o mas habitaciones no estan configuradas para venta completa.',
+            ]);
+        }
+
+        return [$space, $rooms, collect()];
+    }
+
+    private function quotePackage(Space $space, array $data, array $nightDates): array
+    {
+        if ($space->spaceMode?->slug !== 'privado') {
+            throw ValidationException::withMessages([
+                'package_id' => 'Los paquetes todo incluido solo estan disponibles para espacios privados.',
+            ]);
+        }
+
+        $package = AccommodationPackage::query()
+            ->withoutGlobalScope('company')
+            ->with(['services' => fn ($query) => $query
+                ->where('package_services.is_active', true)
+                ->orderByPivot('sort_order')
+                ->orderBy('package_services.name')])
+            ->where('company_id', $space->company_id)
+            ->where('is_active', true)
+            ->whereKey($data['package_id'])
+            ->whereHas('spaces', fn (Builder $query): Builder => $query->where('spaces.id', $space->id))
+            ->first();
+
+        if (! $package) {
+            throw ValidationException::withMessages([
+                'package_id' => 'El paquete seleccionado no esta disponible para este alojamiento.',
+            ]);
+        }
+
+        if (count($nightDates) === 0) {
+            throw ValidationException::withMessages([
+                'check_in' => 'Selecciona fecha de ingreso y salida para reservar el paquete.',
+            ]);
+        }
+
+        $guests = (int) $data['guests'];
+        $capacity = (int) $space->max_capacity;
+
+        if ($capacity < $guests) {
+            throw ValidationException::withMessages([
+                'guests' => 'La capacidad del espacio no cubre la cantidad de huespedes.',
+            ]);
+        }
+
+        if ($package->max_people !== null && $guests > (int) $package->max_people) {
+            throw ValidationException::withMessages([
+                'guests' => 'El paquete permite maximo '.$package->max_people.' persona'.((int) $package->max_people === 1 ? '' : 's').'.',
+            ]);
+        }
+
+        $extraPeople = max(0, $guests - (int) $package->included_people);
+        $extraPersonPrice = (float) ($package->extra_person_price ?? 0);
+
+        if ($extraPeople > 0 && $extraPersonPrice <= 0) {
+            throw ValidationException::withMessages([
+                'guests' => 'El paquete no tiene precio configurado para personas extra.',
+            ]);
+        }
+
+        $availabilityDays = $this->availabilityDays($space, null, $nightDates);
+
+        if ($availabilityDays->count() !== count($nightDates)) {
+            throw ValidationException::withMessages([
+                'check_in' => 'Las fechas seleccionadas no tienen disponibilidad para este paquete.',
+            ]);
+        }
+
+        if ($this->hasActiveBlock($space, null, $data['check_in'], $data['check_out'])) {
+            throw ValidationException::withMessages([
+                'check_in' => 'El alojamiento ya no esta disponible para esas fechas.',
+            ]);
+        }
+
+        $packagePrice = round((float) $package->price, 2);
+        $extraPeopleTotal = round($extraPeople * $extraPersonPrice, 2);
+        $extraNights = max(0, count($nightDates) - (int) $package->nights_included);
+        $total = round($packagePrice + $extraPeopleTotal, 2);
+        $advance = $this->advanceAmount($total);
+        $balance = round($total - $advance, 2);
+        $nights = count($nightDates);
+        $averagePrice = round($total / $nights, 2);
+
+        return [
+            'space' => $space,
+            'room' => null,
+            'rooms' => collect(),
+            'room_items' => collect(),
+            'bed_units' => collect(),
+            'bed_unit_items' => collect(),
+            'package' => $package,
+            'booking_type' => 'package',
+            'package_snapshot' => $this->packageSnapshot($package),
+            'package_price' => $packagePrice,
+            'included_people' => (int) $package->included_people,
+            'extra_people' => $extraPeople,
+            'extra_person_price' => $extraPersonPrice,
+            'extra_people_total' => $extraPeopleTotal,
+            'package_nights_included' => (int) $package->nights_included,
+            'package_extra_nights' => $extraNights,
+            'package_extra_nights_total' => 0.0,
+            'check_in' => $data['check_in'],
+            'check_out' => $data['check_out'],
+            'nights' => $nights,
+            'guests' => $guests,
+            'capacity' => $capacity,
+            'price_per_person' => $averagePrice,
+            'price_per_night' => $averagePrice,
+            'subtotal_amount' => $packagePrice,
+            'total_amount' => $total,
+            'advance_amount' => $advance,
+            'balance_amount' => $balance,
+            'nightly_prices' => $this->nightlyPricesPayload($availabilityDays),
+        ];
+    }
+
+    private function packageSnapshot(AccommodationPackage $package): array
+    {
+        return [
+            'id' => $package->id,
+            'name' => $package->name,
+            'slug' => $package->slug,
+            'short_description' => $package->short_description,
+            'badges' => $package->badges ?? [],
+            'commercial_description' => $package->commercial_description,
+            'conditions' => $package->conditions,
+            'price' => (float) $package->price,
+            'currency' => $package->currency,
+            'price_display_text' => $package->price_display_text,
+            'included_people' => (int) $package->included_people,
+            'max_people' => $package->max_people === null ? null : (int) $package->max_people,
+            'extra_person_price' => $package->extra_person_price === null ? null : (float) $package->extra_person_price,
+            'nights_included' => (int) $package->nights_included,
+            'main_image' => $package->main_image,
+            'video_url' => $package->video_url,
+            'services' => $package->services
+                ->map(fn ($service): array => [
+                    'id' => $service->id,
+                    'name' => $service->pivot->custom_name ?: $service->name,
+                    'description' => $service->pivot->custom_description ?: $service->description,
+                    'type' => $service->type,
+                    'inclusion_type' => $service->pivot->inclusion_type,
+                    'additional_price' => $service->pivot->additional_price === null ? null : (float) $service->pivot->additional_price,
+                ])
+                ->values()
+                ->all(),
+        ];
     }
 
     private function availabilityDays(Space $space, ?SpaceRoom $room, array $nightDates)
@@ -317,7 +603,11 @@ class PublicReservationService
             ->withoutGlobalScope('company')
             ->where('company_id', $space->company_id)
             ->where('space_id', $space->id)
-            ->when($room, fn (Builder $query): Builder => $query->where('space_room_id', $room->id), fn (Builder $query): Builder => $query->whereNull('space_room_id'))
+            ->when(
+                $room,
+                fn (Builder $query): Builder => $query->where('space_room_id', $room->id)->whereNull('room_bed_unit_id'),
+                fn (Builder $query): Builder => $query->whereNull('space_room_id')->whereNull('room_bed_unit_id'),
+            )
             ->whereIn('date', $nightDates)
             ->where('status', 'available')
             ->whereNotNull('price')
@@ -334,6 +624,7 @@ class PublicReservationService
             ->where('company_id', $space->company_id)
             ->where('space_id', $space->id)
             ->when($room, fn (Builder $query): Builder => $query->where('space_room_id', $room->id), fn (Builder $query): Builder => $query->whereNull('space_room_id'))
+            ->whereNull('room_bed_unit_id')
             ->where('status', 'active')
             ->where(function (Builder $query): void {
                 $query
@@ -342,6 +633,79 @@ class PublicReservationService
             })
             ->whereDate('start_date', '<=', $lastNight)
             ->whereDate('end_date', '>=', $checkIn)
+            ->exists();
+    }
+
+    private function hasActiveBlockForAnyBedUnit(Space $space, SpaceRoom $room, string $checkIn, string $checkOut): bool
+    {
+        $lastNight = CarbonImmutable::parse($checkOut)->subDay()->toDateString();
+
+        return OccupancyBlock::query()
+            ->withoutGlobalScope('company')
+            ->where('company_id', $space->company_id)
+            ->where('space_id', $space->id)
+            ->where('space_room_id', $room->id)
+            ->whereNotNull('room_bed_unit_id')
+            ->where('status', 'active')
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereDoesntHave('reservation', fn (Builder $reservation): Builder => $this->expiredPendingHold($reservation))
+                    ->whereDoesntHave('reservationBedUnit.reservation', fn (Builder $reservation): Builder => $this->expiredPendingHold($reservation));
+            })
+            ->whereDate('start_date', '<=', $lastNight)
+            ->whereDate('end_date', '>=', $checkIn)
+            ->exists();
+    }
+
+    private function hasActiveBlockForBedUnit(Space $space, RoomBedUnit $bedUnit, string $checkIn, string $checkOut): bool
+    {
+        $lastNight = CarbonImmutable::parse($checkOut)->subDay()->toDateString();
+
+        return OccupancyBlock::query()
+            ->withoutGlobalScope('company')
+            ->where('company_id', $space->company_id)
+            ->where('space_id', $space->id)
+            ->where('room_bed_unit_id', $bedUnit->id)
+            ->where('status', 'active')
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereDoesntHave('reservation', fn (Builder $reservation): Builder => $this->expiredPendingHold($reservation))
+                    ->whereDoesntHave('reservationBedUnit.reservation', fn (Builder $reservation): Builder => $this->expiredPendingHold($reservation));
+            })
+            ->whereDate('start_date', '<=', $lastNight)
+            ->whereDate('end_date', '>=', $checkIn)
+            ->exists();
+    }
+
+    private function hasRoomLevelReservation(Space $space, SpaceRoom $room, string $checkIn, string $checkOut): bool
+    {
+        $lastNight = CarbonImmutable::parse($checkOut)->subDay()->toDateString();
+
+        return Reservation::query()
+            ->withoutGlobalScope('company')
+            ->where('company_id', $space->company_id)
+            ->where('space_id', $space->id)
+            ->where('space_room_id', $room->id)
+            ->whereIn('status', Reservation::BLOCKING_STATUSES)
+            ->whereDate('check_in', '<=', $lastNight)
+            ->whereDate('check_out', '>', $checkIn)
+            ->exists();
+    }
+
+    private function hasBedUnitReservation(Space $space, SpaceRoom $room, string $checkIn, string $checkOut): bool
+    {
+        $lastNight = CarbonImmutable::parse($checkOut)->subDay()->toDateString();
+
+        return ReservationBedUnit::query()
+            ->whereHas('bedUnit', fn (Builder $query): Builder => $query
+                ->withoutGlobalScope('company')
+                ->where('company_id', $space->company_id)
+                ->where('space_room_id', $room->id))
+            ->whereHas('reservation', fn (Builder $query): Builder => $query
+                ->withoutGlobalScope('company')
+                ->whereIn('status', Reservation::BLOCKING_STATUSES)
+                ->whereDate('check_in', '<=', $lastNight)
+                ->whereDate('check_out', '>', $checkIn))
             ->exists();
     }
 
@@ -382,6 +746,17 @@ class PublicReservationService
 
         return collect($ids ?? [])
             ->filter(fn ($id): bool => filled($id))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function bedUnitIds(array $data): array
+    {
+        return collect($data['room_bed_unit_ids'] ?? [])
+            ->push($data['room_bed_unit_id'] ?? null)
+            ->filter()
             ->map(fn ($id): int => (int) $id)
             ->unique()
             ->values()

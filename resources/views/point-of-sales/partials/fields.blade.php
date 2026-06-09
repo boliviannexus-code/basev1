@@ -3,21 +3,21 @@
     $selectedUsers = collect(old('users', isset($pointOfSale) ? $pointOfSale->users->pluck('id')->all() : []))->map(fn ($id) => (int) $id);
 @endphp
 
-<div class="row g-3">
-    <div class="col-md-6">
-        <label class="form-label" for="modal-point-of-sale-branch">Sucursal</label>
-        <select class="form-select" id="modal-point-of-sale-branch" name="branch_id" required data-point-sale-branch>
-            <option value="">Selecciona una sucursal</option>
+<div class="row g-3 point-of-sale-form-grid">
+    <div class="col-md-6 col-xl-4">
+        <label class="form-label" for="modal-point-of-sale-branch">Sucursal (opcional)</label>
+        <select class="form-select" id="modal-point-of-sale-branch" name="branch_id" data-point-sale-branch>
+            <option value="">Sin sucursal por ahora</option>
             @foreach ($branches as $branch)
                 <option value="{{ $branch->id }}" @selected((int) old('branch_id', $pointOfSale->branch_id ?? 0) === $branch->id)>{{ $branch->name }}</option>
             @endforeach
         </select>
         <div class="invalid-feedback" data-error-for="branch_id"></div>
     </div>
-    <div class="col-md-6">
-        <label class="form-label" for="modal-point-of-sale-warehouse">Almacen vinculado</label>
-        <select class="form-select" id="modal-point-of-sale-warehouse" name="warehouse_id" data-point-sale-warehouse required>
-            <option value="">Selecciona un almacen</option>
+    <div class="col-md-6 col-xl-4">
+        <label class="form-label" for="modal-point-of-sale-warehouse">Almacen vinculado (opcional)</label>
+        <select class="form-select" id="modal-point-of-sale-warehouse" name="warehouse_id" data-point-sale-warehouse>
+            <option value="">Sin almacen por ahora</option>
             @foreach ($flatWarehouses as $warehouse)
                 <option value="{{ $warehouse->id }}" data-branch-id="{{ $warehouse->branch_id }}" @selected((int) old('warehouse_id', $pointOfSale->warehouse_id ?? 0) === $warehouse->id)>
                     {{ $warehouse->branch?->name }} - {{ $warehouse->name }}
@@ -26,17 +26,17 @@
         </select>
         <div class="invalid-feedback" data-error-for="warehouse_id"></div>
     </div>
-    <div class="col-md-8">
+    <div class="col-md-8 col-xl-4">
         <label class="form-label" for="modal-point-of-sale-name">Nombre</label>
         <input class="form-control" id="modal-point-of-sale-name" name="name" value="{{ old('name', $pointOfSale->name ?? '') }}"  autocomplete="new-password" data-lpignore="true" data-1p-ignore="true"  required>
         <div class="invalid-feedback" data-error-for="name"></div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-4 col-xl-3">
         <label class="form-label" for="modal-point-of-sale-code">Codigo</label>
         <input class="form-control" id="modal-point-of-sale-code" value="{{ $pointOfSale->code ?? 'Se generara automaticamente' }}" readonly>
         <div class="invalid-feedback" data-error-for="code"></div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-4 col-xl-3">
         <label class="form-label" for="modal-point-of-sale-receipt-prefix">Prefijo comprobante</label>
         <input
             class="form-control"
@@ -48,7 +48,7 @@
         >
         <div class="invalid-feedback" data-error-for="receipt_prefix"></div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-4 col-xl-3">
         <label class="form-label" for="modal-point-of-sale-receipt-next-number">Siguiente numero</label>
         <input
             class="form-control"
@@ -60,7 +60,7 @@
         >
         <div class="invalid-feedback" data-error-for="receipt_next_number"></div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-4 col-xl-3">
         <label class="form-label" for="modal-point-of-sale-receipt-digits">Digitos</label>
         <input
             class="form-control"

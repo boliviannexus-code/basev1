@@ -25,6 +25,7 @@
             'expired' => 'El bloqueo temporal expiro antes de validar el adelanto.',
         ];
     @endphp
+    @php($packageSnapshot = $reservation->package_snapshot ?? [])
 
     <section class="container-xl public-reservation">
         @if (session('status'))
@@ -119,11 +120,27 @@
             <aside class="public-booking-panel public-reservation-summary">
                 <h2>Resumen</h2>
                 <strong>{{ $reservation->space->title ?: $reservation->space->name }}</strong>
-                @if ($reservation->rooms->count() > 1)
+                @if ($reservation->booking_type === 'package')
+                    <p class="mb-2">Paquete: {{ $packageSnapshot['name'] ?? $reservation->accommodationPackage?->name ?? 'Paquete todo incluido' }}</p>
+                    @if (! empty($packageSnapshot['services']))
+                        <div class="public-chip-list mb-2">
+                            @foreach (collect($packageSnapshot['services'])->where('inclusion_type', 'included')->take(6) as $service)
+                                <span>{{ $service['name'] }}</span>
+                            @endforeach
+                        </div>
+                    @endif
+                @elseif ($reservation->rooms->count() > 1)
                     <p class="mb-2">{{ $reservation->rooms->count() }} habitaciones seleccionadas</p>
                     <div class="public-chip-list mb-2">
                         @foreach ($reservation->rooms as $selectedRoom)
                             <span>{{ $selectedRoom->title ?: $selectedRoom->name }}</span>
+                        @endforeach
+                    </div>
+                @elseif ($reservation->bedUnitItems->isNotEmpty())
+                    <p class="mb-2">{{ $reservation->bedUnitItems->count() }} cama{{ $reservation->bedUnitItems->count() === 1 ? '' : 's' }} seleccionada{{ $reservation->bedUnitItems->count() === 1 ? '' : 's' }}</p>
+                    <div class="public-chip-list mb-2">
+                        @foreach ($reservation->bedUnitItems as $item)
+                            <span>{{ $item->bedUnit?->room?->title ?: $item->bedUnit?->room?->name }} · {{ $item->bedUnit?->label }}</span>
                         @endforeach
                     </div>
                 @elseif ($reservation->rooms->count() === 1)
@@ -136,7 +153,18 @@
                     <div><dt>Salida</dt><dd>{{ $reservation->check_out->toDateString() }}</dd></div>
                     <div><dt>Noches</dt><dd>{{ $reservation->nights }}</dd></div>
                     <div><dt>Personas</dt><dd>{{ $reservation->guests }}</dd></div>
-                    <div><dt>Total por {{ $reservation->nights }} noche{{ $reservation->nights === 1 ? '' : 's' }}</dt><dd>{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</dd></div>
+                    @if ($reservation->booking_type === 'package')
+                        <div><dt>Precio base paquete</dt><dd>{{ money_format_decimal($reservation->package_price) }} {{ $reservation->currency }}</dd></div>
+                        <div><dt>Personas incluidas</dt><dd>{{ $reservation->included_people }}</dd></div>
+                        <div><dt>Personas extra</dt><dd>{{ $reservation->extra_people }}</dd></div>
+                        <div><dt>Total personas extra</dt><dd>{{ money_format_decimal($reservation->extra_people_total) }} {{ $reservation->currency }}</dd></div>
+                        @if ((int) $reservation->package_extra_nights > 0)
+                            <div><dt>Noches extra preparadas</dt><dd>{{ $reservation->package_extra_nights }} · {{ money_format_decimal($reservation->package_extra_nights_total) }} {{ $reservation->currency }}</dd></div>
+                        @endif
+                        <div><dt>Total final del paquete</dt><dd>{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</dd></div>
+                    @else
+                        <div><dt>Total por {{ $reservation->nights }} noche{{ $reservation->nights === 1 ? '' : 's' }}</dt><dd>{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</dd></div>
+                    @endif
                     <div><dt>Reserva con adelanto</dt><dd>{{ money_format_decimal($reservation->advance_amount) }} {{ $reservation->currency }}</dd></div>
                     <div><dt>Saldo pendiente</dt><dd>{{ money_format_decimal($reservation->balance_amount) }} {{ $reservation->currency }}</dd></div>
                 </dl>

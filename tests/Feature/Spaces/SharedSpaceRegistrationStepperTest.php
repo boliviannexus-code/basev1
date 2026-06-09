@@ -6,6 +6,9 @@ use App\Models\BathroomType;
 use App\Models\BedType;
 use App\Models\Company;
 use App\Models\GeneralService;
+use App\Models\Reservation;
+use App\Models\ReservationRoom;
+use App\Models\RoomBedUnit;
 use App\Models\RoomService;
 use App\Models\SharedSpaceType;
 use App\Models\Space;
@@ -166,6 +169,39 @@ class SharedSpaceRegistrationStepperTest extends TestCase
             ->assertSessionHasErrors('space');
 
         $this->assertSame('draft', $space->refresh()->status);
+    }
+
+    public function test_deleting_shared_room_bed_also_removes_physical_bed_units(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        [$space, $room] = $this->sharedSpaceWithRooms($user, 1);
+        $bedType = BedType::where('slug', 'cama-matrimonial')->firstOrFail();
+
+        $this
+            ->actingAs($user)
+            ->post(route('spaces.shared.beds.store', [$space, $room]), [
+                'bed_type_id' => $bedType->id,
+                'quantity' => 2,
+            ])
+            ->assertRedirect();
+
+        $bed = $room->beds()->firstOrFail();
+        $unitIds = $bed->bedUnits()->pluck('id')->all();
+
+        $this->assertCount(2, $unitIds);
+
+        $this
+            ->actingAs($user)
+            ->delete(route('spaces.shared.beds.destroy', [$space, $room, $bed]))
+            ->assertRedirect();
+
+        $this->assertSame(0, $room->beds()->count());
+        $this->assertSame(0, $room->bedUnits()->count());
+
+        foreach ($unitIds as $unitId) {
+            $this->assertSoftDeleted(RoomBedUnit::class, ['id' => $unitId]);
+        }
     }
 
     public function test_shared_space_can_publish_without_photos_when_space_and_rooms_skip_photos(): void
@@ -499,6 +535,97 @@ class SharedSpaceRegistrationStepperTest extends TestCase
         $this->assertSame($expected, $targetRoomB->roomServices()->pluck('room_services.id')->sort()->values()->all());
     }
 
+    public function test_company_user_cannot_update_shared_room_with_future_blocking_reservation(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        [$space, $room] = $this->sharedSpaceWithRooms($user);
+        $this->futureReservationForRoom($space, $room);
+
+        $this
+            ->actingAs($user)
+            ->put(route('spaces.shared.rooms.update', [$space, $room]), [
+                'name' => 'Habitacion bloqueada',
+                'bathroom_type_id' => BathroomType::where('slug', 'privado')->firstOrFail()->id,
+                'status' => 'active',
+            ])
+            ->assertSessionHasErrors('room');
+
+        $this->assertSame('Habitacion 1', $room->refresh()->name);
+    }
+
+    public function test_company_user_can_update_shared_room_from_rooms_step(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        [$space, $room] = $this->sharedSpaceWithRooms($user, 1);
+        $bathroomType = BathroomType::where('slug', 'compartido')->firstOrFail();
+
+        $this
+            ->actingAs($user)
+            ->put(route('spaces.shared.rooms.update', [$space, $room]), [
+                'name' => 'Habitacion editada',
+                'bathroom_type_id' => $bathroomType->id,
+                'status' => 'inactive',
+                'sale_mode' => 'flexible',
+            ])
+            ->assertRedirect(route('spaces.shared.rooms.edit', $space));
+
+        $room->refresh();
+
+        $this->assertSame('Habitacion editada', $room->name);
+        $this->assertSame('Habitacion editada', $room->title);
+        $this->assertSame($bathroomType->id, $room->bathroom_type_id);
+        $this->assertSame('inactive', $room->status);
+        $this->assertSame('flexible', $room->sale_mode);
+    }
+
+    public function test_company_user_cannot_update_shared_room_reserved_through_multi_room_detail(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        [$space, $room] = $this->sharedSpaceWithRooms($user);
+        $reservation = $this->futureReservationForRoom($space, null);
+        ReservationRoom::query()->create([
+            'reservation_id' => $reservation->id,
+            'space_room_id' => $room->id,
+            'occupancy_block_id' => null,
+            'capacity' => 2,
+            'price_per_night' => 100,
+            'subtotal_amount' => 200,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('spaces.shared.beds.store', [$space, $room]), [
+                'bed_type_id' => BedType::where('slug', 'cama-matrimonial')->firstOrFail()->id,
+                'quantity' => 1,
+            ])
+            ->assertSessionHasErrors('room');
+
+        $this->assertSame(0, $room->beds()->count());
+    }
+
+    public function test_company_user_can_update_shared_room_when_reservation_is_past_or_cancelled(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        [$space, $room] = $this->sharedSpaceWithRooms($user);
+        $this->futureReservationForRoom($space, $room, ['status' => 'cancelled']);
+        $this->pastReservationForRoom($space, $room);
+
+        $this
+            ->actingAs($user)
+            ->put(route('spaces.shared.rooms.update', [$space, $room]), [
+                'name' => 'Habitacion editable',
+                'bathroom_type_id' => BathroomType::where('slug', 'privado')->firstOrFail()->id,
+                'status' => 'active',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame('Habitacion editable', $room->refresh()->name);
+    }
+
     public function test_copy_room_services_rejects_room_from_other_space(): void
     {
         $this->seed(AccommodationCatalogSeeder::class);
@@ -564,5 +691,33 @@ class SharedSpaceRegistrationStepperTest extends TestCase
             ]));
 
         return [$space, ...$rooms->all()];
+    }
+
+    private function futureReservationForRoom(Space $space, ?SpaceRoom $room, array $attributes = []): Reservation
+    {
+        return Reservation::factory()->create([
+            'company_id' => $space->company_id,
+            'space_id' => $space->id,
+            'space_room_id' => $room?->id,
+            'check_in' => now()->addDays(7)->toDateString(),
+            'check_out' => now()->addDays(9)->toDateString(),
+            'status' => 'pending_payment',
+            'payment_status' => 'pending',
+            ...$attributes,
+        ]);
+    }
+
+    private function pastReservationForRoom(Space $space, SpaceRoom $room, array $attributes = []): Reservation
+    {
+        return Reservation::factory()->create([
+            'company_id' => $space->company_id,
+            'space_id' => $space->id,
+            'space_room_id' => $room->id,
+            'check_in' => now()->subDays(9)->toDateString(),
+            'check_out' => now()->subDays(7)->toDateString(),
+            'status' => 'pending_payment',
+            'payment_status' => 'pending',
+            ...$attributes,
+        ]);
     }
 }

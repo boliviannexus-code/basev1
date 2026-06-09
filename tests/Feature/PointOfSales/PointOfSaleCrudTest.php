@@ -17,20 +17,27 @@ class PointOfSaleCrudTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_point_of_sale_requires_warehouse(): void
+    public function test_point_of_sale_can_be_created_for_company_without_warehouse(): void
     {
         $user = $this->userWithPermissions(['point-of-sales.create']);
-        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
 
         $this
             ->actingAs($user)
             ->post(route('point-of-sales.store'), [
-                'branch_id' => $branch->id,
+                'branch_id' => null,
                 'warehouse_id' => null,
                 'name' => 'Caja mostrador',
                 'is_active' => '1',
             ])
-            ->assertSessionHasErrors('warehouse_id');
+            ->assertRedirect(route('point-of-sales.index'));
+
+        $this->assertDatabaseHas('point_of_sales', [
+            'company_id' => $user->company_id,
+            'branch_id' => null,
+            'warehouse_id' => null,
+            'name' => 'Caja mostrador',
+            'code' => 'PV-000001',
+        ]);
     }
 
     public function test_user_can_create_point_of_sale_linked_to_warehouse(): void
@@ -58,7 +65,7 @@ class PointOfSaleCrudTest extends TestCase
             'branch_id' => $branch->id,
             'warehouse_id' => $warehouse->id,
             'name' => 'POS principal',
-            'code' => 'SUC-CENTRAL-ALM-PRINCIPAL-000001',
+            'code' => 'PV-000001',
             'sequence_number' => 1,
             'receipt_prefix' => 'MOSTRADOR',
             'receipt_next_number' => 100,
@@ -78,7 +85,7 @@ class PointOfSaleCrudTest extends TestCase
 
         PointOfSale::factory()->for($branch)->create([
             'warehouse_id' => $warehouse->id,
-            'code' => 'SUC-CENTRAL-ALM-PRINCIPAL-000001',
+            'code' => 'PV-000001',
             'sequence_number' => 1,
         ]);
 
@@ -120,7 +127,7 @@ class PointOfSaleCrudTest extends TestCase
         $warehouse = Warehouse::factory()->for($branch)->create(['code' => 'ALM-NUEVO']);
         $pointOfSale = PointOfSale::factory()->for($branch)->create([
             'warehouse_id' => $oldWarehouse->id,
-            'code' => 'SUC-NORTE-ALM-OLD-000001',
+            'code' => 'PV-000001',
             'sequence_number' => 1,
         ]);
 
@@ -142,7 +149,7 @@ class PointOfSaleCrudTest extends TestCase
             'id' => $pointOfSale->id,
             'warehouse_id' => $warehouse->id,
             'name' => 'POS actualizado',
-            'code' => 'SUC-NORTE-ALM-NUEVO-000001',
+            'code' => 'PV-000001',
             'receipt_prefix' => 'CAJA',
             'receipt_next_number' => 12,
             'receipt_digits' => 4,

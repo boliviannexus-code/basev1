@@ -114,9 +114,7 @@
         <a class="btn btn-outline-secondary" href="{{ route('spaces.index') }}">Volver</a>
         <div class="btn-list">
             @can('spaces.edit')
-                @if (! $space->isApprovedLocked())
-                    <a class="btn btn-outline-info" href="{{ route('spaces.continue', $space) }}">Continuar registro</a>
-                @endif
+                <a class="btn btn-outline-info" href="{{ route('spaces.continue', $space) }}">Editar alojamiento</a>
                 @if ($space->status === 'active')
                     <form method="POST" action="{{ route('spaces.deactivate', $space) }}">
                         @csrf

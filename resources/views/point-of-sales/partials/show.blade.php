@@ -10,9 +10,9 @@
     <dt class="col-sm-4">Empresa</dt>
     <dd class="col-sm-8">{{ $pointOfSale->company?->name ?? 'Sin empresa' }}</dd>
     <dt class="col-sm-4">Sucursal</dt>
-    <dd class="col-sm-8">{{ $pointOfSale->branch?->name ?? '-' }}</dd>
+    <dd class="col-sm-8">{{ $pointOfSale->branch?->name ?? 'Sin sucursal' }}</dd>
     <dt class="col-sm-4">Almacen vinculado</dt>
-    <dd class="col-sm-8">{{ $pointOfSale->warehouse?->name ?? '-' }}</dd>
+    <dd class="col-sm-8">{{ $pointOfSale->warehouse?->name ?? 'Sin almacen' }}</dd>
     <dt class="col-sm-4">Usuarios asignados</dt>
     <dd class="col-sm-8">
         @forelse ($pointOfSale->users as $user)

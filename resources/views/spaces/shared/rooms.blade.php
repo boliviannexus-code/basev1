@@ -34,16 +34,34 @@
                                     <div class="shared-room-sort-main">
                                         <div class="fw-semibold text-truncate">{{ $room->name ?: $room->title }}</div>
                                         <div class="text-body-secondary small text-truncate">
-                                            {{ $room->bathroomType?->name ?: 'Baño pendiente' }} · {{ $room->beds->sum('quantity') }} cama{{ $room->beds->sum('quantity') === 1 ? '' : 's' }} · Cap. {{ $room->max_capacity ?: 0 }}
+                                            {{ $room->bathroomType?->name ?: 'Baño pendiente' }} · {{ $room->beds->sum('quantity') }} cama{{ $room->beds->sum('quantity') === 1 ? '' : 's' }} · Cap. {{ $room->max_capacity ?: 0 }} · {{ ['full_room' => 'Completa', 'bed_unit' => 'Por cama', 'flexible' => 'Flexible'][$room->sale_mode ?? 'full_room'] }}
                                         </div>
                                     </div>
                                     <span class="badge text-bg-{{ $room->status === 'active' ? 'success' : 'secondary' }}">{{ $room->status }}</span>
+                                    <button class="btn btn-outline-primary btn-icon btn-sm" type="button" title="Editar habitacion" aria-label="Editar habitacion" data-shared-room-edit-toggle="{{ $room->id }}">
+                                        <i class="ti ti-pencil"></i>
+                                    </button>
                                     <form method="POST" action="{{ route('spaces.shared.rooms.destroy', [$space, $room]) }}" data-ajax-form data-confirm-delete="Eliminar habitacion?">
                                         @csrf
                                         @method('DELETE')
                                         <button class="btn btn-outline-danger btn-icon btn-sm" type="submit" title="Eliminar habitacion" aria-label="Eliminar habitacion">
                                             <i class="ti ti-trash"></i>
                                         </button>
+                                    </form>
+                                </div>
+                                <div class="shared-room-edit-panel d-none" data-shared-room-edit-panel="{{ $room->id }}">
+                                    <form method="POST" action="{{ route('spaces.shared.rooms.update', [$space, $room]) }}" data-ajax-form novalidate>
+                                        @csrf
+                                        @method('PUT')
+                                        @include('spaces.shared.partials.room-fields', ['room' => $room])
+                                        <div class="d-flex justify-content-end gap-2 mt-3">
+                                            <button class="btn btn-outline-secondary btn-sm" type="button" data-shared-room-edit-toggle="{{ $room->id }}">
+                                                Cancelar
+                                            </button>
+                                            <button class="btn btn-primary btn-sm" type="submit">
+                                                Guardar cambios
+                                            </button>
+                                        </div>
                                     </form>
                                 </div>
                             @endforeach

@@ -86,7 +86,7 @@
                             @forelse ($cashRows as $cashRegister)
                                 <tr>
                                     <td>
-                                        <div class="fw-semibold">{{ $cashRegister->pointOfSale?->name ?? '-' }}</div>
+                                        <div class="fw-semibold">Caja de {{ $cashRegister->user?->name ?? '-' }}</div>
                                         <div class="text-body-secondary small">{{ $cashRegister->opened_at?->format('Y-m-d H:i') }} · {{ $cashRegister->user?->name }}</div>
                                     </td>
                                     <td><span class="badge text-bg-{{ $cashRegister->status === 'open' ? 'success' : 'secondary' }}">{{ $cashRegister->status === 'open' ? 'Abierta' : 'Cerrada' }}</span></td>

@@ -35,6 +35,7 @@ class ReservationFactory extends Factory
             'space_id' => $space->id,
             'space_room_id' => null,
             'occupancy_block_id' => null,
+            'reservation_channel_id' => null,
             'code' => 'RSV-'.now()->format('ymd').'-'.Str::upper(Str::random(6)),
             'guest_name' => fake()->name(),
             'guest_email' => fake()->safeEmail(),

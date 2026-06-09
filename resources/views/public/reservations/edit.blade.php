@@ -64,7 +64,14 @@
             <aside class="public-booking-panel public-reservation-summary">
                 <h2>Resumen fijo</h2>
                 <strong>{{ $reservation->space->title ?: $reservation->space->name }}</strong>
-                @if ($reservation->rooms->count() > 1)
+                @if ($reservation->bedUnitItems->isNotEmpty())
+                    <p class="mb-2">{{ $reservation->bedUnitItems->count() }} cama{{ $reservation->bedUnitItems->count() === 1 ? '' : 's' }} seleccionada{{ $reservation->bedUnitItems->count() === 1 ? '' : 's' }}</p>
+                    <div class="public-chip-list mb-2">
+                        @foreach ($reservation->bedUnitItems as $item)
+                            <span>{{ $item->bedUnit?->room?->title ?: $item->bedUnit?->room?->name }} · {{ $item->bedUnit?->label }}</span>
+                        @endforeach
+                    </div>
+                @elseif ($reservation->rooms->count() > 1)
                     <p class="mb-2">{{ $reservation->rooms->count() }} habitaciones seleccionadas</p>
                 @elseif ($reservation->rooms->count() === 1)
                     <p class="mb-2">{{ $reservation->rooms->first()->title ?: $reservation->rooms->first()->name }}</p>

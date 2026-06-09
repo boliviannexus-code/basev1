@@ -12,6 +12,10 @@
         <div class="text-center mb-4">
             <h1 class="h2">{{ config('app.name', 'Base Admin') }}</h1>
             <p class="text-muted">Panel administrativo</p>
+            <a class="btn btn-outline-secondary btn-sm mt-2" href="{{ route('public.accommodations.index') }}">
+                <i class="ti ti-arrow-left me-1"></i>
+                Ir a la página principal
+            </a>
         </div>
         <div class="card card-md">
             <div class="card-body">

@@ -23,6 +23,9 @@ class StoreReservationRequest extends FormRequest
             'space_room_id' => ['nullable', 'integer', 'exists:space_rooms,id'],
             'space_room_ids' => ['nullable', 'array'],
             'space_room_ids.*' => ['integer', 'exists:space_rooms,id'],
+            'room_bed_unit_ids' => ['nullable', 'array'],
+            'room_bed_unit_ids.*' => ['integer', 'exists:room_bed_units,id'],
+            'package_id' => ['nullable', 'integer', 'exists:accommodation_packages,id'],
             'check_in' => ['required', 'date', 'after_or_equal:today'],
             'check_out' => ['required', 'date', 'after:check_in'],
             'guests' => ['required', 'integer', 'min:1', 'max:50'],
@@ -53,6 +56,8 @@ class StoreReservationRequest extends FormRequest
             'space_id' => 'alojamiento',
             'space_room_id' => 'habitacion',
             'space_room_ids' => 'habitaciones',
+            'room_bed_unit_ids' => 'camas',
+            'package_id' => 'paquete',
             'check_in' => 'fecha de ingreso',
             'check_out' => 'fecha de salida',
             'guests' => 'personas',
@@ -78,6 +83,13 @@ class StoreReservationRequest extends FormRequest
                 ->unique()
                 ->values()
                 ->all(),
+            'room_bed_unit_ids' => collect($this->input('room_bed_unit_ids', []))
+                ->filter(fn ($id): bool => filled($id))
+                ->map(fn ($id): int => (int) $id)
+                ->unique()
+                ->values()
+                ->all(),
+            'package_id' => filled($this->input('package_id')) ? (int) $this->input('package_id') : null,
             'guests' => filled($this->input('guests')) ? (int) $this->input('guests') : 1,
             'guest_name' => $this->filled('guest_name') ? trim((string) $this->input('guest_name')) : null,
             'guest_email' => $this->filled('guest_email') ? mb_strtolower(trim((string) $this->input('guest_email'))) : null,

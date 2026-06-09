@@ -96,7 +96,7 @@ class SpaceApprovalTest extends TestCase
             ->assertOk();
     }
 
-    public function test_approved_space_cannot_be_modified_from_stepper(): void
+    public function test_approved_space_can_be_modified_from_stepper(): void
     {
         $this->seed(AccommodationCatalogSeeder::class);
         Permission::findOrCreate('spaces.create');
@@ -112,7 +112,8 @@ class SpaceApprovalTest extends TestCase
         $this
             ->actingAs($user)
             ->get(route('spaces.private.details.edit', $space))
-            ->assertForbidden();
+            ->assertOk()
+            ->assertSee('Casa terminada');
     }
 
     public function test_super_admin_can_suspend_active_space_and_send_it_to_review(): void

@@ -27,7 +27,7 @@ class AdminReservationController extends Controller
 
         $reservations = Reservation::query()
             ->withoutGlobalScope('company')
-            ->with(['space', 'room', 'rooms', 'user'])
+            ->with(['space', 'room', 'rooms', 'user', 'reservationChannel'])
             ->where('company_id', $companyId)
             ->when(filled($status), fn (Builder $query): Builder => $query->where('status', $status))
             ->latest()
@@ -117,7 +117,9 @@ class AdminReservationController extends Controller
                 'room',
                 'rooms',
                 'roomItems.room',
+                'extraCharges.category',
                 'roomItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
+                'reservationChannel',
                 'user',
                 'occupancyBlock' => fn ($query) => $query->withTrashed(),
             ])

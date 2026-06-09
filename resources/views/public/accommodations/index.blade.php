@@ -12,6 +12,66 @@
         </div>
     </section>
 
+    @php($publicCompanies = $publicCompanies ?? collect())
+
+    @if (! $isSearch && $publicCompanies->isNotEmpty())
+        <section class="container-xl public-companies">
+            <div class="public-results-heading">
+                <div>
+                    <p class="public-eyebrow mb-1">Empresas en línea</p>
+                    <h2>Explora empresas registradas</h2>
+                </div>
+                <span class="text-body-secondary">{{ $publicCompanies->count() }} empresa{{ $publicCompanies->count() === 1 ? '' : 's' }}</span>
+            </div>
+
+            <div class="public-company-grid">
+                @foreach ($publicCompanies as $company)
+                    <article class="public-company-card">
+                        <a class="public-company-media" href="{{ route('public.company.show', $company['slug']) }}" aria-label="Ver página de {{ $company['name'] }}">
+                            @if ($company['cover_url'])
+                                <img src="{{ $company['cover_url'] }}" alt="Portada de {{ $company['name'] }}">
+                            @else
+                                <span><i class="ti ti-building-store"></i></span>
+                            @endif
+                        </a>
+
+                        <div class="public-company-body">
+                            <div class="public-company-heading">
+                                @if ($company['logo_url'])
+                                    <img class="public-company-logo" src="{{ $company['logo_url'] }}" alt="Logo de {{ $company['name'] }}">
+                                @else
+                                    <span class="public-company-logo-placeholder">{{ str($company['name'])->substr(0, 1)->upper() }}</span>
+                                @endif
+
+                                <div>
+                                    <h3><a href="{{ route('public.company.show', $company['slug']) }}">{{ $company['name'] }}</a></h3>
+                                    <p class="public-location">
+                                        <i class="ti ti-map-pin"></i>{{ $company['location'] !== '' ? $company['location'] : 'Ubicaciones en sus espacios' }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            @if ($company['description'])
+                                <p class="public-description">{{ str($company['description'])->limit(125) }}</p>
+                            @endif
+
+                            <div class="public-card-facts">
+                                <span><i class="ti ti-home-star"></i>{{ $company['active_spaces_count'] }} espacio{{ $company['active_spaces_count'] === 1 ? '' : 's' }}</span>
+                                <span><i class="ti ti-ticket"></i>{{ $company['active_accommodation_packages_count'] }} paquete{{ $company['active_accommodation_packages_count'] === 1 ? '' : 's' }}</span>
+                            </div>
+
+                            <div class="public-company-footer">
+                                <a class="btn btn-outline-dark btn-sm" href="{{ route('public.company.show', $company['slug']) }}">
+                                    Ver página
+                                </a>
+                            </div>
+                        </div>
+                    </article>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
     <section class="container-xl public-results">
         <div class="public-results-heading">
             <div>

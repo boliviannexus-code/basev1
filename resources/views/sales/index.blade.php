@@ -2,7 +2,7 @@
 
 @section('title', 'Cajas y ventas | Inventario POS')
 @section('page-title', 'Cajas y ventas')
-@section('page-subtitle', 'Ventas agrupadas por cada apertura de caja')
+@section('page-subtitle', 'Movimientos agrupados por cada apertura de caja de usuario')
 
 @section('content')
     <x-ui.table-card title="Listado de cajas">
@@ -11,7 +11,6 @@
                 <tr>
                     <th>Apertura</th>
                     <th>Cierre</th>
-                    <th>Punto de venta</th>
                     <th>Usuario</th>
                     <th>Estado</th>
                     <th class="text-end">Ventas</th>
@@ -26,10 +25,9 @@
                     <tr>
                         <td>
                             <div class="fw-semibold">{{ $cashRegister->opened_at?->format('Y-m-d H:i') }}</div>
-                            <div class="text-body-secondary small">{{ $cashRegister->branch?->name }}</div>
+                            <div class="text-body-secondary small">{{ $cashRegister->company?->name }}</div>
                         </td>
                         <td>{{ $cashRegister->closed_at?->format('Y-m-d H:i') ?? '-' }}</td>
-                        <td>{{ $cashRegister->pointOfSale?->name ?? '-' }}</td>
                         <td>{{ $cashRegister->user?->name ?? '-' }}</td>
                         <td>
                             <span class="badge text-bg-{{ $cashRegister->status === 'open' ? 'success' : 'secondary' }}">
@@ -49,7 +47,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td class="text-center text-body-secondary py-4" colspan="10">No hay cajas registradas.</td>
+                        <td class="text-center text-body-secondary py-4" colspan="9">No hay cajas registradas.</td>
                     </tr>
                 @endforelse
             </tbody>

@@ -41,6 +41,7 @@ class StoreSharedRoomRequest extends FormRequest
                 Rule::exists((new BathroomType)->getTable(), 'id')->where('is_active', true),
             ],
             'status' => ['required', Rule::in(['draft', 'active', 'inactive'])],
+            'sale_mode' => ['required', Rule::in(SpaceRoom::SALE_MODES)],
         ];
     }
 
@@ -49,6 +50,13 @@ class StoreSharedRoomRequest extends FormRequest
         return [
             'name.unique' => 'Ya existe una habitacion con ese nombre en este alojamiento.',
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'sale_mode' => $this->input('sale_mode') ?: 'full_room',
+        ]);
     }
 
     public function room(): ?SpaceRoom

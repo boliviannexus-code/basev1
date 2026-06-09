@@ -2,40 +2,43 @@
 
 namespace App\Services\Availability;
 
-use App\Models\AvailabilityDay;
+use App\Models\AvailabilityStatus;
 use App\Models\OccupancyBlock;
+use App\Models\RoomBedUnit;
 use App\Models\Space;
 use App\Models\SpaceRoom;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 class AvailabilityGridService
 {
     public const STATUS_META = [
-        'available' => ['label' => 'Disponible', 'tone' => 'available'],
-        'closed' => ['label' => 'Cerrado', 'tone' => 'closed'],
-        'sold_out' => ['label' => 'Agotado', 'tone' => 'sold-out'],
+        'available' => ['label' => 'Disponible', 'short_label' => 'Disp.', 'tone' => 'available'],
+        'closed' => ['label' => 'Cerrado', 'short_label' => 'Cerr.', 'tone' => 'closed'],
+        'reserved' => ['label' => 'Reservado', 'short_label' => 'Res.', 'tone' => 'reserved'],
+        'occupied' => ['label' => 'Ocupado', 'short_label' => 'Ocup.', 'tone' => 'occupied'],
     ];
 
     public function gridData(int $companyId, array $filters): array
     {
-        $startDate = $this->startDate($filters['start_date'] ?? null);
-        $endDate = $startDate->copy()->addDays(29);
-        $dates = $this->dates($startDate);
+        $weekStart = $this->weekStart($filters['week_start'] ?? $filters['start_date'] ?? null);
+        $weekEnd = $weekStart->copy()->addDays(6);
+        $dates = $this->dates($weekStart);
         $spaces = $this->spaces($companyId, $filters);
-        $availability = $this->availability($companyId, $startDate, $endDate, $filters);
-        $blocks = $this->blocks($companyId, $startDate, $endDate, $filters);
-        $rows = $this->rows($spaces, $dates, $availability, $blocks, $filters);
+        $statuses = $this->statuses($companyId, $weekStart, $weekEnd, $filters);
+        $blocks = $this->blocks($companyId, $weekStart, $weekEnd, $filters);
+        $rows = $this->rows($spaces, $dates, $statuses, $blocks, $filters);
 
         return [
-            'start_date' => $startDate->toDateString(),
-            'end_date' => $endDate->toDateString(),
-            'previous_period' => $startDate->copy()->subDay()->toDateString(),
+            'week_start' => $weekStart->toDateString(),
+            'week_end' => $weekEnd->toDateString(),
+            'start_date' => $weekStart->toDateString(),
+            'end_date' => $weekEnd->toDateString(),
+            'previous_period' => $this->previousPeriod($weekStart)->toDateString(),
             'current_period' => now()->startOfDay()->toDateString(),
-            'next_period' => $startDate->copy()->addDay()->toDateString(),
+            'next_period' => $weekStart->copy()->addWeek()->toDateString(),
+            'can_go_previous' => $weekStart->greaterThan(now()->startOfDay()),
             'dates' => $dates,
             'rows' => $rows,
             'summary' => $this->summary($rows),
@@ -48,8 +51,9 @@ class AvailabilityGridService
             ->with([
                 'spaceMode',
                 'rooms' => fn ($query) => $query
-                    ->with('beds.bedType')
+                    ->with(['beds.bedType', 'bedUnits.bedType'])
                     ->where('status', 'active')
+                    ->orderBy('sort_order')
                     ->orderBy('name'),
             ])
             ->where('company_id', $companyId)
@@ -59,119 +63,38 @@ class AvailabilityGridService
             ->get();
     }
 
-    public function saveDay(int $companyId, array $data): AvailabilityDay
+    private function weekStart(?string $date): Carbon
     {
-        [$space, $room] = $this->validateResource($companyId, $data['space_id'], $data['space_room_id'] ?? null);
-        $price = $data['price'] ?? null;
-        $status = $data['status'];
-
-        if ($status === 'available' && $price === null) {
-            throw ValidationException::withMessages([
-                'price' => 'Asigna un precio antes de habilitar la fecha.',
-            ]);
-        }
-
-        if ($price === null) {
-            $status = 'closed';
-        }
-
-        return AvailabilityDay::query()->updateOrCreate(
-            [
-                'company_id' => $companyId,
-                'space_id' => $space->id,
-                'space_room_id' => $room?->id,
-                'date' => Carbon::parse($data['date'])->toDateString(),
-            ],
-            [
-                'price' => $price,
-                'status' => $status,
-            ],
-        );
-    }
-
-    public function bulkUpdate(int $companyId, array $data): int
-    {
-        $resources = $this->resourcesForBulk($companyId, $data);
-        $dates = collect(Carbon::parse($data['start_date'])->daysUntil(Carbon::parse($data['end_date'])->addDay()))
-            ->map(fn (Carbon $date): string => $date->toDateString());
-        $values = [];
-        $explicitAvailable = (bool) ($data['apply_status'] ?? false) && ($data['status'] ?? null) === 'available';
-
-        if ((bool) ($data['apply_price'] ?? false)) {
-            $values['price'] = $data['price'] ?? null;
-        }
-
-        if ((bool) ($data['apply_status'] ?? false)) {
-            $values['status'] = $data['status'];
-        }
-
-        $updates = [];
-
-        foreach ($resources as $resource) {
-            foreach ($dates as $date) {
-                $existing = AvailabilityDay::query()
-                    ->where('company_id', $companyId)
-                    ->where('space_id', $resource['space_id'])
-                    ->where('space_room_id', $resource['room_id'])
-                    ->where('date', $date)
-                    ->first();
-                $price = array_key_exists('price', $values) ? $values['price'] : $existing?->price;
-                $status = array_key_exists('status', $values) ? $values['status'] : ($existing?->status ?? 'closed');
-
-                if ($price === null) {
-                    $status = 'closed';
-                }
-
-                if ($explicitAvailable && $price === null) {
-                    throw ValidationException::withMessages([
-                        'price' => 'Asigna un precio antes de habilitar fechas en bloque.',
-                    ]);
-                }
-
-                $updates[] = [
-                    'keys' => [
-                        'company_id' => $companyId,
-                        'space_id' => $resource['space_id'],
-                        'space_room_id' => $resource['room_id'],
-                        'date' => $date,
-                    ],
-                    'values' => [
-                        'price' => $price,
-                        'status' => $status,
-                    ],
-                ];
-            }
-        }
-
-        return DB::transaction(function () use ($updates): int {
-            foreach ($updates as $update) {
-                AvailabilityDay::query()->updateOrCreate($update['keys'], $update['values']);
-            }
-
-            return count($updates);
-        });
-    }
-
-    private function startDate(?string $date): Carbon
-    {
-        return filled($date)
+        $today = now()->startOfDay();
+        $requested = filled($date)
             ? Carbon::parse($date)->startOfDay()
-            : now()->startOfDay();
+            : $today->copy();
+
+        return $requested->lessThan($today) ? $today : $requested;
     }
 
-    private function dates(Carbon $startDate): array
+    private function previousPeriod(Carbon $weekStart): Carbon
+    {
+        $today = now()->startOfDay();
+        $previous = $weekStart->copy()->subWeek();
+
+        return $previous->lessThan($today) ? $today : $previous;
+    }
+
+    private function dates(Carbon $weekStart): array
     {
         $dayNames = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
 
-        return collect(range(0, 29))
-            ->map(function (int $offset) use ($startDate, $dayNames): array {
-                $date = $startDate->copy()->addDays($offset);
+        return collect(range(0, 6))
+            ->map(function (int $offset) use ($weekStart, $dayNames): array {
+                $date = $weekStart->copy()->addDays($offset);
 
                 return [
                     'date' => $date->toDateString(),
                     'label' => $dayNames[$date->dayOfWeekIso - 1].' '.$date->format('d'),
                     'iso_day' => $date->dayOfWeekIso,
                     'is_today' => $date->isToday(),
+                    'is_past' => $date->lessThan(now()->startOfDay()),
                 ];
             })
             ->all();
@@ -196,41 +119,40 @@ class AvailabilityGridService
             ->values();
     }
 
-    private function availability(int $companyId, Carbon $startDate, Carbon $endDate, array $filters): Collection
+    private function statuses(int $companyId, Carbon $weekStart, Carbon $weekEnd, array $filters): Collection
     {
-        return AvailabilityDay::query()
+        return AvailabilityStatus::query()
             ->where('company_id', $companyId)
-            ->whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->whereBetween('date', [$weekStart->toDateString(), $weekEnd->toDateString()])
             ->when(filled($filters['space_id'] ?? null), fn (Builder $query): Builder => $query->where('space_id', $filters['space_id']))
             ->get()
-            ->keyBy(fn (AvailabilityDay $day): string => $this->resourceKey((int) $day->space_id, $day->space_room_id ? (int) $day->space_room_id : null, $day->date->toDateString()));
+            ->keyBy(fn (AvailabilityStatus $status): string => $this->resourceKey(
+                (int) $status->space_id,
+                $status->space_room_id ? (int) $status->space_room_id : null,
+                $status->date->toDateString(),
+                $status->room_bed_unit_id ? (int) $status->room_bed_unit_id : null,
+            ));
     }
 
-    private function blocks(int $companyId, Carbon $startDate, Carbon $endDate, array $filters): Collection
+    private function blocks(int $companyId, Carbon $weekStart, Carbon $weekEnd, array $filters): Collection
     {
         return OccupancyBlock::query()
+            ->with(['reservation', 'reservationRoom.reservation', 'reservationBedUnit.reservation'])
             ->where('company_id', $companyId)
             ->where('status', 'active')
-            ->where('start_date', '<=', $endDate->toDateString())
-            ->where('end_date', '>=', $startDate->toDateString())
+            ->where('start_date', '<=', $weekEnd->toDateString())
+            ->where('end_date', '>=', $weekStart->toDateString())
             ->when(filled($filters['space_id'] ?? null), fn (Builder $query): Builder => $query->where('space_id', $filters['space_id']))
             ->get();
     }
 
-    private function rows(Collection $spaces, array $dates, Collection $availability, Collection $blocks, array $filters): array
+    private function rows(Collection $spaces, array $dates, Collection $statuses, Collection $blocks, array $filters): array
     {
         return $spaces
-            ->flatMap(function (Space $space) use ($dates, $availability, $blocks, $filters): array {
+            ->flatMap(function (Space $space) use ($dates, $statuses, $blocks): array {
                 if ($space->spaceMode?->slug === 'compartido') {
                     $roomRows = $space->rooms
-                        ->map(fn (SpaceRoom $room): array => [
-                            'type' => 'shared_room',
-                            'space_id' => $space->id,
-                            'room_id' => $room->id,
-                            'label' => $this->roomLabel($room),
-                            'space_label' => $this->spaceLabel($space),
-                            'cells' => $this->cells($dates, $availability, $blocks, $space->id, $room->id),
-                        ])
+                        ->flatMap(fn (SpaceRoom $room): array => $this->sharedRoomRows($room, $space, $dates, $statuses, $blocks))
                         ->values()
                         ->all();
 
@@ -250,8 +172,9 @@ class AvailabilityGridService
                     'type' => 'private_space',
                     'space_id' => $space->id,
                     'room_id' => null,
+                    'room_bed_unit_id' => null,
                     'label' => $this->spaceLabel($space),
-                    'cells' => $this->cells($dates, $availability, $blocks, $space->id, null),
+                    'cells' => $this->cells($dates, $statuses, $blocks, $space->id, null, null),
                 ]];
             })
             ->filter(fn (array $row): bool => $this->rowMatchesStatus($row, $filters['status'] ?? null))
@@ -259,36 +182,108 @@ class AvailabilityGridService
             ->all();
     }
 
-    private function cells(array $dates, Collection $availability, Collection $blocks, int $spaceId, ?int $roomId): array
+    private function sharedRoomRows(SpaceRoom $room, Space $space, array $dates, Collection $statuses, Collection $blocks): array
+    {
+        $roomRow = [
+            'type' => 'shared_room',
+            'space_id' => $space->id,
+            'room_id' => $room->id,
+            'room_bed_unit_id' => null,
+            'label' => $this->roomLabel($room),
+            'space_label' => $this->spaceLabel($space),
+            'sale_mode' => $room->sale_mode ?? 'full_room',
+            'cells' => $this->cells($dates, $statuses, $blocks, $space->id, $room->id, null),
+        ];
+
+        if (! in_array($room->sale_mode, ['bed_unit', 'flexible'], true)) {
+            return [$roomRow];
+        }
+
+        $roomRow['cells'] = [];
+        $roomRow['is_group_header'] = true;
+
+        $bedRows = $room->bedUnits
+            ->where('status', 'active')
+            ->map(fn (RoomBedUnit $unit): array => [
+                'type' => 'shared_bed_unit',
+                'space_id' => $space->id,
+                'room_id' => $room->id,
+                'room_bed_unit_id' => $unit->id,
+                'label' => $unit->label.' - '.($unit->bedType?->name ?: 'Cama'),
+                'space_label' => $this->spaceLabel($space),
+                'room_label' => $this->roomLabel($room),
+                'sale_mode' => $room->sale_mode,
+                'cells' => $this->cells($dates, $statuses, $blocks, $space->id, $room->id, $unit->id),
+            ])
+            ->values()
+            ->all();
+
+        return [$roomRow, ...$bedRows];
+    }
+
+    private function cells(array $dates, Collection $statuses, Collection $blocks, int $spaceId, ?int $roomId, ?int $bedUnitId): array
     {
         return collect($dates)
-            ->map(function (array $date) use ($availability, $blocks, $spaceId, $roomId): array {
-                $day = $availability->get($this->resourceKey($spaceId, $roomId, $date['date']));
-                $hasPrice = $day?->price !== null;
-                $storedStatus = $hasPrice ? ($day?->status ?? 'closed') : 'closed';
-                $isSoldOut = $this->isSoldOut($blocks, $spaceId, $roomId, $date['date']);
-                $status = $isSoldOut ? 'sold_out' : $storedStatus;
+            ->map(function (array $date) use ($statuses, $blocks, $spaceId, $roomId, $bedUnitId): array {
+                $availabilityStatus = $this->availabilityStatusForDate($statuses, $spaceId, $roomId, $bedUnitId, $date['date']);
+                $block = $this->blockForDate($blocks, $spaceId, $roomId, $bedUnitId, $date['date']);
+                $hasPartialBedBlock = $bedUnitId === null && $roomId !== null && ! $block && $this->hasBedUnitBlockForDate($blocks, $spaceId, $roomId, $date['date']);
+                $status = $hasPartialBedBlock ? 'reserved' : ($block ? 'closed' : ($availabilityStatus?->status ?? 'available'));
                 $meta = self::STATUS_META[$status];
+                $isPast = Carbon::parse($date['date'])->startOfDay()->lessThan(now()->startOfDay());
+                $source = ($block || $hasPartialBedBlock) ? 'ocupabilidad' : $availabilityStatus?->source;
+                $guestName = $this->guestName($block);
 
                 return [
                     'date' => $date['date'],
                     'status' => $status,
-                    'stored_status' => $storedStatus,
-                    'label' => $meta['label'],
+                    'label' => $guestName ?: ($hasPartialBedBlock ? 'Parcial' : $meta['label']),
+                    'short_label' => $meta['short_label'],
                     'tone' => $meta['tone'],
-                    'price' => $day?->price !== null ? number_format((float) $day->price, 2, '.', '') : null,
-                    'has_price' => $hasPrice,
-                    'availability_day_id' => $day?->id,
-                    'is_sold_out' => $isSoldOut,
+                    'source' => $source,
+                    'notes' => $block?->title ?? $availabilityStatus?->notes,
+                    'availability_status_id' => $availabilityStatus?->id,
+                    'occupancy_block_id' => $block?->id,
+                    'room_bed_unit_id' => $bedUnitId,
+                    'guest_name' => $guestName,
+                    'is_past' => $isPast,
+                    'actions' => $isPast || $block || $hasPartialBedBlock || ($availabilityStatus?->source && $availabilityStatus->source !== 'manual')
+                        ? []
+                        : ['change_status', 'add_note'],
                 ];
             })
             ->all();
     }
 
-    private function isSoldOut(Collection $blocks, int $spaceId, ?int $roomId, string $date): bool
+    private function blockForDate(Collection $blocks, int $spaceId, ?int $roomId, ?int $bedUnitId, string $date): ?OccupancyBlock
+    {
+        $matchingBlocks = $blocks->filter(fn (OccupancyBlock $block): bool => (int) $block->space_id === $spaceId
+            && $block->start_date->toDateString() <= $date
+            && $block->end_date->toDateString() >= $date);
+
+        if ($bedUnitId !== null) {
+            return $matchingBlocks->first(fn (OccupancyBlock $block): bool => (int) ($block->room_bed_unit_id ?? 0) === $bedUnitId)
+                ?: $matchingBlocks->first(fn (OccupancyBlock $block): bool => (int) ($block->space_room_id ?? 0) === (int) $roomId && $block->room_bed_unit_id === null);
+        }
+
+        return $matchingBlocks->first(fn (OccupancyBlock $block): bool => (int) ($block->space_room_id ?? 0) === (int) ($roomId ?? 0) && $block->room_bed_unit_id === null);
+    }
+
+    private function availabilityStatusForDate(Collection $statuses, int $spaceId, ?int $roomId, ?int $bedUnitId, string $date): ?AvailabilityStatus
+    {
+        if ($bedUnitId !== null) {
+            return $statuses->get($this->resourceKey($spaceId, $roomId, $date, $bedUnitId))
+                ?: $statuses->get($this->resourceKey($spaceId, $roomId, $date));
+        }
+
+        return $statuses->get($this->resourceKey($spaceId, $roomId, $date));
+    }
+
+    private function hasBedUnitBlockForDate(Collection $blocks, int $spaceId, int $roomId, string $date): bool
     {
         return $blocks->contains(fn (OccupancyBlock $block): bool => (int) $block->space_id === $spaceId
-            && (int) ($block->space_room_id ?? 0) === (int) ($roomId ?? 0)
+            && (int) ($block->space_room_id ?? 0) === $roomId
+            && $block->room_bed_unit_id !== null
             && $block->start_date->toDateString() <= $date
             && $block->end_date->toDateString() >= $date);
     }
@@ -312,114 +307,39 @@ class AvailabilityGridService
             'resources' => collect($rows)->where('type', '!=', 'shared_space_group')->count(),
             'available' => $cells->where('status', 'available')->count(),
             'closed' => $cells->where('status', 'closed')->count(),
-            'sold_out' => $cells->where('status', 'sold_out')->count(),
-            'without_price' => $cells->where('has_price', false)->count(),
+            'reserved' => $cells->where('status', 'reserved')->count(),
+            'occupied' => $cells->where('status', 'occupied')->count(),
         ];
     }
 
-    private function validateResource(int $companyId, int|string $spaceId, int|string|null $roomId): array
+    private function resourceKey(int $spaceId, ?int $roomId, string $date, ?int $bedUnitId = null): string
     {
-        $space = Space::query()
-            ->with('spaceMode')
-            ->where('company_id', $companyId)
-            ->where('status', 'active')
-            ->whereKey($spaceId)
-            ->first();
-
-        if (! $space) {
-            throw ValidationException::withMessages([
-                'space_id' => 'El alojamiento debe pertenecer a tu empresa y estar activo.',
-            ]);
-        }
-
-        $isShared = $space->spaceMode?->slug === 'compartido';
-
-        if (! $isShared && filled($roomId)) {
-            throw ValidationException::withMessages([
-                'space_room_id' => 'Un alojamiento privado no permite seleccionar habitacion.',
-            ]);
-        }
-
-        if (! $isShared) {
-            return [$space, null];
-        }
-
-        if (! filled($roomId)) {
-            throw ValidationException::withMessages([
-                'space_room_id' => 'Selecciona una habitacion activa para el alojamiento compartido.',
-            ]);
-        }
-
-        $room = SpaceRoom::query()
-            ->where('company_id', $companyId)
-            ->where('space_id', $space->id)
-            ->where('status', 'active')
-            ->whereKey($roomId)
-            ->first();
-
-        if (! $room) {
-            throw ValidationException::withMessages([
-                'space_room_id' => 'La habitacion seleccionada no pertenece al alojamiento.',
-            ]);
-        }
-
-        return [$space, $room];
+        return $spaceId.'|'.($roomId ?: 'space').'|'.($bedUnitId ? 'bed:'.$bedUnitId : 'room').'|'.$date;
     }
 
-    private function resourcesForBulk(int $companyId, array $data): Collection
+    private function guestName(?OccupancyBlock $block): ?string
     {
-        if (filled($data['space_id'] ?? null) && filled($data['space_room_id'] ?? null)) {
-            [$space, $room] = $this->validateResource($companyId, $data['space_id'], $data['space_room_id']);
-
-            return collect([['space_id' => $space->id, 'room_id' => $room?->id]]);
-        }
-
-        $spaces = $this->spaces($companyId, $data);
-
-        return $spaces
-            ->flatMap(function (Space $space): array {
-                if ($space->spaceMode?->slug === 'compartido') {
-                    return $space->rooms
-                        ->map(fn (SpaceRoom $room): array => ['space_id' => $space->id, 'room_id' => $room->id])
-                        ->all();
-                }
-
-                return [['space_id' => $space->id, 'room_id' => null]];
-            })
-            ->values();
-    }
-
-    private function resourceKey(int $spaceId, ?int $roomId, string $date): string
-    {
-        return $spaceId.'|'.($roomId ?? 'space').'|'.$date;
+        return $block?->reservation?->guest_name
+            ?: $block?->reservationRoom?->reservation?->guest_name
+            ?: $block?->reservationBedUnit?->guest_name
+            ?: $block?->reservationBedUnit?->reservation?->guest_name;
     }
 
     private function spaceLabel(Space $space): string
     {
-        $label = $space->spaceMode?->slug === 'compartido'
-            ? ($space->name ?: $space->title ?: 'Alojamiento')
-            : ($space->title ?: $space->name ?: 'Alojamiento');
-
-        if ($space->spaceMode?->slug !== 'compartido' && (int) $space->max_capacity > 0) {
-            return $label.' - Cap. '.$space->max_capacity;
+        if ($space->spaceMode?->slug === 'compartido') {
+            return $space->name ?: $space->title ?: 'Alojamiento compartido';
         }
 
-        return $label;
+        return trim(($space->title ?: $space->name ?: 'Espacio privado').(((int) $space->max_capacity > 0) ? ' - Cap. '.$space->max_capacity : ''));
     }
 
     private function roomLabel(SpaceRoom $room): string
     {
-        $label = $room->name ?: $room->title ?: 'Habitacion';
-
-        if (filled($room->room_number) && trim((string) $room->room_number) !== trim($label)) {
-            $label .= ' - Hab. '.$room->room_number;
-        }
-
-        $beds = $room->beds
-            ->map(fn ($bed): string => trim($bed->quantity.' '.($bed->bedType?->name ?: 'cama')))
-            ->filter()
-            ->implode(', ');
-
-        return filled($beds) ? $label.' - '.$beds : $label;
+        return collect([
+            $room->name ?: $room->title ?: 'Habitacion',
+            filled($room->room_number) && trim((string) $room->room_number) !== trim((string) ($room->name ?: $room->title ?: 'Habitacion')) ? 'Hab. '.$room->room_number : null,
+            $room->relationLoaded('beds') ? $room->beds->map(fn ($bed) => trim($bed->quantity.' '.($bed->bedType?->name ?: 'cama')))->filter()->implode(', ') : null,
+        ])->filter()->implode(' - ');
     }
 }

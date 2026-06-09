@@ -19,16 +19,19 @@
     </div>
 
     <div class="row g-3 mb-3">
-        <div class="col-sm-6 col-xl-3">
+        <div class="col-sm-6 col-xl">
             <x-ui.stat-card label="Base inicial" :value="money_format_decimal($cashSummary['opening'] ?? 0)" icon="ti ti-cash" />
         </div>
-        <div class="col-sm-6 col-xl-3">
+        <div class="col-sm-6 col-xl">
             <x-ui.stat-card label="Ventas" :value="money_format_decimal($cashSummary['sales_total'] ?? 0)" icon="ti ti-receipt" />
         </div>
-        <div class="col-sm-6 col-xl-3">
+        <div class="col-sm-6 col-xl">
+            <x-ui.stat-card label="Hospedaje" :value="money_format_decimal($cashSummary['lodging_total'] ?? 0)" icon="ti ti-home-dollar" tone="success" />
+        </div>
+        <div class="col-sm-6 col-xl">
             <x-ui.stat-card label="Egresos" :value="money_format_decimal($cashSummary['expenses'] ?? 0)" icon="ti ti-cash-banknote-off" />
         </div>
-        <div class="col-sm-6 col-xl-3">
+        <div class="col-sm-6 col-xl">
             <x-ui.stat-card label="Efectivo esperado" :value="money_format_decimal($expectedCash)" icon="ti ti-report-money" />
         </div>
     </div>
@@ -37,8 +40,8 @@
         <div class="card-body">
             <div class="row g-3 align-items-center">
                 <div class="col-md-3">
-                    <div class="text-body-secondary">Punto de venta</div>
-                    <div class="fw-semibold">{{ $cashRegister->pointOfSale?->name ?? '-' }}</div>
+                    <div class="text-body-secondary">Empresa</div>
+                    <div class="fw-semibold">{{ $cashRegister->company?->name ?? '-' }}</div>
                 </div>
                 <div class="col-md-3">
                     <div class="text-body-secondary">Usuario</div>
@@ -121,6 +124,37 @@
             </x-ui.table-card>
         </div>
     </div>
+
+    <x-ui.table-card title="Cobros de hospedaje" class="mt-3">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Comprobante</th>
+                    <th>Estancia</th>
+                    <th>Metodo</th>
+                    <th>Referencia</th>
+                    <th class="text-end">Monto</th>
+                    <th class="text-end">BOB caja</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse (($cashSummary['lodging_payments'] ?? []) as $payment)
+                    <tr>
+                        <td class="fw-semibold">{{ $payment->receipt_number }}</td>
+                        <td>{{ $payment->stay?->holderGuest?->full_name ?? 'Hospedaje' }}</td>
+                        <td>{{ $payment->paymentMethod?->name ?? '-' }}</td>
+                        <td>{{ $payment->reference ?: '-' }}</td>
+                        <td class="text-end">{{ money_format_decimal($payment->amount_original) }} {{ $payment->currency_original }}</td>
+                        <td class="text-end fw-semibold">{{ money_format_decimal($payment->amount_bob) }}</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td class="text-center text-body-secondary py-4" colspan="6">Sin cobros de hospedaje.</td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </x-ui.table-card>
 
     <x-ui.table-card title="Ventas de la caja" class="mt-3">
         <table class="table table-hover align-middle mb-0">

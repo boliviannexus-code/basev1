@@ -4,7 +4,19 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ $title ?? 'Espacios' }} | Nido</title>
+    <title>{{ $title ?? $seo['title'] ?? 'Espacios' }} | Nido</title>
+    @if (filled($seo['description'] ?? null))
+        <meta name="description" content="{{ $seo['description'] }}">
+        <meta property="og:description" content="{{ $seo['description'] }}">
+    @endif
+    <meta property="og:title" content="{{ $seo['title'] ?? $title ?? 'Espacios' }}">
+    <meta property="og:type" content="website">
+    @if (filled($seo['url'] ?? null))
+        <meta property="og:url" content="{{ $seo['url'] }}">
+    @endif
+    @if (filled($seo['image'] ?? null))
+        <meta property="og:image" content="{{ $seo['image'] }}">
+    @endif
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="public-site">

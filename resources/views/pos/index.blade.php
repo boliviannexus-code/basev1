@@ -1,8 +1,8 @@
 @extends('layouts.admin')
 
-@section('title', 'Punto de venta | Inventario POS')
-@section('page-title', 'Punto de venta')
-@section('page-subtitle', 'Inicio de caja para operar ventas')
+@section('title', 'Caja | Cobros')
+@section('page-title', 'Caja')
+@section('page-subtitle', 'Apertura y cierre de caja por usuario')
 
 @section('content')
     @if ($openRegister)
@@ -36,12 +36,12 @@
                         <div class="card-body py-2">
                             <div class="pos-session-bar">
                                 <div class="pos-session-item">
-                                    <span>Punto de venta</span>
-                                    <strong>{{ $openRegister->pointOfSale?->name }}</strong>
+                                    <span>Empresa</span>
+                                    <strong>{{ $openRegister->company?->name ?? auth()->user()?->company?->name }}</strong>
                                 </div>
                                 <div class="pos-session-item">
-                                    <span>Almacen</span>
-                                    <strong>{{ $openRegister->pointOfSale?->warehouse?->name }}</strong>
+                                    <span>Usuario</span>
+                                    <strong>{{ $openRegister->user?->name }}</strong>
                                 </div>
                                 <div class="pos-session-item">
                                     <span>Apertura</span>
@@ -76,6 +76,9 @@
                             </div>
                         </div>
                         <div class="card-body py-2">
+                            <div class="alert alert-warning mb-3">
+                                La venta de productos esta desactivada hasta habilitar almacenes e inventario. Esta caja puede usarse para cobros de hospedaje y egresos.
+                            </div>
                             <div class="row g-3 align-items-end" data-pos-picker>
                                 <div class="col-lg-5">
                                     <label class="form-label" for="pos-product-picker">Producto</label>
@@ -363,7 +366,7 @@
                         <div class="card-footer d-grid gap-2 py-2">
                             <button class="btn btn-success" type="submit" data-pos-submit disabled>
                                 <i class="ti ti-cash"></i>
-                                Registrar venta
+                                Venta desactivada
                             </button>
                         </div>
                     </div>
@@ -491,26 +494,32 @@
 
                     <div class="modal-body">
                         <div class="row g-3">
-                            <div class="col-sm-6 col-lg-3">
+                            <div class="col-sm-6 col-lg">
                                 <div class="border rounded p-3 h-100">
                                     <div class="text-body-secondary small">Base inicial</div>
                                     <div class="h3 mb-0">{{ money_format_decimal($cashSummary['opening'] ?? 0) }}</div>
                                 </div>
                             </div>
-                            <div class="col-sm-6 col-lg-3">
+                            <div class="col-sm-6 col-lg">
                                 <div class="border rounded p-3 h-100">
                                     <div class="text-body-secondary small">Ventas</div>
                                     <div class="h3 mb-0">{{ money_format_decimal($cashSummary['sales_total'] ?? 0) }}</div>
                                     <div class="text-body-secondary small">{{ $cashSummary['sales_count'] ?? 0 }} comprobante(s)</div>
                                 </div>
                             </div>
-                            <div class="col-sm-6 col-lg-3">
+                            <div class="col-sm-6 col-lg">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="text-body-secondary small">Hospedaje</div>
+                                    <div class="h3 mb-0">{{ money_format_decimal($cashSummary['lodging_total'] ?? 0) }}</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-lg">
                                 <div class="border rounded p-3 h-100">
                                     <div class="text-body-secondary small">Egresos</div>
                                     <div class="h3 mb-0">{{ money_format_decimal($cashSummary['expenses'] ?? 0) }}</div>
                                 </div>
                             </div>
-                            <div class="col-sm-6 col-lg-3">
+                            <div class="col-sm-6 col-lg">
                                 <div class="border rounded p-3 h-100">
                                     <div class="text-body-secondary small">Efectivo esperado</div>
                                     <div class="h3 mb-0">{{ money_format_decimal($cashSummary['available'] ?? 0) }}</div>
@@ -546,6 +555,44 @@
                                                     @empty
                                                         <tr>
                                                             <td class="text-center text-body-secondary" colspan="3">Sin pagos registrados.</td>
+                                                        </tr>
+                                                    @endforelse
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="cashCloseLodgingHeading">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cashCloseLodging" aria-expanded="false" aria-controls="cashCloseLodging">
+                                        Detalle de hospedaje
+                                    </button>
+                                </h2>
+                                <div class="accordion-collapse collapse" id="cashCloseLodging" aria-labelledby="cashCloseLodgingHeading" data-bs-parent="#cashCloseDetails">
+                                    <div class="accordion-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-vcenter mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Comprobante</th>
+                                                        <th>Estancia</th>
+                                                        <th>Metodo</th>
+                                                        <th class="text-end">Total BOB</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @forelse (($cashSummary['lodging_payments'] ?? []) as $payment)
+                                                        <tr>
+                                                            <td class="fw-semibold">{{ $payment->receipt_number }}</td>
+                                                            <td>{{ $payment->stay?->holderGuest?->full_name ?? 'Hospedaje' }}</td>
+                                                            <td>{{ $payment->paymentMethod?->name ?? '-' }}</td>
+                                                            <td class="text-end fw-semibold">{{ money_format_decimal($payment->amount_bob) }}</td>
+                                                        </tr>
+                                                    @empty
+                                                        <tr>
+                                                            <td class="text-center text-body-secondary" colspan="4">Sin cobros de hospedaje.</td>
                                                         </tr>
                                                     @endforelse
                                                 </tbody>
@@ -680,20 +727,11 @@
 
                     <div class="row g-3">
                         <div class="col-md-8">
-                            <label class="form-label" for="point_of_sale_id">Punto de venta</label>
-                            <select class="form-select @error('point_of_sale_id') is-invalid @enderror" id="point_of_sale_id" name="point_of_sale_id" data-tom-select data-placeholder="Seleccionar punto de venta" required>
-                                <option value="">Seleccionar</option>
-                                @foreach ($pointOfSales as $pointOfSale)
-                                    <option value="{{ $pointOfSale->id }}" @selected(old('point_of_sale_id') == $pointOfSale->id)>
-                                        {{ $pointOfSale->code }} - {{ $pointOfSale->name }} / {{ $pointOfSale->warehouse?->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('point_of_sale_id')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-
-                            @if ($pointOfSales->isEmpty())
-                                <div class="text-body-secondary small mt-2">No tienes puntos de venta activos asignados.</div>
-                            @endif
+                            <label class="form-label">Caja</label>
+                            <div class="form-control-plaintext fw-semibold">
+                                {{ auth()->user()?->company?->name ?? 'Empresa' }} · {{ auth()->user()?->name }}
+                            </div>
+                            <div class="text-body-secondary small">La caja se abrira solo para tu usuario.</div>
                         </div>
 
                         <div class="col-md-4">
@@ -704,7 +742,7 @@
                     </div>
 
                     <div class="d-flex justify-content-end gap-2 mt-4">
-                        <button class="btn btn-primary" type="submit" @disabled($pointOfSales->isEmpty())>Abrir caja</button>
+                        <button class="btn btn-primary" type="submit">Abrir caja</button>
                     </div>
                 </form>
             </div>

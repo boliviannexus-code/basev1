@@ -58,6 +58,17 @@
                         <div class="shared-bed-empty">Sin camas registradas.</div>
                     @endforelse
                 </div>
+
+                @if ($room->bedUnits->isNotEmpty())
+                    <div class="mt-3">
+                        <div class="text-body-secondary small mb-2">Unidades fisicas visibles en ocupabilidad</div>
+                        <div class="d-flex flex-wrap gap-1">
+                            @foreach ($room->bedUnits as $unit)
+                                <span class="badge text-bg-light">{{ $unit->label }} · {{ $unit->bedType?->name ?: 'Cama' }}</span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </section>
         @endforeach
     </div>

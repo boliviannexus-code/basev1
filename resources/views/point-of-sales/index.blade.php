@@ -2,14 +2,14 @@
 
 @section('title', 'Puntos de venta | Inventario POS')
 @section('page-title', 'Puntos de venta')
-@section('page-subtitle', 'Puntos operativos vinculados a un almacen unico')
+@section('page-subtitle', 'Puntos operativos separados por empresa')
 
 @section('content')
     <x-ui.table-card title="Listado de puntos de venta" data-refresh-container>
         <x-slot:actions>
-            @can('point-of-sales.create')
-                <a class="btn btn-primary btn-sm" href="{{ route('point-of-sales.create') }}" data-modal-url="{{ route('point-of-sales.create') }}" data-modal-title="Nuevo punto de venta">Nuevo punto de venta</a>
-            @endcan
+            @if (auth()->user()?->can('point-of-sales.create') || auth()->user()?->can('occupancy.manage'))
+                <a class="btn btn-primary btn-sm" href="{{ route('point-of-sales.create') }}" data-modal-url="{{ route('point-of-sales.create') }}" data-modal-title="Nuevo punto de venta" data-modal-size="xl">Nuevo punto de venta</a>
+            @endif
         </x-slot:actions>
 
         <table class="table table-hover align-middle">
@@ -37,8 +37,8 @@
                         </td>
                         <td>{{ $pointOfSale->name }}</td>
                         <td>{{ $pointOfSale->company?->name ?? 'Sin empresa' }}</td>
-                        <td>{{ $pointOfSale->branch?->name ?? '-' }}</td>
-                        <td>{{ $pointOfSale->warehouse?->name ?? '-' }}</td>
+                        <td>{{ $pointOfSale->branch?->name ?? 'Sin sucursal' }}</td>
+                        <td>{{ $pointOfSale->warehouse?->name ?? 'Sin almacen' }}</td>
                         <td>
                             @forelse ($pointOfSale->users as $user)
                                 <span class="badge text-bg-light">{{ $user->name }}</span>
@@ -49,9 +49,9 @@
                         <td><span class="badge text-bg-{{ $pointOfSale->is_active ? 'success' : 'secondary' }}">{{ $pointOfSale->is_active ? 'Activo' : 'Inactivo' }}</span></td>
                         <td class="text-end">
                             <a class="btn btn-outline-secondary btn-sm" href="{{ route('point-of-sales.show', $pointOfSale) }}" data-modal-url="{{ route('point-of-sales.show', $pointOfSale) }}" data-modal-title="Detalle de punto de venta">Ver</a>
-                            @can('point-of-sales.update')
-                                <a class="btn btn-outline-primary btn-sm" href="{{ route('point-of-sales.edit', $pointOfSale) }}" data-modal-url="{{ route('point-of-sales.edit', $pointOfSale) }}" data-modal-title="Editar punto de venta">Editar</a>
-                            @endcan
+                            @if (auth()->user()?->can('point-of-sales.update') || auth()->user()?->can('occupancy.manage'))
+                                <a class="btn btn-outline-primary btn-sm" href="{{ route('point-of-sales.edit', $pointOfSale) }}" data-modal-url="{{ route('point-of-sales.edit', $pointOfSale) }}" data-modal-title="Editar punto de venta" data-modal-size="xl">Editar</a>
+                            @endif
                             @can('point-of-sales.delete')
                                 <form class="d-inline" method="POST" action="{{ route('point-of-sales.destroy', $pointOfSale) }}" data-confirm-delete="Eliminar punto de venta?">
                                     @csrf

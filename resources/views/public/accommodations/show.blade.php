@@ -1,12 +1,42 @@
 @extends('layouts.public', ['title' => $result['title']])
 
 @section('content')
-    @php($space = $result['space'])
-    @php($photos = $space->photos)
-    @php($selectedGuests = (int) ($filters['guests'] ?? 1))
-    @php($selectedCheckIn = $filters['check_in'] ?? now()->toDateString())
-    @php($selectedCheckOut = $filters['check_out'] ?? now()->addDay()->toDateString())
-    @php($sharedSelectionEnabled = $result['mode'] === 'shared' && filled($filters['check_in'] ?? null) && filled($filters['check_out'] ?? null))
+    @php
+        $space = $result['space'];
+        $photos = $space->photos ?? collect();
+        $selectedGuests = (int) ($filters['guests'] ?? 1);
+        $selectedCheckIn = $filters['check_in'] ?? now()->toDateString();
+        $selectedCheckOut = $filters['check_out'] ?? now()->addDay()->toDateString();
+        $selectedPackageId = filled($filters['package_id'] ?? null) ? (int) $filters['package_id'] : null;
+        $selectedPackage = $selectedPackageId ? $space->accommodationPackages->firstWhere('id', $selectedPackageId) : null;
+        $packageBaseQuery = collect($result['query'])->except('package_id')->all();
+        $reservationQuery = $selectedPackage ? $result['query'] : $packageBaseQuery;
+        $sharedSelectionEnabled = $result['mode'] === 'shared' && filled($filters['check_in'] ?? null) && filled($filters['check_out'] ?? null);
+
+        $packageIcon = function ($service): string {
+            if (filled($service->icon)) {
+                $icon = trim((string) $service->icon);
+
+                if (str_starts_with($icon, 'ti ')) {
+                    return $icon;
+                }
+
+                return str_starts_with($icon, 'ti-') ? 'ti '.$icon : 'ti ti-'.$icon;
+            }
+
+            return match ($service->type) {
+                'alojamiento' => 'ti ti-home',
+                'transporte' => 'ti ti-car',
+                'alimentacion' => 'ti ti-tools-kitchen-2',
+                'tour' => 'ti ti-map',
+                'bienestar' => 'ti ti-spa',
+                'decoracion' => 'ti ti-sparkles',
+                'aventura' => 'ti ti-mountain',
+                'equipamiento' => 'ti ti-backpack',
+                default => 'ti ti-circle-check',
+            };
+        };
+    @endphp
 
     <section class="container-xl public-detail">
         <a class="public-back-link" href="{{ route('public.accommodations.search', $result['query']) }}">
@@ -83,6 +113,77 @@
                     </section>
                 @endif
 
+                @if ($result['mode'] === 'private' && $space->accommodationPackages->isNotEmpty())
+                    <section>
+                        <h2>Paquetes disponibles</h2>
+                        <div class="public-package-grid">
+                            @foreach ($space->accommodationPackages as $package)
+                                @php($includedServices = $package->services->where('pivot.inclusion_type', 'included')->take(5))
+                                @php($badges = collect($package->badges)->filter()->whenEmpty(fn ($items) => $items->push('Todo incluido')))
+                                @php($priceText = $package->price_display_text ?: money_format_decimal($package->price).' '.$package->currency.' por paquete / incluye '.$package->included_people.' persona'.($package->included_people === 1 ? '' : 's'))
+                                <article class="public-package-card {{ $selectedPackageId === $package->id ? 'is-selected' : '' }}">
+                                    <div class="public-package-image">
+                                        @if ($package->main_image)
+                                            <img src="{{ Storage::disk('public')->url($package->main_image) }}" alt="{{ $package->name }}">
+                                        @else
+                                            <span><i class="ti ti-gift"></i></span>
+                                        @endif
+                                    </div>
+                                    <div>
+                                        <div class="public-package-badges">
+                                            @foreach ($badges->take(4) as $badge)
+                                                <span>{{ $badge }}</span>
+                                            @endforeach
+                                        </div>
+                                        <div class="d-flex align-items-start justify-content-between gap-2">
+                                            <h3>{{ $package->name }}</h3>
+                                            @if ($package->is_featured)
+                                                <span class="public-type-badge is-private">Destacado</span>
+                                            @endif
+                                        </div>
+                                        <p>{{ $package->short_description }}</p>
+                                        @if ($package->commercial_description)
+                                            <p class="public-package-commercial">{{ $package->commercial_description }}</p>
+                                        @endif
+                                        @if ($package->video_url)
+                                            <a class="public-package-video" href="{{ $package->video_url }}" target="_blank" rel="noopener noreferrer">
+                                                <i class="ti ti-player-play"></i>
+                                                Ver video del paquete
+                                            </a>
+                                        @endif
+                                        <div class="public-package-price">
+                                            <strong>{{ $priceText }}</strong>
+                                            <small>{{ $package->nights_included }} noche{{ $package->nights_included === 1 ? '' : 's' }} incluida{{ $package->nights_included === 1 ? '' : 's' }}</small>
+                                        </div>
+                                        <dl class="public-inline-summary">
+                                            <div><dt>Personas incluidas</dt><dd>{{ $package->included_people }}</dd></div>
+                                            <div><dt>Max. personas</dt><dd>{{ $package->max_people ?: $space->max_capacity }}</dd></div>
+                                            @if ($package->extra_person_price)
+                                                <div><dt>Persona extra</dt><dd>{{ money_format_decimal($package->extra_person_price) }} {{ $package->currency }}</dd></div>
+                                            @endif
+                                        </dl>
+                                        @if ($includedServices->isNotEmpty())
+                                            <div class="public-package-services">
+                                                @foreach ($includedServices as $service)
+                                                    <span><i class="{{ $packageIcon($service) }}"></i>{{ $service->pivot->custom_name ?: $service->name }}</span>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                        <div class="public-package-conditions">
+                                            <strong>Condiciones</strong>
+                                            <p>{{ $package->conditions ?: 'Sujeto a disponibilidad del espacio privado y validacion del adelanto.' }}</p>
+                                        </div>
+                                        <p class="public-package-confirmation"><i class="ti ti-qrcode"></i>La reserva se confirma despues de validar el adelanto por QR.</p>
+                                        <a class="btn btn-outline-dark w-100 mt-3" href="{{ route('public.accommodations.show', ['space' => $space, ...$packageBaseQuery, 'package_id' => $package->id]) }}#booking-panel">
+                                            Reservar este paquete
+                                        </a>
+                                    </div>
+                                </article>
+                            @endforeach
+                        </div>
+                    </section>
+                @endif
+
                 @if ($result['mode'] === 'shared' && $result['rooms']->isNotEmpty())
                     <section>
                         <h2>Habitaciones disponibles</h2>
@@ -96,13 +197,17 @@
                                 @php($roomCapacity = $room->max_capacity ?: $room->beds->sum('total_capacity'))
                                 @php($roomPrice = $roomQuote ? (float) $roomQuote['price_per_night'] : 0)
                                 @php($roomSubtotal = $roomQuote ? (float) $roomQuote['total_amount'] : 0)
-                                <label class="public-room-row" data-shared-room-option data-capacity="{{ $roomCapacity }}" data-price="{{ $roomPrice }}" data-subtotal="{{ $roomSubtotal }}">
+                                @php($canSellFullRoom = in_array($room->sale_mode, ['full_room', 'flexible'], true))
+                                @php($canSellBeds = in_array($room->sale_mode, ['bed_unit', 'flexible'], true))
+                                @php($availableBedUnits = $room->relationLoaded('availableBedUnits') ? $room->getRelation('availableBedUnits') : $room->bedUnits->where('status', 'active')->values())
+                                @php($showFullRoomOption = $canSellFullRoom && $roomQuote)
+                                <article class="public-room-row">
                                     <span>
                                         <strong>{{ $room->title ?: $room->name }}</strong>
                                         @if ($room->description)
                                             <p>{{ $room->description }}</p>
                                         @endif
-                                        @if ($roomQuote)
+                                        @if ($showFullRoomOption)
                                             <dl class="public-inline-summary">
                                                 <div><dt>Habitacion/noche</dt><dd>{{ money_format_decimal($roomQuote['price_per_night']) }} Bs</dd></div>
                                                 <div><dt>Total</dt><dd>{{ money_format_decimal($roomQuote['total_amount']) }} Bs</dd></div>
@@ -115,19 +220,46 @@
                                         @if ($result['rooms_available'] <= 2)
                                             <span class="public-soft-urgency"><i class="ti ti-clock"></i>Pocas habitaciones</span>
                                         @endif
-                                        @if ($sharedSelectionEnabled && $roomQuote)
-                                            <input class="form-check-input" type="checkbox" name="space_room_ids[]" value="{{ $room->id }}" data-shared-room-checkbox>
+                                        @if ($sharedSelectionEnabled && $showFullRoomOption)
+                                            <label class="public-room-check" data-shared-room-option data-selection-type="full_room" data-capacity="{{ $roomCapacity }}" data-price="{{ $roomPrice }}" data-subtotal="{{ $roomSubtotal }}">
+                                                <span>Completa</span>
+                                                <input class="form-check-input" type="checkbox" name="space_room_ids[]" value="{{ $room->id }}" data-shared-room-checkbox>
+                                            </label>
                                         @endif
                                     </span>
-                                </label>
+                                    @if ($canSellBeds && $availableBedUnits->isNotEmpty())
+                                        <div class="public-bed-unit-list">
+                                            @foreach ($availableBedUnits as $bedUnit)
+                                                @php($bedQuote = $bedUnitQuotes->get($bedUnit->id))
+                                                @php($bedCapacity = $bedQuote ? (int) $bedQuote['capacity'] : (int) ($bedUnit->bedType?->capacity ?: 1))
+                                                @php($bedPrice = $bedQuote ? (float) $bedQuote['price_per_night'] : 0)
+                                                @php($bedSubtotal = $bedQuote ? (float) $bedQuote['total_amount'] : 0)
+                                                <label class="public-bed-unit-row" data-shared-room-option data-selection-type="bed_unit" data-capacity="{{ $bedCapacity }}" data-price="{{ $bedPrice }}" data-subtotal="{{ $bedSubtotal }}">
+                                                    <span>
+                                                        <strong>{{ $bedUnit->label }}</strong>
+                                                        <small>{{ $bedUnit->bedType?->name ?: 'Cama' }} · {{ $bedCapacity }} persona{{ $bedCapacity === 1 ? '' : 's' }}</small>
+                                                    </span>
+                                                    @if ($bedQuote)
+                                                        <span>{{ money_format_decimal($bedQuote['price_per_night']) }} Bs/noche</span>
+                                                    @else
+                                                        <span>Sin tarifa</span>
+                                                    @endif
+                                                    @if ($sharedSelectionEnabled && $bedQuote)
+                                                        <input class="form-check-input" type="checkbox" name="room_bed_unit_ids[]" value="{{ $bedUnit->id }}" data-shared-room-checkbox>
+                                                    @endif
+                                                </label>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                </article>
                             @endforeach
                             @if ($sharedSelectionEnabled)
                                 <div class="public-live-quote" data-shared-room-summary>
-                                    <span data-shared-room-summary-count>Selecciona una o mas habitaciones</span>
+                                    <span data-shared-room-summary-count>Selecciona habitaciones o camas</span>
                                     <strong data-shared-room-summary-total>Bs 0.00</strong>
                                     <small data-shared-room-summary-detail>Capacidad seleccionada: 0 de {{ $selectedGuests }} persona{{ $selectedGuests === 1 ? '' : 's' }}</small>
                                     <button class="btn btn-dark w-100" type="submit" data-shared-room-submit disabled>
-                                        Reservar habitaciones seleccionadas
+                                        Reservar seleccion
                                     </button>
                                 </div>
                             @endif
@@ -152,13 +284,26 @@
                 @endif
             </article>
 
-            <aside class="public-booking-panel">
-                <h2>Calcula tu estadia</h2>
+            <aside class="public-booking-panel" id="booking-panel">
+                <h2>{{ $selectedPackage ? 'Calcula tu paquete' : 'Calcula tu estadia' }}</h2>
                 <p>{{ $result['availability_note'] }} Explora el total antes de registrarte.</p>
 
-                <form class="public-booking-form" action="{{ route('public.accommodations.show', ['space' => $space]) }}" method="get" data-price="{{ $result['price_from'] ?? 0 }}">
+                @if ($selectedPackage)
+                    <div class="public-live-quote mb-3">
+                        <span>Paquete seleccionado</span>
+                        <strong>{{ $selectedPackage->name }}</strong>
+                        <small>{{ $selectedPackage->price_display_text ?: money_format_decimal($selectedPackage->price).' '.$selectedPackage->currency.' por paquete / incluye '.$selectedPackage->included_people.' persona'.($selectedPackage->included_people === 1 ? '' : 's') }}</small>
+                        <p><strong>Condiciones:</strong> {{ $selectedPackage->conditions ?: 'Sujeto a disponibilidad del espacio privado y validacion del adelanto.' }}</p>
+                        <p>La reserva se confirma despues de validar el adelanto por QR.</p>
+                    </div>
+                @endif
+
+                <form class="public-booking-form" action="{{ route('public.accommodations.show', ['space' => $space]) }}" method="get" data-price="{{ $selectedPackage ? (float) $selectedPackage->price : ($result['price_from'] ?? 0) }}" data-booking-type="{{ $selectedPackage ? 'package' : 'normal' }}" data-included-people="{{ $selectedPackage?->included_people ?? 0 }}" data-extra-person-price="{{ $selectedPackage?->extra_person_price ?? 0 }}">
                     @if (filled($filters['destination'] ?? null))
                         <input type="hidden" name="destination" value="{{ $filters['destination'] }}">
+                    @endif
+                    @if ($selectedPackage)
+                        <input type="hidden" name="package_id" value="{{ $selectedPackage->id }}">
                     @endif
                     <div>
                         <label class="form-label" for="detail_check_in">Ingreso</label>
@@ -186,10 +331,18 @@
 
                 @if ($quote)
                     <div class="public-live-quote">
-                        <span>Total por {{ $quote['nights'] }} noche{{ $quote['nights'] === 1 ? '' : 's' }}</span>
+                        <span>{{ ($quote['booking_type'] ?? 'normal') === 'package' ? 'Total final del paquete' : 'Total por '.$quote['nights'].' noche'.($quote['nights'] === 1 ? '' : 's') }}</span>
                         <strong>{{ money_format_decimal($quote['total_amount']) }} Bs</strong>
-                        <small>{{ $result['mode'] === 'shared' ? 'Habitacion' : 'Espacio' }}: {{ money_format_decimal($quote['price_per_night']) }} Bs por noche</small>
+                        @if (($quote['booking_type'] ?? 'normal') === 'package')
+                            <small>Incluye {{ $quote['included_people'] }} persona{{ $quote['included_people'] === 1 ? '' : 's' }} · extra: {{ $quote['extra_people'] }}</small>
+                        @else
+                            <small>{{ $result['mode'] === 'shared' ? 'Habitacion' : 'Espacio' }}: {{ money_format_decimal($quote['price_per_night']) }} Bs por noche</small>
+                        @endif
                         <dl>
+                            @if (($quote['booking_type'] ?? 'normal') === 'package')
+                                <div><dt>Precio base paquete</dt><dd>{{ money_format_decimal($quote['package_price']) }} Bs</dd></div>
+                                <div><dt>Total personas extra</dt><dd>{{ money_format_decimal($quote['extra_people_total']) }} Bs</dd></div>
+                            @endif
                             <div><dt>Reserva con adelanto</dt><dd>{{ money_format_decimal($quote['advance_amount']) }} Bs</dd></div>
                             <div><dt>Saldo</dt><dd>{{ money_format_decimal($quote['balance_amount']) }} Bs</dd></div>
                         </dl>
@@ -205,11 +358,11 @@
 
                 @if (filled($filters['check_in'] ?? null) && filled($filters['check_out'] ?? null))
                     @if ($result['mode'] === 'private')
-                        <a class="btn btn-dark w-100" href="{{ route('public.reservations.start', ['space_id' => $space->id, ...$result['query']]) }}">
-                            Reservar con adelanto
+                        <a class="btn btn-dark w-100" href="{{ route('public.reservations.start', ['space_id' => $space->id, ...$reservationQuery]) }}">
+                            {{ $selectedPackage ? 'Reservar este paquete' : 'Reservar con adelanto' }}
                         </a>
                     @else
-                        <p class="public-payment-note">Elige una o mas habitaciones disponibles para continuar.</p>
+                        <p class="public-payment-note">Elige habitaciones completas o camas disponibles para continuar.</p>
                     @endif
                 @else
                     <a class="btn btn-dark w-100" href="{{ route('public.accommodations.search', ['space_id' => $space->id, ...$result['query']]) }}">
@@ -232,6 +385,9 @@
 
             if (form && estimate) {
                 const price = Number(form.dataset.price || 0);
+                const bookingType = form.dataset.bookingType || 'normal';
+                const includedPeople = Number(form.dataset.includedPeople || 0);
+                const extraPersonPrice = Number(form.dataset.extraPersonPrice || 0);
                 const checkIn = form.querySelector('[name="check_in"]');
                 const checkOut = form.querySelector('[name="check_out"]');
                 const guests = form.querySelector('[name="guests"]');
@@ -247,9 +403,12 @@
                     }
 
                     const nights = Math.round((end - start) / 86400000);
-                    const total = price * nights;
+                    const extraPeople = bookingType === 'package' ? Math.max(people - includedPeople, 0) : 0;
+                    const total = bookingType === 'package' ? price + (extraPeople * extraPersonPrice) : price * nights;
                     estimate.querySelector('strong').textContent = `${format(total)} Bs`;
-                    estimate.querySelector('small').textContent = `Total por ${nights} noche${nights === 1 ? '' : 's'} · ${people} persona${people === 1 ? '' : 's'} dentro de la capacidad · desde ${format(price)} Bs por noche`;
+                    estimate.querySelector('small').textContent = bookingType === 'package'
+                        ? `Precio cerrado del paquete · ${people} persona${people === 1 ? '' : 's'} · ${extraPeople} extra`
+                        : `Total por ${nights} noche${nights === 1 ? '' : 's'} · ${people} persona${people === 1 ? '' : 's'} dentro de la capacidad · desde ${format(price)} Bs por noche`;
                 };
 
                 [checkIn, checkOut, guests].forEach((input) => input.addEventListener('input', update));
@@ -273,12 +432,20 @@
                 const selected = checkboxes
                     .filter((checkbox) => checkbox.checked)
                     .map((checkbox) => checkbox.closest('[data-shared-room-option]'));
+                const selectedType = selected[0]?.dataset.selectionType || null;
                 const capacity = selected.reduce((sum, option) => sum + Number(option.dataset.capacity || 0), 0);
                 const amount = selected.reduce((sum, option) => sum + Number(option.dataset.subtotal || 0), 0);
                 const perNight = selected.reduce((sum, option) => sum + Number(option.dataset.price || 0), 0);
                 const valid = selected.length > 0 && capacity >= requiredGuests;
 
-                count.textContent = selected.length === 1 ? '1 habitacion seleccionada' : `${selected.length} habitaciones seleccionadas`;
+                checkboxes.forEach((checkbox) => {
+                    const option = checkbox.closest('[data-shared-room-option]');
+                    checkbox.disabled = selectedType && !checkbox.checked && option?.dataset.selectionType !== selectedType;
+                });
+
+                const selectionLabel = selectedType === 'bed_unit' ? 'cama' : 'habitacion';
+                const selectionPlural = selectedType === 'bed_unit' ? 'camas' : 'habitaciones';
+                count.textContent = selected.length === 1 ? `1 ${selectionLabel} seleccionada` : `${selected.length} ${selectionPlural} seleccionadas`;
                 total.textContent = `Bs ${format(amount)}`;
                 detail.textContent = `Capacidad seleccionada: ${capacity} de ${requiredGuests} persona${requiredGuests === 1 ? '' : 's'} · Bs ${format(perNight)} por noche`;
                 submit.disabled = !valid;

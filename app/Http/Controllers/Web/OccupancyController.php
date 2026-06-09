@@ -20,13 +20,21 @@ class OccupancyController extends Controller
         private readonly OccupancyValidationService $validation,
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         Gate::authorize('occupancy.view');
 
+        $filters = $request->only([
+            'week_start',
+            'type',
+            'space_id',
+            'status',
+        ]);
+
         return view('occupancy.index', [
             'spaces' => $this->grid->spacesForFilters($this->companyId()),
-            'initialWeek' => $this->grid->weekData($this->companyId(), []),
+            'initialWeek' => $this->grid->weekData($this->companyId(), $filters),
+            'filters' => $filters,
         ]);
     }
 
@@ -46,13 +54,14 @@ class OccupancyController extends Controller
     {
         $companyId = $this->companyId();
         $data = $request->validated();
-        [$space, $room] = $this->validation->validatePayload($data, $companyId);
+        [$space, $room, $bedUnit] = $this->validation->validatePayload($data, $companyId);
 
         $block = OccupancyBlock::query()->create([
             ...$data,
             'company_id' => $companyId,
             'space_id' => $space->id,
             'space_room_id' => $room?->id,
+            'room_bed_unit_id' => $bedUnit?->id,
             'status' => 'active',
             'created_by' => $request->user()?->id,
         ]);
@@ -70,13 +79,14 @@ class OccupancyController extends Controller
 
         $companyId = $this->companyId();
         $data = $request->validated();
-        [$space, $room] = $this->validation->validatePayload($data, $companyId, $occupancyBlock);
+        [$space, $room, $bedUnit] = $this->validation->validatePayload($data, $companyId, $occupancyBlock);
 
         $occupancyBlock->update([
             ...$data,
             'company_id' => $companyId,
             'space_id' => $space->id,
             'space_room_id' => $room?->id,
+            'room_bed_unit_id' => $bedUnit?->id,
             'status' => $data['status'] ?? 'active',
         ]);
 

@@ -27,4 +27,30 @@
     <dd class="col-sm-8">{{ $company->report_footer ?: '-' }}</dd>
     <dt class="col-sm-4">Estado</dt>
     <dd class="col-sm-8"><span class="badge text-bg-{{ $company->is_active ? 'success' : 'secondary' }}">{{ $company->is_active ? 'Activo' : 'Inactivo' }}</span></dd>
+    @if (\App\Support\CompanyContext::isGlobalAdmin(auth()->user()))
+        <dt class="col-sm-4">Estado online</dt>
+        <dd class="col-sm-8">
+            <span class="badge text-bg-{{ $company->is_online_enabled_by_admin ? 'success' : 'secondary' }}">
+                {{ $company->is_online_enabled_by_admin ? 'Habilitada online' : 'No habilitada online' }}
+            </span>
+        </dd>
+    @endif
 </dl>
+
+@if (\App\Support\CompanyContext::isGlobalAdmin(auth()->user()))
+    <div class="d-flex justify-content-end mt-4">
+        @if ($company->is_online_enabled_by_admin)
+            <form method="POST" action="{{ route('admin.companies.disable-online', $company) }}">
+                @csrf
+                @method('PATCH')
+                <button class="btn btn-outline-warning" type="submit">Deshabilitar online</button>
+            </form>
+        @else
+            <form method="POST" action="{{ route('admin.companies.enable-online', $company) }}">
+                @csrf
+                @method('PATCH')
+                <button class="btn btn-outline-success" type="submit">Habilitar online</button>
+            </form>
+        @endif
+    </div>
+@endif
