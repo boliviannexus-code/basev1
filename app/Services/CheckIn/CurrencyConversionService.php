@@ -15,7 +15,7 @@ class CurrencyConversionService
         $priceUsd = filled($stay['price_per_night_usd'] ?? null) ? (float) $stay['price_per_night_usd'] : null;
         $exchangeRate ??= $companyId ? ExchangeRate::currentRateForCompany($companyId) : null;
 
-        if ($currency === 'BOB' && $priceBob === null) {
+        if ($currency === 'BOB' && $priceBob === null && $priceUsd === null) {
             throw ValidationException::withMessages(['stays' => 'Ingresa precio por noche en BOB.']);
         }
 

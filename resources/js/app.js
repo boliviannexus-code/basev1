@@ -2455,6 +2455,7 @@ function initOccupancyWeekGrid() {
     const gridTarget = root.querySelector('[data-occupancy-grid]');
     const summaryTarget = root.querySelector('[data-occupancy-summary]');
     const filtersForm = root.querySelector('[data-occupancy-filters]');
+    const viewInput = root.querySelector('[data-occupancy-view-input]');
     const weekPicker = root.querySelector('[data-occupancy-week-picker]');
     const modalElement = root.querySelector('[data-occupancy-modal]');
     const actionsPopover = root.querySelector('[data-occupancy-actions-popover]');
@@ -2556,6 +2557,17 @@ function initOccupancyWeekGrid() {
     `;
 
     const emptyOccupancyCell = () => '<td class="occupancy-cell-empty"></td>';
+    const occupancyMergeKey = (cell = {}) => {
+        if (cell.stay_id) {
+            return `stay:${cell.stay_id}`;
+        }
+
+        if (cell.reservation_id) {
+            return `reservation:${cell.reservation_id}`;
+        }
+
+        return '';
+    };
 
     const rowCells = (row) => {
         const cells = row.cells ?? [];
@@ -2579,8 +2591,10 @@ function initOccupancyWeekGrid() {
                 continue;
             }
 
-            if (cell.stay_id) {
-                while (cells[index + colspan]?.stay_id && String(cells[index + colspan].stay_id) === String(cell.stay_id)) {
+            const mergeKey = occupancyMergeKey(cell);
+
+            if (mergeKey) {
+                while (occupancyMergeKey(cells[index + colspan]) === mergeKey) {
                     colspan += 1;
                 }
             }
@@ -2676,12 +2690,12 @@ function initOccupancyWeekGrid() {
             ? rows.map((row) => {
                 if (row.type === 'shared_space_group') {
                     return `
-                        <tr class="occupancy-space-group">
+                       <!-- <tr class="occupancy-space-group">
                             <td class="occupancy-resource-cell">
                                 <i class="ti ti-building me-1"></i>${escapeHtml(row.label)}
                             </td>
                             ${dates.map(() => '<td></td>').join('')}
-                        </tr>
+                        </tr>-->
                     `;
                 }
 
@@ -2853,7 +2867,23 @@ function initOccupancyWeekGrid() {
     };
     const openCheckOutModal = (spaceId, date, roomId = '', bedUnitId = '') => openOccupancyActionModal('Check-out', root.dataset.checkOutModalUrl, spaceId, roomId, date, bedUnitId);
     const openCheckInSummaryModal = (spaceId, date, roomId = '', bedUnitId = '') => openOccupancyActionModal('Ver check-in', root.dataset.checkInSummaryModalUrl, spaceId, roomId, date, bedUnitId, 'xl');
-    const openReservationModal = (spaceId, date, roomId = '', bedUnitId = '') => openOccupancyActionModal('Reserva', root.dataset.reservationModalUrl, spaceId, roomId, date, bedUnitId);
+    const openReservationModal = (spaceId, date, roomId = '', bedUnitId = '') => {
+        const params = new URLSearchParams({
+            check_in_date: date,
+            space_id: spaceId,
+            resource_type: bedUnitId ? 'shared_bed_unit' : (roomId ? 'shared_room' : 'private_space'),
+        });
+
+        if (roomId) {
+            params.set('space_room_id', roomId);
+        }
+
+        if (bedUnitId) {
+            params.set('room_bed_unit_id', bedUnitId);
+        }
+
+        window.location.href = `${root.dataset.reservationCreateUrl}?${params.toString()}`;
+    };
     const openExtraChargeModal = (spaceId, date, roomId = '', bedUnitId = '') => openOccupancyActionModal('Cargo extra', root.dataset.extraChargeModalUrl, spaceId, roomId, date, bedUnitId);
     const openStayPaymentModal = async (stayId) => {
         if (!stayId || !root.dataset.stayPaymentCreateUrlTemplate) {
@@ -2879,13 +2909,38 @@ function initOccupancyWeekGrid() {
 
         actionModalBody.innerHTML = await response.text();
     };
+    const openReservationPaymentModal = async (reservationGroupId) => {
+        if (!reservationGroupId || !root.dataset.reservationPaymentCreateUrlTemplate) {
+            throw new Error('No se encontro la reserva para cobrar.');
+        }
+
+        actionModalTitle.textContent = 'Registrar adelanto';
+        actionModalDialog?.classList.toggle('modal-xl', false);
+        actionModalDialog?.classList.toggle('modal-lg', true);
+        actionModalBody.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
+        actionModal.show();
+
+        const response = await fetch(routeFor(root.dataset.reservationPaymentCreateUrlTemplate, reservationGroupId), {
+            headers: {
+                Accept: 'text/html',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('No se pudo cargar el formulario de adelanto.');
+        }
+
+        actionModalBody.innerHTML = await response.text();
+    };
     const openBlockModal = (spaceId, date, roomId = '', bedUnitId = '') => openEditBlockModal(spaceId, roomId, date, bedUnitId);
 
     const openActionFromMenu = (button) => {
-        const { occupancyAction, spaceId, roomId, roomBedUnitId, date, stayId } = button.dataset;
+        const { occupancyAction, spaceId, roomId, roomBedUnitId, date, stayId, reservationGroupId } = button.dataset;
         const handlers = {
             view_check_in: () => openCheckInSummaryModal(spaceId, date, roomId, roomBedUnitId),
             collect_stay_payment: () => openStayPaymentModal(stayId),
+            collect_reservation_payment: () => openReservationPaymentModal(reservationGroupId),
             check_in: () => openCheckInModal(spaceId, date, roomId, roomBedUnitId),
             check_out: () => openCheckOutModal(spaceId, date, roomId, roomBedUnitId),
             reservation: () => openReservationModal(spaceId, date, roomId, roomBedUnitId),
@@ -3077,6 +3132,56 @@ function initOccupancyWeekGrid() {
     weekPicker.addEventListener('change', () => loadWeekData(weekPicker.value).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
     filtersForm.addEventListener('change', () => loadWeekData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
     filtersForm.addEventListener('reset', () => window.setTimeout(() => loadWeekData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })), 0));
+
+    const occupancyViewStorageKey = 'occupancy-last-view';
+    const getStoredOccupancyView = () => {
+        try {
+            return window.localStorage?.getItem(occupancyViewStorageKey) ?? null;
+        } catch {
+            return null;
+        }
+    };
+    const setStoredOccupancyView = (value) => {
+        try {
+            window.localStorage?.setItem(occupancyViewStorageKey, value);
+        } catch {
+            // ignore storage errors
+        }
+    };
+    const activateOccupancyView = (view) => {
+        if (!viewInput) {
+            return;
+        }
+
+        const selectedTab = Array.from(root.querySelectorAll('[data-occupancy-view-tab]')).find((item) => item.dataset.view === view);
+
+        if (!selectedTab) {
+            return;
+        }
+
+        viewInput.value = view;
+        root.querySelectorAll('[data-occupancy-view-tab]').forEach((item) => item.classList.toggle('active', item === selectedTab));
+    };
+
+    const storedOccupancyView = getStoredOccupancyView();
+
+    if (storedOccupancyView && storedOccupancyView !== viewInput.value) {
+        activateOccupancyView(storedOccupancyView);
+        loadWeekData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+    }
+
+    root.querySelectorAll('[data-occupancy-view-tab]').forEach((tab) => {
+        tab.addEventListener('click', () => {
+            if (!viewInput || viewInput.value === tab.dataset.view) {
+                return;
+            }
+
+            viewInput.value = tab.dataset.view ?? 'private';
+            setStoredOccupancyView(viewInput.value);
+            root.querySelectorAll('[data-occupancy-view-tab]').forEach((item) => item.classList.toggle('active', item === tab));
+            loadWeekData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+        });
+    });
     spaceSelect.addEventListener('change', () => fillRooms(spaceSelect.value));
     form.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -3102,6 +3207,9 @@ function initAvailabilityGrid() {
     const statusModalElement = root.querySelector('[data-availability-status-modal]');
     const statusForm = root.querySelector('[data-availability-status-form]');
     const statusModal = statusModalElement ? bootstrap.Modal.getOrCreateInstance(statusModalElement) : null;
+    const bulkModalElement = root.querySelector('[data-availability-bulk-modal]');
+    const bulkForm = root.querySelector('[data-availability-bulk-form]');
+    const bulkModal = bulkModalElement ? bootstrap.Modal.getOrCreateInstance(bulkModalElement) : null;
     const previousButton = root.querySelector('[data-availability-prev]');
     const spaces = JSON.parse(root.dataset.spaces ?? '[]');
     const canManage = root.dataset.canManage === '1';
@@ -3129,6 +3237,7 @@ function initAvailabilityGrid() {
     const findRoom = (space, roomId) => (space?.rooms ?? []).find((room) => String(room.id) === String(roomId));
     const statusField = (name) => statusForm.querySelector(`[data-availability-status-field="${name}"]`);
     const statusLabel = (name) => statusForm.querySelector(`[data-availability-status-label="${name}"]`);
+    const bulkField = (name) => bulkForm?.querySelector(`[data-availability-bulk-field="${name}"]`);
 
     const renderSummary = () => {
         if (!summaryTarget) {
@@ -3203,7 +3312,10 @@ function initAvailabilityGrid() {
                                 data-resource-type="${escapeHtml(row.type)}"
                                 data-status="${escapeHtml(cell.status)}"
                                 data-source="${escapeHtml(cell.source ?? '')}"
+                                data-price="${escapeHtml(cell.price_display ?? '')}"
+                                data-public-online="${cell.is_public_online ? '1' : '0'}"
                                 data-availability-status-id="${escapeHtml(cell.availability_status_id ?? '')}"
+                                data-availability-day-id="${escapeHtml(cell.availability_day_id ?? '')}"
                                 data-notes="${escapeHtml(cell.notes ?? '')}"
                                 data-space-label="${escapeHtml(row.space_label ?? row.label)}"
                                 data-room-label="${escapeHtml(row.type === 'shared_room' ? row.label : (row.room_label ?? ''))}"
@@ -3219,6 +3331,11 @@ function initAvailabilityGrid() {
                                     <span
                                         class="availability-status availability-status-action"
                                     >${escapeHtml(cell.guest_name ?? cell.short_label ?? cell.label)}</span>
+                                    ${cell.price_display ? `<strong class="availability-price">Bs ${escapeHtml(cell.price_display)}</strong>` : '<strong class="availability-price availability-price-empty">Sin precio</strong>'}
+                                    <small class="${cell.is_public_online ? 'text-success' : 'text-warning'}">
+                                        <i class="${cell.is_public_online ? 'ti ti-world-check' : 'ti ti-world-off'}"></i>
+                                        ${cell.is_public_online ? 'Publico' : 'Interno'}
+                                    </small>
                                     ${cell.source ? `<small>${escapeHtml(cell.source)}</small>` : ''}
                                 </button>
                             </td>
@@ -3267,6 +3384,8 @@ function initAvailabilityGrid() {
         statusField('date').value = cell.dataset.date ?? '';
         statusField('availability_status_id').value = cell.dataset.availabilityStatusId ?? '';
         statusField('status').value = cell.dataset.status ?? 'available';
+        statusField('price').value = cell.dataset.price ?? '';
+        statusField('is_public_online').value = cell.dataset.publicOnline ?? '1';
         statusField('notes').value = cell.dataset.notes ?? '';
         statusLabel('space').textContent = cell.dataset.spaceLabel ?? '-';
         statusLabel('room').textContent = cell.dataset.roomLabel || '-';
@@ -3287,6 +3406,8 @@ function initAvailabilityGrid() {
         body.append('room_bed_unit_id', statusField('room_bed_unit_id').value);
         body.append('date', statusField('date').value);
         body.append('status', statusField('status').value);
+        body.append('price', statusField('price').value);
+        body.append('is_public_online', statusField('is_public_online').value);
         body.append('notes', statusField('notes').value);
 
         if (statusId) {
@@ -3320,6 +3441,115 @@ function initAvailabilityGrid() {
         toast.fire({ icon: 'success', title: payload.message ?? 'Estado guardado.' });
     };
 
+    const populateBulkRooms = () => {
+        if (!bulkForm) {
+            return;
+        }
+
+        const space = findSpace(bulkField('space_id')?.value);
+        const roomSelect = bulkField('space_room_id');
+        const bedUnitSelect = bulkField('room_bed_unit_id');
+
+        if (!roomSelect || !bedUnitSelect) {
+            return;
+        }
+
+        roomSelect.innerHTML = '<option value="">No aplica</option>';
+        roomSelect.disabled = true;
+        bedUnitSelect.innerHTML = '<option value="">Toda la habitación</option>';
+        bedUnitSelect.disabled = true;
+
+        if (!space || space.mode !== 'compartido') {
+            return;
+        }
+
+        roomSelect.disabled = false;
+        roomSelect.innerHTML = [
+            '<option value="">Selecciona habitación</option>',
+            ...(space.rooms ?? []).map((room) => `<option value="${escapeHtml(room.id)}">${escapeHtml(room.name)}</option>`),
+        ].join('');
+    };
+
+    const populateBulkBedUnits = () => {
+        if (!bulkForm) {
+            return;
+        }
+
+        const space = findSpace(bulkField('space_id')?.value);
+        const room = findRoom(space, bulkField('space_room_id')?.value);
+        const bedUnitSelect = bulkField('room_bed_unit_id');
+
+        if (!bedUnitSelect) {
+            return;
+        }
+
+        bedUnitSelect.innerHTML = '<option value="">Toda la habitación</option>';
+        bedUnitSelect.disabled = true;
+
+        if (!room || (room.bed_units ?? []).length === 0) {
+            return;
+        }
+
+        bedUnitSelect.disabled = false;
+        bedUnitSelect.innerHTML = [
+            '<option value="">Toda la habitación</option>',
+            ...(room.bed_units ?? []).map((bedUnit) => `<option value="${escapeHtml(bedUnit.id)}">${escapeHtml(bedUnit.name)}</option>`),
+        ].join('');
+    };
+
+    const openBulkModal = () => {
+        if (!canManage || !bulkModal || !bulkForm) {
+            return;
+        }
+
+        clearFormErrors(bulkForm);
+        bulkForm.reset();
+        populateBulkRooms();
+        populateBulkBedUnits();
+
+        const minDate = gridData.current_period ?? localTodayString();
+        const startDate = gridData.week_start ?? minDate;
+        const endDate = gridData.week_end ?? startDate;
+
+        bulkField('start_date').min = minDate;
+        bulkField('end_date').min = minDate;
+        bulkField('start_date').value = startDate;
+        bulkField('end_date').value = endDate;
+        bulkModal.show();
+    };
+
+    const saveBulkUpdate = async () => {
+        if (!bulkForm) {
+            return;
+        }
+
+        const response = await fetch(root.dataset.bulkUpdateUrl, {
+            method: 'POST',
+            body: new FormData(bulkForm),
+            headers: {
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const payload = await response.json();
+
+        if (response.status === 422) {
+            showFormErrors(bulkForm, payload.errors ?? {});
+            Swal.fire({ icon: 'error', title: 'Validacion', text: payload.message ?? 'Revisa los datos ingresados.' });
+
+            return;
+        }
+
+        if (!response.ok || payload.success === false) {
+            throw new Error(payload.message ?? 'No se pudieron aplicar los cambios.');
+        }
+
+        bulkModal?.hide();
+        await loadGridData();
+        toast.fire({ icon: 'success', title: payload.message ?? 'Cambios aplicados.' });
+    };
+
     gridTarget.addEventListener('click', (event) => {
         const action = event.target.closest('[data-availability-cell-action]');
 
@@ -3346,6 +3576,30 @@ function initAvailabilityGrid() {
     statusForm.addEventListener('submit', (event) => {
         event.preventDefault();
         saveStatus().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+    });
+    root.querySelector('[data-availability-bulk-open]')?.addEventListener('click', openBulkModal);
+    bulkField('space_id')?.addEventListener('change', () => {
+        populateBulkRooms();
+        populateBulkBedUnits();
+    });
+    bulkField('space_room_id')?.addEventListener('change', populateBulkBedUnits);
+    bulkField('start_date')?.addEventListener('change', () => {
+        const startDate = bulkField('start_date')?.value;
+        const endDateField = bulkField('end_date');
+
+        if (!startDate || !endDateField) {
+            return;
+        }
+
+        endDateField.min = startDate;
+
+        if (endDateField.value && endDateField.value < startDate) {
+            endDateField.value = startDate;
+        }
+    });
+    bulkForm?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        saveBulkUpdate().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
     });
 
     renderGrid();
@@ -3408,6 +3662,136 @@ function setCountryAutocompleteValue(select, country) {
 
     select.innerHTML = `<option value="${escapeHtml(country.value)}" selected>${escapeHtml(country.text)}</option>`;
     select.value = String(country.value);
+}
+
+function initPublicGalleryLightbox() {
+    const triggers = document.querySelectorAll('[data-public-gallery-zoom]');
+
+    if (triggers.length === 0 || document.querySelector('[data-public-photo-lightbox]')) {
+        return;
+    }
+
+    const lightbox = document.createElement('div');
+    lightbox.className = 'public-photo-lightbox';
+    lightbox.dataset.publicPhotoLightbox = '1';
+    lightbox.innerHTML = `
+        <button class="public-photo-lightbox-close" type="button" aria-label="Cerrar fotografia" data-public-photo-lightbox-close>
+            <i class="ti ti-x"></i>
+        </button>
+        <button class="public-photo-lightbox-nav is-prev" type="button" aria-label="Foto anterior" data-public-photo-lightbox-prev>
+            <i class="ti ti-chevron-left"></i>
+        </button>
+        <figure>
+            <img src="" alt="">
+            <figcaption data-public-photo-lightbox-counter></figcaption>
+        </figure>
+        <button class="public-photo-lightbox-nav is-next" type="button" aria-label="Foto siguiente" data-public-photo-lightbox-next>
+            <i class="ti ti-chevron-right"></i>
+        </button>
+    `;
+    document.body.appendChild(lightbox);
+
+    const image = lightbox.querySelector('img');
+    const closeButton = lightbox.querySelector('[data-public-photo-lightbox-close]');
+    const previousButton = lightbox.querySelector('[data-public-photo-lightbox-prev]');
+    const nextButton = lightbox.querySelector('[data-public-photo-lightbox-next]');
+    const counter = lightbox.querySelector('[data-public-photo-lightbox-counter]');
+    let currentGallery = [];
+    let currentIndex = 0;
+
+    const triggerPayload = (trigger) => ({
+        src: trigger.dataset.src ?? trigger.querySelector('img')?.src ?? '',
+        alt: trigger.dataset.alt ?? trigger.querySelector('img')?.alt ?? '',
+    });
+
+    const galleryFor = (trigger) => {
+        const group = trigger.closest('.public-gallery, .public-package-modal-gallery');
+        const items = Array.from(group?.querySelectorAll('[data-public-gallery-zoom]') ?? [trigger])
+            .map(triggerPayload)
+            .filter((item) => item.src);
+
+        return items.length > 0 ? items : [triggerPayload(trigger)];
+    };
+
+    const render = () => {
+        const item = currentGallery[currentIndex];
+
+        if (!item) {
+            return;
+        }
+
+        image.src = item.src;
+        image.alt = item.alt;
+        const hasMultiple = currentGallery.length > 1;
+
+        previousButton?.classList.toggle('d-none', !hasMultiple);
+        nextButton?.classList.toggle('d-none', !hasMultiple);
+
+        if (counter) {
+            counter.textContent = hasMultiple ? `${currentIndex + 1} / ${currentGallery.length}` : '';
+        }
+    };
+
+    const move = (direction) => {
+        if (currentGallery.length <= 1) {
+            return;
+        }
+
+        currentIndex = (currentIndex + direction + currentGallery.length) % currentGallery.length;
+        render();
+    };
+
+    const close = () => {
+        lightbox.classList.remove('is-open');
+        document.body.classList.remove('overflow-hidden');
+        image.removeAttribute('src');
+        image.alt = '';
+        currentGallery = [];
+        currentIndex = 0;
+    };
+
+    triggers.forEach((trigger) => {
+        trigger.addEventListener('click', () => {
+            currentGallery = galleryFor(trigger);
+            const selected = triggerPayload(trigger);
+            currentIndex = currentGallery.findIndex((item) => item.src === selected.src);
+            currentIndex = currentIndex >= 0 ? currentIndex : 0;
+            render();
+            lightbox.classList.add('is-open');
+            document.body.classList.add('overflow-hidden');
+            closeButton?.focus();
+        });
+    });
+
+    previousButton?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        move(-1);
+    });
+
+    nextButton?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        move(1);
+    });
+
+    lightbox.addEventListener('click', (event) => {
+        if (event.target === lightbox || event.target.closest('[data-public-photo-lightbox-close]')) {
+            close();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && lightbox.classList.contains('is-open')) {
+            close();
+        }
+
+        if (event.key === 'ArrowLeft' && lightbox.classList.contains('is-open')) {
+            move(-1);
+        }
+
+        if (event.key === 'ArrowRight' && lightbox.classList.contains('is-open')) {
+            move(1);
+        }
+    });
 }
 
 function localTodayString() {
@@ -4454,6 +4838,7 @@ function initStayPaymentForms(scope = document) {
         const checkoutButton = form.querySelector('[data-stay-payment-checkout-button]');
         const canCheckOutToday = form.dataset.canCheckOutToday === '1';
         const canSubmitPayment = form.dataset.canSubmitPayment === '1';
+        const checkoutBalance = Number(form.dataset.checkoutBalance || 0);
         const currency = balanceLabel?.textContent.trim().split(' ').pop() || 'BOB';
 
         const selectedBalance = () => Number(scopeSelect?.selectedOptions[0]?.dataset.balance || 0);
@@ -4475,12 +4860,18 @@ function initStayPaymentForms(scope = document) {
 
             if (checkoutButton) {
                 const amountValue = Number(amount?.value || 0);
-                checkoutButton.disabled = !canSubmitPayment || !canCheckOutToday || balance <= 0 || amountValue < balance;
+                checkoutButton.disabled = !canSubmitPayment || !canCheckOutToday || checkoutBalance <= 0 || amountValue < checkoutBalance;
             }
         };
 
         scopeSelect?.addEventListener('change', () => sync(true));
         amount?.addEventListener('input', () => sync());
+        checkoutButton?.addEventListener('click', () => {
+            if (scopeSelect) {
+                scopeSelect.value = 'stay';
+                sync(true);
+            }
+        });
         sync();
 
         form.dataset.stayPaymentInitialized = '1';
@@ -4538,6 +4929,7 @@ initCharacterCounters();
 initSpaceLocationMaps();
 initPublicAccommodationSearch();
 initPublicCompanyMaps();
+initPublicGalleryLightbox();
 initSharedRoomSort();
 initPhotoUploadPreviews();
 initPackageIconSelectors();

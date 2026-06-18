@@ -28,7 +28,8 @@
             'price_per_night_usd' => '',
             'breakfast_included' => false,
         ];
-        $stays = is_array($oldStays) && count($oldStays) > 0 ? $oldStays : [$initialStay];
+        $initialStays = $initial['stays'] ?? [$initialStay];
+        $stays = is_array($oldStays) && count($oldStays) > 0 ? $oldStays : $initialStays;
         $statusLabels = [
             'available' => 'Disponible',
             'reserved' => 'Reservado',
@@ -49,6 +50,10 @@
         novalidate
     >
         @csrf
+        @if (! empty($initial['reservation_group_id']))
+            <input type="hidden" name="reservation_group_id" value="{{ $initial['reservation_group_id'] }}">
+            <input type="hidden" name="confirm_reserved_conversion" value="1">
+        @endif
 
         <div class="row g-3">
             <div class="col-xl-8">
@@ -59,14 +64,14 @@
                                 <label class="form-label" for="document_type">Tipo documento</label>
                                 <select class="form-select @error('main_guest.document_type') is-invalid @enderror @error('document_type') is-invalid @enderror" id="document_type" name="document_type" required data-guest-document-type>
                                     @foreach ($documentTypes as $value => $label)
-                                        <option value="{{ $value }}" @selected(old('main_guest.document_type', old('document_type', 'passport')) === $value)>{{ $label }}</option>
+                                        <option value="{{ $value }}" @selected(old('main_guest.document_type', old('document_type', $initial['main_guest']['document_type'] ?? 'passport')) === $value)>{{ $label }}</option>
                                     @endforeach
                                 </select>
                                 <div class="invalid-feedback">{{ $errors->first('main_guest.document_type') ?: $errors->first('document_type') }}</div>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label" for="document_number">Numero documento</label>
-                                <input class="form-control @error('main_guest.document_number') is-invalid @enderror @error('document_number') is-invalid @enderror" id="document_number" name="document_number" value="{{ old('main_guest.document_number', old('document_number')) }}" autocomplete="off" data-guest-document-number>
+                                <input class="form-control @error('main_guest.document_number') is-invalid @enderror @error('document_number') is-invalid @enderror" id="document_number" name="document_number" value="{{ old('main_guest.document_number', old('document_number', $initial['main_guest']['document_number'] ?? '')) }}" autocomplete="off" data-guest-document-number>
                                 <div class="invalid-feedback">{{ $errors->first('main_guest.document_number') ?: $errors->first('document_number') }}</div>
                                 <div class="form-hint d-none" data-guest-lookup-message></div>
                             </div>
@@ -81,7 +86,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label" for="birth_date">Fecha de nacimiento</label>
-                                <input class="form-control @error('main_guest.birth_date') is-invalid @enderror @error('birth_date') is-invalid @enderror" id="birth_date" name="birth_date" type="date" max="{{ today()->toDateString() }}" value="{{ old('main_guest.birth_date', old('birth_date', today()->toDateString())) }}" autocomplete="off" data-main-guest-birth-date>
+                                <input class="form-control @error('main_guest.birth_date') is-invalid @enderror @error('birth_date') is-invalid @enderror" id="birth_date" name="birth_date" type="date" max="{{ today()->toDateString() }}" value="{{ old('main_guest.birth_date', old('birth_date', $initial['main_guest']['birth_date'] ?? today()->toDateString())) }}" autocomplete="off" data-main-guest-birth-date>
                                 <div class="invalid-feedback">{{ $errors->first('main_guest.birth_date') ?: $errors->first('birth_date') }}</div>
                             </div>
                             <div class="col-md-1">
@@ -90,12 +95,12 @@
                             </div>
                             <div class="col-md-5">
                                 <label class="form-label" for="first_name">Nombre</label>
-                                <input class="form-control @error('main_guest.first_name') is-invalid @enderror @error('first_name') is-invalid @enderror" id="first_name" name="first_name" value="{{ old('main_guest.first_name', old('first_name')) }}" autocomplete="off" required data-main-guest-name>
+                                <input class="form-control @error('main_guest.first_name') is-invalid @enderror @error('first_name') is-invalid @enderror" id="first_name" name="first_name" value="{{ old('main_guest.first_name', old('first_name', $initial['main_guest']['first_name'] ?? '')) }}" autocomplete="off" required data-main-guest-name>
                                 <div class="invalid-feedback">{{ $errors->first('main_guest.first_name') ?: $errors->first('first_name') }}</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" for="last_name">Apellido</label>
-                                <input class="form-control @error('main_guest.last_name') is-invalid @enderror @error('last_name') is-invalid @enderror" id="last_name" name="last_name" value="{{ old('main_guest.last_name', old('last_name')) }}" autocomplete="off" required data-main-guest-last-name>
+                                <input class="form-control @error('main_guest.last_name') is-invalid @enderror @error('last_name') is-invalid @enderror" id="last_name" name="last_name" value="{{ old('main_guest.last_name', old('last_name', $initial['main_guest']['last_name'] ?? '')) }}" autocomplete="off" required data-main-guest-last-name>
                                 <div class="invalid-feedback">{{ $errors->first('main_guest.last_name') ?: $errors->first('last_name') }}</div>
                             </div>
                         </div>
@@ -158,7 +163,7 @@
                             <label class="form-label" for="reservation_channel_id">Canal de reserva</label>
                             <select class="form-select @error('reservation_channel_id') is-invalid @enderror" id="reservation_channel_id" name="reservation_channel_id" data-tom-select data-placeholder="Seleccionar canal">
                                 @foreach ($reservationChannels as $channel)
-                                    <option value="{{ $channel->id }}" @selected((string) old('reservation_channel_id', $defaultReservationChannel?->id) === (string) $channel->id)>{{ $channel->name }}</option>
+                                    <option value="{{ $channel->id }}" @selected((string) old('reservation_channel_id', $initial['reservation_channel_id'] ?? $defaultReservationChannel?->id) === (string) $channel->id)>{{ $channel->name }}</option>
                                 @endforeach
                             </select>
                             <div class="invalid-feedback">{{ $errors->first('reservation_channel_id') }}</div>
@@ -167,7 +172,7 @@
                         <div class="row g-3">
                             <div class="col-12">
                                 <label class="form-label" for="total_people">Cantidad total de personas</label>
-                                <input class="form-control @error('total_people') is-invalid @enderror" id="total_people" name="total_people" type="number" min="1" value="{{ old('total_people', 1) }}" autocomplete="off" required data-check-in-total-people>
+                                <input class="form-control @error('total_people') is-invalid @enderror" id="total_people" name="total_people" type="number" min="1" value="{{ old('total_people', $initial['total_people'] ?? 1) }}" autocomplete="off" required data-check-in-total-people>
                                 <div class="invalid-feedback">{{ $errors->first('total_people') }}</div>
                             </div>
                             <div class="col-md-6">
@@ -184,7 +189,7 @@
 
                         <div class="mt-3">
                             <label class="form-label" for="notes">Notas</label>
-                            <textarea class="form-control @error('notes') is-invalid @enderror" id="notes" name="notes" rows="4" autocomplete="off">{{ old('notes') }}</textarea>
+                            <textarea class="form-control @error('notes') is-invalid @enderror" id="notes" name="notes" rows="4" autocomplete="off">{{ old('notes', $initial['notes'] ?? '') }}</textarea>
                             <div class="invalid-feedback">{{ $errors->first('notes') }}</div>
                         </div>
 

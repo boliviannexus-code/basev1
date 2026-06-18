@@ -3,6 +3,7 @@
 namespace Tests\Feature\SpaceCash;
 
 use App\Models\Company;
+use App\Models\ExtraChargeCategory;
 use App\Models\SpaceCashRegister;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -83,6 +84,38 @@ class OpenSpaceCashRegisterTest extends TestCase
         ]);
     }
 
+    public function test_user_can_register_space_cash_expense_with_extra_charge_category(): void
+    {
+        $user = $this->userWithSpaceCashAccess();
+        $category = $this->expenseCategory($user->company_id);
+        $cashRegister = SpaceCashRegister::factory()->create([
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'opening_amount' => 100,
+            'status' => 'open',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('space-cash.expenses.store'), [
+                'extra_charge_category_id' => $category->id,
+                'responsible_name' => 'Maria Caja',
+                'detail' => 'Lavado de sabanas',
+                'amount' => 25,
+            ])
+            ->assertRedirect(route('space-cash.index'));
+
+        $this->assertDatabaseHas('space_cash_expenses', [
+            'company_id' => $user->company_id,
+            'space_cash_register_id' => $cashRegister->id,
+            'user_id' => $user->id,
+            'extra_charge_category_id' => $category->id,
+            'responsible_name' => 'Maria Caja',
+            'detail' => 'Lavado de sabanas',
+            'amount' => '25.00',
+        ]);
+    }
+
     private function userWithSpaceCashAccess(?int $companyId = null): User
     {
         Permission::findOrCreate('space-cash.access');
@@ -92,5 +125,17 @@ class OpenSpaceCashRegisterTest extends TestCase
         $user->givePermissionTo('space-cash.access');
 
         return $user;
+    }
+
+    private function expenseCategory(int $companyId): ExtraChargeCategory
+    {
+        return ExtraChargeCategory::query()->create([
+            'company_id' => $companyId,
+            'name' => 'Lavanderia',
+            'default_unit_price' => 0,
+            'currency' => 'BOB',
+            'is_active' => true,
+            'sort_order' => 1,
+        ]);
     }
 }

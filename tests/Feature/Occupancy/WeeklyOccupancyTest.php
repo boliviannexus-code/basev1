@@ -381,15 +381,6 @@ class WeeklyOccupancyTest extends TestCase
 
             $this
                 ->actingAs($user)
-                ->get(route('occupancy.reservation.modal', [
-                    'space_id' => $space->id,
-                    'date' => '2026-06-09',
-                ]), ['X-Requested-With' => 'XMLHttpRequest'])
-                ->assertUnprocessable()
-                ->assertJsonValidationErrors('date');
-
-            $this
-                ->actingAs($user)
                 ->get(route('occupancy.check-out.modal', [
                     'space_id' => $space->id,
                     'date' => '2026-06-10',

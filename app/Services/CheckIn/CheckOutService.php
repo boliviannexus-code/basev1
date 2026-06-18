@@ -17,7 +17,7 @@ class CheckOutService
 
     public function debtSummary(Stay $stay): array
     {
-        $stays = $this->groupStays($stay);
+        $stays = $this->checkoutStays($stay);
         $debts = $stays
             ->map(function (Stay $groupStay): array {
                 $statement = $this->statementForStay($groupStay);
@@ -56,26 +56,28 @@ class CheckOutService
 
             if (! $summary['can_check_out']) {
                 throw ValidationException::withMessages([
-                    'check_out' => 'No se puede realizar check-out porque el check-in tiene deuda pendiente.',
+                    'check_out' => 'No se puede realizar check-out porque la estancia tiene deuda pendiente.',
                 ]);
             }
 
-            $stay->checkInGroup
+            $stay->update(['status' => 'checked_out']);
+
+            $hasOccupiedStays = $stay->checkInGroup
                 ->stays()
                 ->where('status', 'occupied')
-                ->update(['status' => 'checked_out']);
+                ->exists();
 
-            $stay->checkInGroup->update(['status' => 'checked_out']);
+            if (! $hasOccupiedStays) {
+                $stay->checkInGroup->update(['status' => 'checked_out']);
+            }
         });
     }
 
-    private function groupStays(Stay $stay): Collection
+    private function checkoutStays(Stay $stay): Collection
     {
-        return $stay->checkInGroup
-            ->stays()
+        return Stay::query()
             ->with(['accountStatement.items', 'holderGuest', 'space', 'room', 'bedUnit'])
-            ->where('status', 'occupied')
-            ->orderBy('id')
+            ->whereKey($stay->id)
             ->get();
     }
 

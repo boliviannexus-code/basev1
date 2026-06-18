@@ -2,6 +2,7 @@
 
 namespace App\Services\Availability;
 
+use App\Models\AvailabilityDay;
 use App\Models\AvailabilityStatus;
 use App\Models\OccupancyBlock;
 use App\Models\RoomBedUnit;
@@ -30,7 +31,7 @@ class AvailabilityStatusService
             ]);
         }
 
-        if ($this->hasActiveOccupancyBlockInRange($companyId, $space->id, $room?->id, $bedUnit?->id, $checkIn->toDateString(), $lastNight->toDateString())) {
+        if ($this->hasActiveOccupancyBlockInRange($companyId, $space->id, $room?->id, $bedUnit?->id, $checkIn->toDateString(), $lastNight->toDateString(), $data['reservation_group_id'] ?? null)) {
             throw ValidationException::withMessages([
                 'stays' => 'El recurso ya tiene un bloqueo u ocupacion en esas fechas.',
             ]);
@@ -112,13 +113,19 @@ class AvailabilityStatusService
         [$space, $room, $bedUnit] = $this->validateResource($companyId, $data['space_id'], $data['space_room_id'] ?? null, $data['room_bed_unit_id'] ?? null);
         $date = Carbon::parse($data['date'])->toDateString();
         $status = $data['status'];
+        $price = array_key_exists('price', $data) && $data['price'] !== null ? round((float) $data['price'], 2) : null;
+        $isPublicOnline = array_key_exists('is_public_online', $data) && $data['is_public_online'] !== null ? (bool) $data['is_public_online'] : null;
         $notes = $data['notes'] ?? null;
 
-        return DB::transaction(function () use ($availabilityStatus, $companyId, $space, $room, $bedUnit, $date, $status, $notes, $user): ?AvailabilityStatus {
+        return DB::transaction(function () use ($availabilityStatus, $companyId, $space, $room, $bedUnit, $date, $status, $price, $isPublicOnline, $notes, $user): ?AvailabilityStatus {
             if ($this->hasActiveOccupancyBlock($companyId, $space->id, $room?->id, $bedUnit?->id, $date)) {
                 throw ValidationException::withMessages([
                     'status' => 'Esta fecha ya esta bloqueada desde Ocupabilidad. Gestiona el bloqueo desde esa grilla.',
                 ]);
+            }
+
+            if ($price !== null || $isPublicOnline !== null) {
+                $this->upsertAvailabilityDay($companyId, $space->id, $room?->id, $bedUnit?->id, $date, $price, $isPublicOnline);
             }
 
             $existing = $availabilityStatus
@@ -182,6 +189,111 @@ class AvailabilityStatusService
                 'created_by' => $user?->id,
             ]);
         });
+    }
+
+    public function bulkChange(int $companyId, array $data, ?User $user = null): array
+    {
+        [$space, $room, $bedUnit] = $this->validateResource($companyId, $data['space_id'], $data['space_room_id'] ?? null, $data['room_bed_unit_id'] ?? null);
+        $startDate = Carbon::parse($data['start_date'])->startOfDay();
+        $endDate = Carbon::parse($data['end_date'])->startOfDay();
+        $status = $data['status'] ?? null;
+        $price = array_key_exists('price', $data) && $data['price'] !== null ? round((float) $data['price'], 2) : null;
+        $isPublicOnline = array_key_exists('is_public_online', $data) && $data['is_public_online'] !== null ? (bool) $data['is_public_online'] : null;
+        $notes = $data['notes'] ?? null;
+
+        if ($endDate->lt($startDate)) {
+            throw ValidationException::withMessages([
+                'end_date' => 'La fecha final debe ser igual o posterior a la fecha inicial.',
+            ]);
+        }
+
+        if ($status === null && $price === null && $isPublicOnline === null) {
+            throw ValidationException::withMessages([
+                'status' => 'Selecciona un estado, ingresa un precio o cambia la reserva publica.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($companyId, $space, $room, $bedUnit, $startDate, $endDate, $status, $price, $isPublicOnline, $notes, $user): array {
+            $dates = collect();
+            $statusUpdates = 0;
+            $priceUpdates = 0;
+            $publicUpdates = 0;
+
+            foreach ($startDate->daysUntil($endDate) as $date) {
+                $dateString = $date->toDateString();
+                $dates->push($dateString);
+
+                if ($status !== null) {
+                    $payload = [
+                        'space_id' => $space->id,
+                        'space_room_id' => $room?->id,
+                        'room_bed_unit_id' => $bedUnit?->id,
+                        'date' => $dateString,
+                        'status' => $status,
+                        'notes' => $notes,
+                    ];
+
+                    if ($price !== null) {
+                        $payload['price'] = $price;
+                    }
+
+                    if ($isPublicOnline !== null) {
+                        $payload['is_public_online'] = $isPublicOnline;
+                    }
+
+                    $this->changeStatus($companyId, $payload, null, $user);
+                    $statusUpdates++;
+                } elseif ($price !== null || $isPublicOnline !== null) {
+                    $this->upsertAvailabilityDay($companyId, $space->id, $room?->id, $bedUnit?->id, $dateString, $price, $isPublicOnline);
+                }
+
+                if ($price !== null) {
+                    $priceUpdates++;
+                }
+
+                if ($isPublicOnline !== null) {
+                    $publicUpdates++;
+                }
+            }
+
+            return [
+                'dates' => $dates->all(),
+                'total_dates' => $dates->count(),
+                'status_updated' => $statusUpdates,
+                'price_updated' => $priceUpdates,
+                'public_updated' => $publicUpdates,
+            ];
+        });
+    }
+
+    private function upsertAvailabilityDay(int $companyId, int $spaceId, ?int $roomId, ?int $bedUnitId, string $date, ?float $price, ?bool $isPublicOnline = null): AvailabilityDay
+    {
+        $existing = AvailabilityDay::query()
+            ->where('company_id', $companyId)
+            ->where('space_id', $spaceId)
+            ->when($roomId, fn (Builder $query): Builder => $query->where('space_room_id', $roomId), fn (Builder $query): Builder => $query->whereNull('space_room_id'))
+            ->when($bedUnitId, fn (Builder $query): Builder => $query->where('room_bed_unit_id', $bedUnitId), fn (Builder $query): Builder => $query->whereNull('room_bed_unit_id'))
+            ->where('date', $date)
+            ->first();
+
+        $payload = [
+            'company_id' => $companyId,
+            'space_id' => $spaceId,
+            'space_room_id' => $roomId,
+            'room_bed_unit_id' => $bedUnitId,
+            'date' => $date,
+            'price' => $price ?? $existing?->price,
+            'status' => 'available',
+            'is_public_online' => $isPublicOnline ?? $existing?->is_public_online ?? true,
+        ];
+
+        if ($existing) {
+            $existing->update($payload);
+
+            return $existing->refresh();
+        }
+
+        return AvailabilityDay::query()->create($payload);
     }
 
     private function existingStatus(int $companyId, int $spaceId, ?int $roomId, ?int $bedUnitId, string $date): ?AvailabilityStatus
@@ -326,13 +438,14 @@ class AvailabilityStatusService
             ->get();
     }
 
-    private function hasActiveOccupancyBlockInRange(int $companyId, int $spaceId, ?int $roomId, ?int $bedUnitId, string $startDate, string $lastNight): bool
+    private function hasActiveOccupancyBlockInRange(int $companyId, int $spaceId, ?int $roomId, ?int $bedUnitId, string $startDate, string $lastNight, int|string|null $reservationGroupId = null): bool
     {
         $query = OccupancyBlock::query()
             ->where('company_id', $companyId)
             ->where('status', 'active')
             ->whereDate('start_date', '<=', $lastNight)
-            ->whereDate('end_date', '>=', $startDate);
+            ->whereDate('end_date', '>=', $startDate)
+            ->when($reservationGroupId, fn (Builder $query): Builder => $this->excludeReservationGroupBlocks($query, (int) $reservationGroupId));
 
         if ($bedUnitId) {
             return (clone $query)->where('room_bed_unit_id', $bedUnitId)->exists()
@@ -347,6 +460,14 @@ class AvailabilityStatusService
                 fn (Builder $query): Builder => $query->where('space_id', $spaceId)->whereNull('space_room_id')->whereNull('room_bed_unit_id'),
             )
             ->exists();
+    }
+
+    private function excludeReservationGroupBlocks(Builder $query, int $reservationGroupId): Builder
+    {
+        return $query
+            ->whereDoesntHave('reservation', fn (Builder $reservation): Builder => $reservation->where('reservation_group_id', $reservationGroupId))
+            ->whereDoesntHave('reservationRoom.reservation', fn (Builder $reservation): Builder => $reservation->where('reservation_group_id', $reservationGroupId))
+            ->whereDoesntHave('reservationBedUnit.reservation', fn (Builder $reservation): Builder => $reservation->where('reservation_group_id', $reservationGroupId));
     }
 
     private function upsertOccupiedStatus(int $companyId, Stay $stay, string $date, ?User $user): void

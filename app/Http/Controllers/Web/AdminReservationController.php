@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Reservation;
+use App\Models\ReservationGroup;
 use App\Services\Reservations\ReservationManagementService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -29,30 +30,54 @@ class AdminReservationController extends Controller
             ->withoutGlobalScope('company')
             ->with(['space', 'room', 'rooms', 'user', 'reservationChannel'])
             ->where('company_id', $companyId)
+            ->whereNull('reservation_group_id')
             ->when(filled($status), fn (Builder $query): Builder => $query->where('status', $status))
             ->latest()
             ->paginate(15)
             ->withQueryString();
 
+        $reservationGroups = ReservationGroup::query()
+            ->withoutGlobalScope('company')
+            ->with(['reservationChannel', 'reservations.space'])
+            ->where('company_id', $companyId)
+            ->when(filled($status), fn (Builder $query): Builder => $query->where('status', $status))
+            ->latest()
+            ->get();
+
         $counts = Reservation::query()
+            ->withoutGlobalScope('company')
+            ->where('company_id', $companyId)
+            ->whereNull('reservation_group_id')
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+        $groupCounts = ReservationGroup::query()
             ->withoutGlobalScope('company')
             ->where('company_id', $companyId)
             ->selectRaw('status, count(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
+        $groupCounts->each(function ($total, string $status) use ($counts): void {
+            $counts[$status] = (int) ($counts[$status] ?? 0) + (int) $total;
+        });
 
         return view('reservations.admin.index', [
             'reservations' => $reservations,
+            'reservationGroups' => $reservationGroups,
             'counts' => $counts,
             'status' => $status,
         ]);
     }
 
-    public function show(int $reservation): View
+    public function show(int $reservation): View|RedirectResponse
     {
         Gate::authorize('reservations.view');
 
         $reservation = $this->reservation($reservation);
+
+        if ($reservation->reservation_group_id) {
+            return redirect()->route('admin.reservation-groups.show', $reservation->reservation_group_id);
+        }
 
         return view('reservations.admin.show', ['reservation' => $reservation]);
     }
@@ -119,7 +144,9 @@ class AdminReservationController extends Controller
                 'roomItems.room',
                 'extraCharges.category',
                 'roomItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
+                'bedUnitItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
                 'reservationChannel',
+                'reservationGroup',
                 'user',
                 'occupancyBlock' => fn ($query) => $query->withTrashed(),
             ])

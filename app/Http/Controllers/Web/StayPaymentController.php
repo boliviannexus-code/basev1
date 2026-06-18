@@ -63,6 +63,7 @@ class StayPaymentController extends Controller
         $shouldCheckOut = ($data['action'] ?? 'collect') === 'collect_checkout';
 
         if ($shouldCheckOut) {
+            $data['scope'] = 'stay';
             $this->ensureCanCollectAndCheckOut($stay, $data);
         }
 
@@ -105,7 +106,13 @@ class StayPaymentController extends Controller
 
         if ($amount < $balance) {
             throw ValidationException::withMessages([
-                'amount' => 'Para cobrar y hacer check-out, el cobro debe cubrir todo el saldo.',
+                'amount' => 'Para cobrar y hacer check-out, el cobro debe cubrir todo el saldo de la estancia.',
+            ])->errorBag('stayPayment');
+        }
+
+        if ($amount > $balance) {
+            throw ValidationException::withMessages([
+                'amount' => 'Para cobrar y hacer check-out, el cobro no puede superar el saldo de la estancia.',
             ])->errorBag('stayPayment');
         }
     }

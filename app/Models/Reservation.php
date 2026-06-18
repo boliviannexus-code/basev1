@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Reservation extends Model
@@ -19,6 +20,7 @@ class Reservation extends Model
         'pending_payment',
         'payment_under_review',
         'confirmed',
+        'checked_in',
         'rejected',
         'cancelled',
         'expired',
@@ -44,6 +46,7 @@ class Reservation extends Model
 
     protected $fillable = [
         'company_id',
+        'reservation_group_id',
         'user_id',
         'space_id',
         'space_room_id',
@@ -75,6 +78,7 @@ class Reservation extends Model
         'deposit_amount',
         'balance_amount',
         'currency',
+        'breakfast_included',
         'status',
         'payment_status',
         'payment_method',
@@ -99,6 +103,7 @@ class Reservation extends Model
             'advance_amount' => 'decimal:2',
             'deposit_amount' => 'decimal:2',
             'balance_amount' => 'decimal:2',
+            'breakfast_included' => 'boolean',
             'package_snapshot' => 'array',
             'package_price' => 'decimal:2',
             'included_people' => 'integer',
@@ -114,6 +119,11 @@ class Reservation extends Model
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
+    }
+
+    public function reservationGroup(): BelongsTo
+    {
+        return $this->belongsTo(ReservationGroup::class);
     }
 
     public function user(): BelongsTo
@@ -173,6 +183,11 @@ class Reservation extends Model
     public function extraCharges(): HasMany
     {
         return $this->hasMany(ReservationExtraCharge::class);
+    }
+
+    public function accountStatement(): HasOne
+    {
+        return $this->hasOne(AccountStatement::class);
     }
 
     public function paymentValidator(): BelongsTo

@@ -36,6 +36,7 @@ class ExtraChargeController extends Controller
     public function reservationForm(Reservation $reservation): View
     {
         $this->ensureReservationOwnership($reservation);
+        $this->ensureReservationCanReceiveCharges($reservation);
 
         return view('extra-charges.partials.form', [
             'targetType' => 'reservation',
@@ -61,7 +62,7 @@ class ExtraChargeController extends Controller
     public function storeForReservation(Request $request, Reservation $reservation): RedirectResponse
     {
         $this->ensureReservationOwnership($reservation);
-        abort_unless(! in_array($reservation->status, ['cancelled', 'rejected', 'expired'], true), 403);
+        $this->ensureReservationCanReceiveCharges($reservation);
 
         $data = $this->validated($request);
         $category = $this->category((int) $data['extra_charge_category_id']);
@@ -135,6 +136,31 @@ class ExtraChargeController extends Controller
     private function ensureReservationOwnership(Reservation $reservation): void
     {
         abort_unless((int) $reservation->company_id === $this->companyId(), 404);
+    }
+
+    private function ensureReservationCanReceiveCharges(Reservation $reservation): void
+    {
+        abort_if(in_array($reservation->status, ['cancelled', 'rejected', 'expired'], true), 403);
+
+        if ($reservation->status === 'checked_in') {
+            abort_unless($this->reservationHasActiveBlocks($reservation), 403);
+        }
+    }
+
+    private function reservationHasActiveBlocks(Reservation $reservation): bool
+    {
+        $reservation->loadMissing([
+            'occupancyBlock' => fn ($query) => $query->withTrashed(),
+            'roomItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
+            'bedUnitItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
+        ]);
+
+        return collect([$reservation->occupancyBlock])
+            ->merge($reservation->roomItems->pluck('occupancyBlock'))
+            ->merge($reservation->bedUnitItems->pluck('occupancyBlock'))
+            ->filter()
+            ->unique('id')
+            ->contains(fn ($block): bool => $block->status === 'active' && ! $block->trashed());
     }
 
     private function companyId(): int

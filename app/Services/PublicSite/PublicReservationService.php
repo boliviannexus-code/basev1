@@ -7,11 +7,14 @@ use App\Models\AccommodationPackage;
 use App\Models\OccupancyBlock;
 use App\Models\Reservation;
 use App\Models\ReservationBedUnit;
+use App\Models\ReservationChannel;
+use App\Models\ReservationGroup;
 use App\Models\ReservationRoom;
 use App\Models\RoomBedUnit;
 use App\Models\Space;
 use App\Models\SpaceRoom;
 use App\Models\User;
+use App\Services\CheckIn\AccountStatementService;
 use App\Services\Reservations\ReservationManagementService;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonPeriod;
@@ -27,6 +30,7 @@ class PublicReservationService
 {
     public function __construct(
         private readonly ReservationManagementService $reservationManagement,
+        private readonly AccountStatementService $accountStatements,
     ) {}
 
     public function quote(array $data): array
@@ -60,9 +64,9 @@ class PublicReservationService
         if ($isShared && $bedUnits->isNotEmpty()) {
             $bedUnitItems = $bedUnits->map(function (RoomBedUnit $unit) use ($space, $nightDates, $data): array {
                 $room = $unit->room;
-                $roomAvailabilityDays = $this->availabilityDays($space, $room, $nightDates);
+                $bedUnitAvailabilityDays = $this->availabilityDaysForBedUnit($space, $unit, $nightDates);
 
-                if ($roomAvailabilityDays->count() !== count($nightDates)) {
+                if ($bedUnitAvailabilityDays->count() !== count($nightDates)) {
                     throw ValidationException::withMessages([
                         'room_bed_unit_ids' => 'Una o mas camas seleccionadas no tienen precio o estan cerradas.',
                     ]);
@@ -81,8 +85,7 @@ class PublicReservationService
                     ]);
                 }
 
-                $roomCapacity = max(1, $this->roomCapacity($room));
-                $subtotal = round((float) $roomAvailabilityDays->sum(fn (AvailabilityDay $day): float => ((float) $day->price) / $roomCapacity), 2);
+                $subtotal = round((float) $bedUnitAvailabilityDays->sum(fn (AvailabilityDay $day): float => (float) $day->price), 2);
 
                 return [
                     'bed_unit' => $unit,
@@ -90,6 +93,7 @@ class PublicReservationService
                     'capacity' => (int) ($unit->bedType?->capacity ?: 1),
                     'price_per_night' => round($subtotal / count($nightDates), 2),
                     'subtotal_amount' => $subtotal,
+                    'nightly_prices' => $this->nightlyPricesPayload($bedUnitAvailabilityDays),
                 ];
             })->values();
         } elseif ($isShared) {
@@ -146,7 +150,7 @@ class PublicReservationService
             ? round((float) ($bedUnitItems->isNotEmpty() ? $bedUnitItems->sum('subtotal_amount') : $roomItems->sum('subtotal_amount')), 2)
             : round((float) $availabilityDays->sum(fn (AvailabilityDay $day): float => (float) $day->price), 2);
         $total = $subtotal;
-        $advance = $this->advanceAmount($total);
+        $advance = $this->advanceAmount($total, $space);
         $balance = round($total - $advance, 2);
         $averageNightlyPrice = round($subtotal / $nights, 2);
 
@@ -183,12 +187,15 @@ class PublicReservationService
             $bedUnits = $quote['bed_units'];
             $room = $quote['room'];
             $lastNight = CarbonImmutable::parse($quote['check_out'])->subDay()->toDateString();
+            $group = $this->createReservationGroup($quote, $data, $user);
 
             $reservation = Reservation::query()->create([
                 'company_id' => $space->company_id,
+                'reservation_group_id' => $group->id,
                 'user_id' => $user->id,
                 'space_id' => $space->id,
                 'space_room_id' => $room?->id,
+                'reservation_channel_id' => $group->reservation_channel_id,
                 'code' => $this->code(),
                 'package_id' => ($quote['package'] ?? null)?->id,
                 'booking_type' => $quote['booking_type'] ?? 'normal',
@@ -314,8 +321,82 @@ class PublicReservationService
                 }
             }
 
-            return $reservation->load(['space.location', 'room', 'rooms', 'roomItems.occupancyBlock', 'bedUnits', 'bedUnitItems.occupancyBlock', 'occupancyBlock']);
+            $this->accountStatements->createForReservationGroup($group->refresh()->load([
+                'reservations.space',
+                'reservations.room',
+                'reservations.roomItems.room',
+                'reservations.bedUnitItems.bedUnit.room',
+            ]));
+
+            return $reservation->load([
+                'reservationGroup.accountStatement.items',
+                'space.location',
+                'room',
+                'rooms',
+                'roomItems.occupancyBlock',
+                'bedUnits',
+                'bedUnitItems.occupancyBlock',
+                'occupancyBlock',
+            ]);
         });
+    }
+
+    private function createReservationGroup(array $quote, array $data, User $user): ReservationGroup
+    {
+        $space = $quote['space'];
+        $reservationChannelId = $this->publicReservationChannelId((int) $space->company_id);
+
+        return ReservationGroup::query()->create([
+            'company_id' => $space->company_id,
+            'reservation_channel_id' => $reservationChannelId,
+            'guest_name' => $data['guest_name'],
+            'guest_email' => $data['guest_email'],
+            'guest_phone' => $data['guest_phone'] ?? null,
+            'guest_document' => $data['guest_document'] ?? null,
+            'check_in' => $quote['check_in'],
+            'check_out' => $quote['check_out'],
+            'nights' => $quote['nights'],
+            'guests' => $quote['guests'],
+            'subtotal_amount' => $quote['subtotal_amount'],
+            'total_amount' => $quote['total_amount'],
+            'advance_amount' => $quote['advance_amount'],
+            'balance_amount' => $quote['balance_amount'],
+            'currency' => 'BOB',
+            'status' => 'pending_payment',
+            'payment_status' => 'pending',
+            'payment_method' => 'qr',
+            'payment_reference' => null,
+            'notes' => $data['guest_notes'] ?? 'Reserva creada desde el portal publico.',
+            'created_by' => $user->company_id ? $user->id : null,
+        ]);
+    }
+
+    private function publicReservationChannelId(int $companyId): int
+    {
+        $channel = ReservationChannel::query()
+            ->withoutGlobalScope('company')
+            ->withTrashed()
+            ->firstOrNew([
+                'company_id' => $companyId,
+                'slug' => 'pagina-web',
+            ]);
+
+        $channel->fill([
+            'name' => 'Página web',
+            'type' => 'direct',
+            'commission_percent' => null,
+            'is_active' => true,
+            'is_protected' => true,
+            'sort_order' => 0,
+        ]);
+
+        if ($channel->trashed()) {
+            $channel->restore();
+        }
+
+        $channel->save();
+
+        return (int) $channel->id;
     }
 
     private function resolveUser(array $data): User
@@ -363,8 +444,7 @@ class PublicReservationService
         $space = Space::query()
             ->withoutGlobalScope('company')
             ->with(['company', 'spaceMode', 'location', 'photos', 'rooms.beds', 'rooms.bedUnits.bedType'])
-            ->where('status', 'active')
-            ->whereHas('company', fn (Builder $query): Builder => $query->where('is_active', true))
+            ->publicBookable()
             ->whereKey($data['space_id'])
             ->first();
 
@@ -403,7 +483,10 @@ class PublicReservationService
         if ($bedUnitIds !== []) {
             $bedUnits = RoomBedUnit::query()
                 ->withoutGlobalScope('company')
-                ->with(['room.beds', 'bedType'])
+                ->with([
+                    'room' => fn ($query) => $query->withoutGlobalScope('company')->with('beds'),
+                    'bedType',
+                ])
                 ->where('company_id', $space->company_id)
                 ->where('status', 'active')
                 ->whereIn('id', $bedUnitIds)
@@ -493,14 +576,14 @@ class PublicReservationService
             ]);
         }
 
-        if ($package->max_people !== null && $guests > (int) $package->max_people) {
+        $extraPeople = max(0, $guests - (int) $package->included_people);
+        $extraPersonPrice = (float) ($package->extra_person_price ?? 0);
+
+        if ($package->max_people !== null && $guests > (int) $package->max_people && $extraPersonPrice <= 0) {
             throw ValidationException::withMessages([
                 'guests' => 'El paquete permite maximo '.$package->max_people.' persona'.((int) $package->max_people === 1 ? '' : 's').'.',
             ]);
         }
-
-        $extraPeople = max(0, $guests - (int) $package->included_people);
-        $extraPersonPrice = (float) ($package->extra_person_price ?? 0);
 
         if ($extraPeople > 0 && $extraPersonPrice <= 0) {
             throw ValidationException::withMessages([
@@ -523,10 +606,15 @@ class PublicReservationService
         }
 
         $packagePrice = round((float) $package->price, 2);
-        $extraPeopleTotal = round($extraPeople * $extraPersonPrice, 2);
+        $extraPeopleDetails = $this->packageExtraPeopleDetails($data['check_in'], $nightDates, $extraPeople, $extraPersonPrice);
+        $extraPeopleTotal = round((float) $extraPeopleDetails->sum('total'), 2);
         $extraNights = max(0, count($nightDates) - (int) $package->nights_included);
-        $total = round($packagePrice + $extraPeopleTotal, 2);
-        $advance = $this->advanceAmount($total);
+        $extraNightsTotal = round((float) $availabilityDays
+            ->sortBy(fn (AvailabilityDay $day): string => $day->date->toDateString())
+            ->skip((int) $package->nights_included)
+            ->sum(fn (AvailabilityDay $day): float => (float) $day->price), 2);
+        $total = round($packagePrice + $extraPeopleTotal + $extraNightsTotal, 2);
+        $advance = $this->advanceAmount($total, $space);
         $balance = round($total - $advance, 2);
         $nights = count($nightDates);
         $averagePrice = round($total / $nights, 2);
@@ -546,9 +634,10 @@ class PublicReservationService
             'extra_people' => $extraPeople,
             'extra_person_price' => $extraPersonPrice,
             'extra_people_total' => $extraPeopleTotal,
+            'extra_people_details' => $extraPeopleDetails,
             'package_nights_included' => (int) $package->nights_included,
             'package_extra_nights' => $extraNights,
-            'package_extra_nights_total' => 0.0,
+            'package_extra_nights_total' => $extraNightsTotal,
             'check_in' => $data['check_in'],
             'check_out' => $data['check_out'],
             'nights' => $nights,
@@ -556,12 +645,32 @@ class PublicReservationService
             'capacity' => $capacity,
             'price_per_person' => $averagePrice,
             'price_per_night' => $averagePrice,
-            'subtotal_amount' => $packagePrice,
+            'subtotal_amount' => round($packagePrice + $extraNightsTotal, 2),
             'total_amount' => $total,
             'advance_amount' => $advance,
             'balance_amount' => $balance,
             'nightly_prices' => $this->nightlyPricesPayload($availabilityDays),
         ];
+    }
+
+    private function packageExtraPeopleDetails(string $checkIn, array $nightDates, int $extraPeople, float $extraPersonPrice): Collection
+    {
+        if ($extraPeople <= 0 || $extraPersonPrice <= 0) {
+            return collect();
+        }
+
+        $start = CarbonImmutable::parse($checkIn);
+
+        return collect($nightDates)
+            ->values()
+            ->map(fn (string $date, int $index): array => [
+                'date' => $date,
+                'night' => $index + 1,
+                'label' => 'Personas extra - Noche '.$start->addDays($index)->toDateString(),
+                'quantity' => $extraPeople,
+                'unit_price' => round($extraPersonPrice, 2),
+                'total' => round($extraPeople * $extraPersonPrice, 2),
+            ]);
     }
 
     private function packageSnapshot(AccommodationPackage $package): array
@@ -610,9 +719,35 @@ class PublicReservationService
             )
             ->whereIn('date', $nightDates)
             ->where('status', 'available')
+            ->where('is_public_online', true)
             ->whereNotNull('price')
             ->get()
             ->keyBy(fn (AvailabilityDay $day): string => $day->date->toDateString());
+    }
+
+    private function availabilityDaysForBedUnit(Space $space, RoomBedUnit $unit, array $nightDates): Collection
+    {
+        return AvailabilityDay::query()
+            ->withoutGlobalScope('company')
+            ->where('company_id', $space->company_id)
+            ->where('space_id', $space->id)
+            ->where('space_room_id', $unit->space_room_id)
+            ->where(function (Builder $query) use ($unit): void {
+                $query
+                    ->where('room_bed_unit_id', $unit->id)
+                    ->orWhereNull('room_bed_unit_id');
+            })
+            ->whereIn('date', $nightDates)
+            ->where('status', 'available')
+            ->where('is_public_online', true)
+            ->whereNotNull('price')
+            ->get()
+            ->groupBy(fn (AvailabilityDay $day): string => $day->date->toDateString())
+            ->map(fn (Collection $days): AvailabilityDay => $days
+                ->sortByDesc(fn (AvailabilityDay $day): int => $day->room_bed_unit_id === null ? 0 : 1)
+                ->first())
+            ->filter()
+            ->sortKeys();
     }
 
     private function hasActiveBlock(Space $space, ?SpaceRoom $room, string $checkIn, string $checkOut): bool
@@ -740,7 +875,7 @@ class PublicReservationService
     {
         $ids = $data['space_room_ids'] ?? null;
 
-        if ($ids === null && filled($data['space_room_id'] ?? null)) {
+        if (($ids === null || $ids === []) && filled($data['space_room_id'] ?? null)) {
             $ids = [$data['space_room_id']];
         }
 
@@ -775,13 +910,14 @@ class PublicReservationService
             ->all();
     }
 
-    private function advanceAmount(float $total): float
+    private function advanceAmount(float $total, Space $space): float
     {
+        $companyPercentage = $space->company?->reservation_advance_percentage;
         $type = (string) config('reservations.advance.type', 'percentage');
 
         $amount = match ($type) {
             'fixed' => (float) config('reservations.advance.fixed_amount', 0),
-            default => $total * (((float) config('reservations.advance.percentage', 50)) / 100),
+            default => $total * (((float) ($companyPercentage ?? config('reservations.advance.percentage', 50))) / 100),
         };
 
         return round(min(max($amount, 0), $total), 2);

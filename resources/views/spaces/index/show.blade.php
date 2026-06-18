@@ -20,6 +20,19 @@
                         <dd class="col-sm-8">{{ $space->sharedSpaceType?->name ?: $space->privateSpaceType?->name ?: '-' }}</dd>
                         <dt class="col-sm-4">Estado</dt>
                         <dd class="col-sm-8">{{ ['draft' => 'Borrador', 'completed' => 'Terminado', 'needs_corrections' => 'Con correcciones', 'in_review' => 'En revision', 'approved' => 'Aprobado', 'active' => 'Habilitado', 'inactive' => 'Inactivo'][$space->status] ?? $space->status }}</dd>
+                        <dt class="col-sm-4">Reserva pública</dt>
+                        <dd class="col-sm-8">
+                            @if ($space->status === 'active')
+                                <span class="badge text-bg-{{ $space->is_public_online ? 'success' : 'secondary' }}">
+                                    {{ $space->is_public_online ? 'En línea' : 'Fuera de línea' }}
+                                </span>
+                                <div class="text-body-secondary small mt-1">
+                                    {{ $space->is_public_online ? 'Visible para búsquedas y reservas públicas.' : 'Oculto del canal público; disponible para gestión interna.' }}
+                                </div>
+                            @else
+                                <span class="text-body-secondary">Disponible al habilitar el alojamiento.</span>
+                            @endif
+                        </dd>
                         <dt class="col-sm-4">Capacidad</dt>
                         <dd class="col-sm-8">{{ $space->max_capacity ?: 'Pendiente' }}</dd>
                         <dt class="col-sm-4">Progreso</dt>
@@ -116,6 +129,19 @@
             @can('spaces.edit')
                 <a class="btn btn-outline-info" href="{{ route('spaces.continue', $space) }}">Editar alojamiento</a>
                 @if ($space->status === 'active')
+                    @if ($space->is_public_online)
+                        <form method="POST" action="{{ route('spaces.offline', $space) }}">
+                            @csrf
+                            @method('PATCH')
+                            <button class="btn btn-outline-secondary" type="submit">Sacar de línea</button>
+                        </form>
+                    @else
+                        <form method="POST" action="{{ route('spaces.online', $space) }}">
+                            @csrf
+                            @method('PATCH')
+                            <button class="btn btn-outline-primary" type="submit">Poner en línea</button>
+                        </form>
+                    @endif
                     <form method="POST" action="{{ route('spaces.deactivate', $space) }}">
                         @csrf
                         @method('PATCH')

@@ -141,6 +141,30 @@ class SpaceController extends Controller
         return back()->with('success', 'Alojamiento deshabilitado correctamente.');
     }
 
+    public function putOnline(Space $space): RedirectResponse
+    {
+        Gate::authorize('spaces.edit');
+        $this->ensureOwnership($space);
+
+        abort_unless($space->status === 'active', 422);
+
+        $space->update(['is_public_online' => true]);
+
+        return back()->with('success', 'Alojamiento en línea para reservas públicas.');
+    }
+
+    public function takeOffline(Space $space): RedirectResponse
+    {
+        Gate::authorize('spaces.edit');
+        $this->ensureOwnership($space);
+
+        abort_unless($space->status === 'active', 422);
+
+        $space->update(['is_public_online' => false]);
+
+        return back()->with('success', 'Alojamiento fuera de línea para reservas públicas.');
+    }
+
     private function baseQuery(): Builder
     {
         return Space::query()
@@ -223,8 +247,11 @@ class SpaceController extends Controller
             'inactive' => ['Inactivo', 'warning'],
         ];
         [$label, $tone] = $statusMap[$space->status] ?? [$space->status, 'secondary'];
+        $publicBadge = $space->status === 'active'
+            ? '<span class="badge text-bg-'.($space->is_public_online ? 'success' : 'secondary').' ms-1">'.($space->is_public_online ? 'En linea' : 'Fuera de linea').'</span>'
+            : '';
 
-        return '<span class="badge text-bg-'.$tone.'">'.e($label).'</span>';
+        return '<span class="badge text-bg-'.$tone.'">'.e($label).'</span>'.$publicBadge;
     }
 
     private function dateColumn(Space $space): string
@@ -244,6 +271,9 @@ class SpaceController extends Controller
             $html .= '<a class="btn btn-outline-info btn-sm" href="'.e(route('spaces.continue', $space)).'">Editar</a>';
 
             if ($space->status === 'active') {
+                $html .= $space->is_public_online
+                    ? $this->actionForm(route('spaces.offline', $space), 'Sacar de linea', 'secondary')
+                    : $this->actionForm(route('spaces.online', $space), 'Poner en linea', 'primary');
                 $html .= $this->actionForm(route('spaces.deactivate', $space), 'Deshabilitar', 'warning');
             } elseif ($completion['missing_steps'] === [] && $space->approved_at !== null && in_array($space->status, ['approved', 'inactive'], true)) {
                 $html .= $this->actionForm(route('spaces.activate', $space), 'Habilitar', 'success');

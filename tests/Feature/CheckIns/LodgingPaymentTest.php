@@ -106,6 +106,19 @@ class LodgingPaymentTest extends TestCase
     public function test_user_can_collect_full_balance_and_check_out_when_departure_is_today(): void
     {
         [$user, $stay,, $method] = $this->context(checkOutDate: now()->toDateString());
+        $secondStay = Stay::factory()->create([
+            'company_id' => $stay->company_id,
+            'check_in_group_id' => $stay->check_in_group_id,
+            'holder_guest_id' => $stay->holder_guest_id,
+            'space_id' => Space::factory()->create(['company_id' => $stay->company_id])->id,
+            'people_count' => 1,
+            'check_in_date' => now()->toDateString(),
+            'check_out_date' => now()->toDateString(),
+            'nights' => 1,
+            'price_per_night_bob' => 50,
+            'currency' => 'BOB',
+        ]);
+        app(AccountStatementService::class)->createForStay($secondStay);
 
         $this
             ->actingAs($user)
@@ -119,8 +132,10 @@ class LodgingPaymentTest extends TestCase
             ->assertSessionHas('success');
 
         $this->assertSame('0.00', $stay->accountStatement->refresh()->balance);
+        $this->assertSame('50.00', $secondStay->accountStatement->refresh()->balance);
         $this->assertSame('checked_out', $stay->refresh()->status);
-        $this->assertSame('checked_out', $stay->checkInGroup->refresh()->status);
+        $this->assertSame('occupied', $secondStay->refresh()->status);
+        $this->assertSame('checked_in', $stay->checkInGroup->refresh()->status);
     }
 
     public function test_collect_and_check_out_requires_departure_today(): void

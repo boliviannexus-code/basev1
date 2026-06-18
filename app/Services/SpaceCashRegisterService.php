@@ -101,31 +101,41 @@ class SpaceCashRegisterService
     public function cashSummary(SpaceCashRegister $cashRegister): array
     {
         $cashRegister->loadMissing([
-            'expenses',
+            'expenses.category',
             'lodgingPayments.paymentMethod',
             'lodgingPayments.stay.holderGuest',
+            'reservationPayments.paymentMethod',
+            'reservationPayments.reservationGroup',
             'company',
             'user',
         ]);
 
         $lodgingPayments = $cashRegister->lodgingPayments->where('status', 'active');
+        $reservationPayments = $cashRegister->reservationPayments->where('status', 'active');
         $expenses = $cashRegister->expenses;
         $cashMethod = fn (string $name): bool => mb_strtolower($name) === 'efectivo';
 
         $lodgingCashTotal = (float) $lodgingPayments
             ->filter(fn ($payment): bool => $cashMethod((string) $payment->paymentMethod?->name))
             ->sum('amount_bob');
+        $reservationCashTotal = (float) $reservationPayments
+            ->filter(fn ($payment): bool => $cashMethod((string) $payment->paymentMethod?->name))
+            ->sum('amount_bob');
         $expensesTotal = (float) $expenses->sum('amount');
         $lodgingTotal = (float) $lodgingPayments->sum('amount_bob');
+        $reservationTotal = (float) $reservationPayments->sum('amount_bob');
+        $incomeTotal = $lodgingTotal + $reservationTotal;
 
         return [
             'opening' => (float) $cashRegister->opening_amount,
             'lodging_total' => $lodgingTotal,
-            'income_total' => $lodgingTotal,
+            'reservation_total' => $reservationTotal,
+            'income_total' => $incomeTotal,
             'expenses' => $expensesTotal,
-            'available' => (float) $cashRegister->opening_amount + $lodgingCashTotal - $expensesTotal,
-            'payments' => $this->paymentRows($lodgingPayments),
+            'available' => (float) $cashRegister->opening_amount + $lodgingCashTotal + $reservationCashTotal - $expensesTotal,
+            'payments' => $this->paymentRows($lodgingPayments->concat($reservationPayments)),
             'lodging_payments' => $lodgingPayments->sortByDesc('created_at')->values(),
+            'reservation_payments' => $reservationPayments->sortByDesc('created_at')->values(),
             'expense_details' => $expenses->sortByDesc('spent_at')->values(),
         ];
     }

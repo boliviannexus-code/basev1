@@ -19,6 +19,9 @@
                 'name' => $roomLabel($room),
             ])->values(),
         ])->values();
+        $privateSpaces = $spaces->filter(fn ($space) => $space->spaceMode?->slug === 'privado')->values();
+        $sharedSpaces = $spaces->filter(fn ($space) => $space->spaceMode?->slug === 'compartido')->values();
+        $activeView = $filters['view'] ?? ($privateSpaces->isNotEmpty() ? 'private' : ($sharedSpaces->first() ? 'shared:'.$sharedSpaces->first()->id : 'private'));
     @endphp
 
     <div
@@ -28,10 +31,11 @@
         data-check-in-summary-modal-url="{{ route('occupancy.check-in.summary-modal') }}"
         data-check-in-modal-url="{{ route('occupancy.check-in.modal') }}"
         data-check-in-create-url="{{ route('check-ins.create') }}"
+        data-reservation-create-url="{{ route('internal-reservations.create') }}"
+        data-reservation-payment-create-url-template="{{ route('admin.reservation-groups.payments.create', ['group' => '__ID__']) }}"
         data-stay-payment-create-url-template="{{ route('stays.payments.create', ['stay' => '__ID__']) }}"
         data-check-out-modal-url="{{ route('occupancy.check-out.modal') }}"
         data-check-out-store-url-template="{{ route('occupancy.check-out.store', ['stay' => '__ID__']) }}"
-        data-reservation-modal-url="{{ route('occupancy.reservation.modal') }}"
         data-extra-charge-modal-url="{{ route('occupancy.extra-charge.modal') }}"
         data-block-modal-url="{{ route('occupancy.block.modal') }}"
         data-store-url="{{ route('occupancy.blocks.store') }}"
@@ -41,8 +45,41 @@
         data-initial-week='@json($initialWeek)'
         data-can-manage="{{ auth()->user()?->can('occupancy.manage') ? '1' : '0' }}"
     >
-        <div class="occupancy-week-toolbar">
-            <div class="btn-list">
+        <form class="occupancy-week-toolbar" autocomplete="off" data-occupancy-filters>
+            <input type="hidden" name="view" value="{{ $activeView }}" data-occupancy-view-input>
+
+            <div class="occupancy-view-tabs-wrap">
+                <ul class="nav nav-tabs occupancy-view-tabs" role="tablist">
+                    @if ($privateSpaces->isNotEmpty())
+                        <li class="nav-item" role="presentation">
+                            <button
+                                class="nav-link {{ $activeView === 'private' ? 'active' : '' }}"
+                                type="button"
+                                role="tab"
+                                data-occupancy-view-tab
+                                data-view="private"
+                            >
+                                <i class="ti ti-home me-1"></i>Privados
+                            </button>
+                        </li>
+                    @endif
+                    @foreach ($sharedSpaces as $space)
+                        @php($viewKey = 'shared:'.$space->id)
+                        <li class="nav-item" role="presentation">
+                            <button
+                                class="nav-link {{ $activeView === $viewKey ? 'active' : '' }}"
+                                type="button"
+                                role="tab"
+                                data-occupancy-view-tab
+                                data-view="{{ $viewKey }}"
+                            >
+                                <i class="ti ti-building me-1"></i>{{ $space->name ?: $space->title }}
+                            </button>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+             <div class="btn-list occupancy-week-controls">
                 <button class="btn btn-outline-secondary btn-sm" type="button" data-occupancy-week-prev>
                     <i class="ti ti-chevron-left"></i>
                 </button>
@@ -51,49 +88,6 @@
                     <i class="ti ti-chevron-right"></i>
                 </button>
                 <input class="form-control form-control-sm occupancy-week-date" type="date" value="{{ $initialWeek['week_start'] }}" data-occupancy-week-picker>
-            </div>
-
-
-        </div>
-
-        <form class="occupancy-week-filters" autocomplete="off" data-occupancy-filters>
-            <div>
-                <label class="form-label" for="occupancy-filter-type">Tipo</label>
-                <select class="form-select form-select-sm" id="occupancy-filter-type" name="type">
-                    <option value="all" @selected(($filters['type'] ?? 'all') === 'all')>Todos</option>
-                    <option value="private" @selected(($filters['type'] ?? null) === 'private')>Privados</option>
-                    <option value="shared" @selected(($filters['type'] ?? null) === 'shared')>Compartidos</option>
-                </select>
-            </div>
-            <div>
-                <label class="form-label" for="occupancy-filter-space">Alojamiento</label>
-                <select class="form-select form-select-sm" id="occupancy-filter-space" name="space_id">
-                    <option value="">Todos</option>
-                    @foreach ($spaces as $space)
-                        <option value="{{ $space->id }}" @selected((string) ($filters['space_id'] ?? '') === (string) $space->id)>
-                            {{ $spaceLabel($space) }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label class="form-label" for="occupancy-filter-status">Estado</label>
-                <select class="form-select form-select-sm" id="occupancy-filter-status" name="status">
-                    <option value="" @selected(($filters['status'] ?? '') === '')>Todos</option>
-                    <option value="available" @selected(($filters['status'] ?? null) === 'available')>Libre</option>
-                    <option value="manual_block" @selected(($filters['status'] ?? null) === 'manual_block')>Bloqueado</option>
-                    <option value="maintenance" @selected(($filters['status'] ?? null) === 'maintenance')>Mantenimiento</option>
-                    <option value="owner_use" @selected(($filters['status'] ?? null) === 'owner_use')>Uso propietario</option>
-                    <option value="unavailable" @selected(($filters['status'] ?? null) === 'unavailable')>No disponible</option>
-                    <option value="reserved" @selected(($filters['status'] ?? null) === 'reserved')>Reservado</option>
-                    <option value="occupied" @selected(($filters['status'] ?? null) === 'occupied')>Ocupado</option>
-                    <option value="checked_out" @selected(($filters['status'] ?? null) === 'checked_out')>Historial</option>
-                </select>
-            </div>
-            <div class="align-self-end">
-                <button class="btn btn-outline-secondary btn-sm" type="reset">
-                    <i class="ti ti-filter-off me-1"></i>Limpiar
-                </button>
             </div>
         </form>
 

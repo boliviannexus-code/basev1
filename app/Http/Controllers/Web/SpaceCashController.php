@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\ExtraChargeCategory;
 use App\Models\SpaceCashExpense;
 use App\Models\SpaceCashRegister;
 use App\Services\SpaceCashRegisterService;
@@ -20,10 +21,12 @@ class SpaceCashController extends Controller
     public function index(Request $request): View
     {
         $openRegister = $this->cashRegisters->currentForUser($request->user());
+        ExtraChargeCategory::ensureDefaultsForCompany((int) $request->user()->company_id);
 
         return view('space-cash.index', [
             'openRegister' => $openRegister,
             'cashSummary' => $openRegister ? $this->cashRegisters->cashSummary($openRegister) : [],
+            'expenseCategories' => $this->expenseCategories((int) $request->user()->company_id),
         ]);
     }
 
@@ -51,11 +54,23 @@ class SpaceCashController extends Controller
 
     public function storeExpense(Request $request): RedirectResponse
     {
+        ExtraChargeCategory::ensureDefaultsForCompany((int) $request->user()->company_id);
+
         $data = $request->validateWithBag('spaceCashExpense', [
+            'extra_charge_category_id' => ['required', 'integer', 'exists:extra_charge_categories,id'],
             'responsible_name' => ['required', 'string', 'max:255'],
             'detail' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0.01'],
         ]);
+        $category = $this->expenseCategories((int) $request->user()->company_id)
+            ->firstWhere('id', (int) $data['extra_charge_category_id']);
+
+        if (! $category) {
+            throw ValidationException::withMessages([
+                'extra_charge_category_id' => 'La categoria seleccionada no esta disponible.',
+            ])->errorBag('spaceCashExpense');
+        }
+
         $cashRegister = $this->cashRegisters->currentForUser($request->user());
 
         if (! $cashRegister) {
@@ -76,6 +91,7 @@ class SpaceCashController extends Controller
             'company_id' => $request->user()->company_id,
             'space_cash_register_id' => $cashRegister->id,
             'user_id' => $request->user()->id,
+            'extra_charge_category_id' => $category->id,
             'responsible_name' => $data['responsible_name'],
             'detail' => $data['detail'],
             'amount' => $data['amount'],
@@ -96,6 +112,8 @@ class SpaceCashController extends Controller
         $cashRegisters->getCollection()->each(function (SpaceCashRegister $register): void {
             $summary = $this->cashRegisters->cashSummary($register);
             $register->lodging_total = $summary['lodging_total'];
+            $register->reservation_total = $summary['reservation_total'];
+            $register->income_total = $summary['income_total'];
             $register->expenses_total = $summary['expenses'];
         });
 
@@ -111,5 +129,15 @@ class SpaceCashController extends Controller
             'cashRegister' => $spaceCashRegister,
             'cashSummary' => $this->cashRegisters->cashSummary($spaceCashRegister),
         ]);
+    }
+
+    private function expenseCategories(int $companyId)
+    {
+        return ExtraChargeCategory::query()
+            ->where('company_id', $companyId)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
     }
 }

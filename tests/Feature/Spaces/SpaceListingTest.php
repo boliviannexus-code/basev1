@@ -135,6 +135,36 @@ class SpaceListingTest extends TestCase
         $this->assertSame('inactive', $space->refresh()->status);
     }
 
+    public function test_active_space_can_be_taken_offline_and_put_online_for_public_reservations(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUser(['spaces.view', 'spaces.edit']);
+        $space = $this->completePrivateSpace($user->company_id, [
+            'status' => 'active',
+            'approved_by' => $user->id,
+            'approved_at' => now(),
+            'is_public_online' => true,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->patch(route('spaces.offline', $space))
+            ->assertRedirect();
+
+        $space->refresh();
+        $this->assertSame('active', $space->status);
+        $this->assertFalse($space->is_public_online);
+
+        $this
+            ->actingAs($user)
+            ->patch(route('spaces.online', $space))
+            ->assertRedirect();
+
+        $space->refresh();
+        $this->assertSame('active', $space->status);
+        $this->assertTrue($space->is_public_online);
+    }
+
     public function test_show_displays_space_detail(): void
     {
         $this->seed(AccommodationCatalogSeeder::class);

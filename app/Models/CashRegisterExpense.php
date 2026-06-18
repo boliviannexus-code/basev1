@@ -15,6 +15,7 @@ class CashRegisterExpense extends Model
         'cash_register_id',
         'point_of_sale_id',
         'user_id',
+        'extra_charge_category_id',
         'responsible_name',
         'detail',
         'amount',
@@ -32,5 +33,10 @@ class CashRegisterExpense extends Model
     public function cashRegister(): BelongsTo
     {
         return $this->belongsTo(CashRegister::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(ExtraChargeCategory::class, 'extra_charge_category_id');
     }
 }

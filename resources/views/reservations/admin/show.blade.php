@@ -10,6 +10,7 @@
             'pending_payment' => 'Pendiente de pago',
             'payment_under_review' => 'Pago en revision',
             'confirmed' => 'Confirmada',
+            'checked_in' => 'En check-in',
             'rejected' => 'Rechazada',
             'cancelled' => 'Cancelada',
             'expired' => 'Vencida',
@@ -18,12 +19,23 @@
             'pending_payment' => 'warning',
             'payment_under_review' => 'info',
             'confirmed' => 'success',
+            'checked_in' => 'primary',
             'rejected' => 'danger',
             'cancelled' => 'secondary',
             'expired' => 'secondary',
         ];
         $activeExtraCharges = $reservation->extraCharges->where('status', 'active');
         $cancelledExtraCharges = $reservation->extraCharges->where('status', 'cancelled');
+        $hasActiveReservationBlocks = collect([$reservation->occupancyBlock])
+            ->merge($reservation->roomItems->pluck('occupancyBlock'))
+            ->merge($reservation->bedUnitItems->pluck('occupancyBlock'))
+            ->filter()
+            ->unique('id')
+            ->contains(fn ($block) => $block->status === 'active' && ! $block->trashed());
+        $canAddReservationCharge = ! in_array($reservation->status, ['cancelled', 'rejected', 'expired'], true)
+            && ($reservation->status !== 'checked_in' || $hasActiveReservationBlocks);
+        $canCancelReservation = ! in_array($reservation->status, ['cancelled', 'rejected', 'expired'], true)
+            && ($reservation->status !== 'checked_in' || $hasActiveReservationBlocks);
     @endphp
 
     <div class="mb-3">
@@ -102,7 +114,7 @@
         <div class="card-header d-flex justify-content-between align-items-center">
             <h3 class="card-title mb-0">Cargos extras</h3>
             @can('reservations.manage')
-                @if (! in_array($reservation->status, ['cancelled', 'rejected', 'expired'], true))
+                @if ($canAddReservationCharge)
                     <button
                         class="btn btn-primary btn-sm"
                         type="button"
@@ -194,7 +206,7 @@
                     </form>
                 @endif
 
-                @if (! in_array($reservation->status, ['cancelled', 'rejected', 'expired'], true))
+                @if ($canCancelReservation)
                     <form action="{{ route('admin.reservations.cancel', $reservation->id) }}" method="post">
                         @csrf
                         @method('patch')

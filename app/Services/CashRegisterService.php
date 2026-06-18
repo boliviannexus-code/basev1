@@ -104,7 +104,7 @@ class CashRegisterService
     {
         $cashRegister->loadMissing([
             'sales.payments',
-            'expenses',
+            'expenses.category',
             'lodgingPayments.paymentMethod',
             'lodgingPayments.stay.holderGuest',
             'company',

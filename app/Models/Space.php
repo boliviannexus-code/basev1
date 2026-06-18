@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToCompany;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -32,6 +33,7 @@ class Space extends Model
         'shared_bathrooms_count',
         'photos_skipped',
         'status',
+        'is_public_online',
         'created_by',
         'approved_by',
         'approved_at',
@@ -46,6 +48,7 @@ class Space extends Model
             'private_bathrooms_count' => 'integer',
             'shared_bathrooms_count' => 'integer',
             'photos_skipped' => 'boolean',
+            'is_public_online' => 'boolean',
             'approved_at' => 'datetime',
         ];
     }
@@ -141,5 +144,13 @@ class Space extends Model
     public function isApprovedLocked(): bool
     {
         return $this->approved_at !== null || in_array($this->status, ['approved', 'active', 'inactive'], true);
+    }
+
+    public function scopePublicBookable(Builder $query): Builder
+    {
+        return $query
+            ->where('status', 'active')
+            ->where('is_public_online', true)
+            ->whereHas('company', fn (Builder $company): Builder => $company->where('is_active', true));
     }
 }

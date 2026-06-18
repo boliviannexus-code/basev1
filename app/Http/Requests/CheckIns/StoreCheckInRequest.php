@@ -5,6 +5,7 @@ namespace App\Http\Requests\CheckIns;
 use App\Models\AvailabilityStatus;
 use App\Models\Country;
 use App\Models\OccupancyBlock;
+use App\Models\ReservationGroup;
 use App\Models\ReservationChannel;
 use App\Models\RoomBedUnit;
 use App\Models\Space;
@@ -47,6 +48,11 @@ class StoreCheckInRequest extends FormRequest
             'check_in_date' => ['required', 'date'],
             'check_out_date' => ['required', 'date', 'after:check_in_date'],
             'confirm_reserved_conversion' => ['sometimes', 'boolean'],
+            'reservation_group_id' => [
+                'nullable',
+                'integer',
+                Rule::exists((new ReservationGroup)->getTable(), 'id')->where(fn (QueryBuilder $query): QueryBuilder => $query->where('company_id', $companyId)),
+            ],
             'notes' => ['nullable', 'string', 'max:3000'],
             'stays' => ['required', 'array', 'min:1'],
             'stays.*.resource_type' => ['required', Rule::in(['private_space', 'shared_room', 'shared_bed_unit'])],
@@ -163,6 +169,7 @@ class StoreCheckInRequest extends FormRequest
                     : null,
             ],
             'total_people' => $this->filled('total_people') ? (int) $this->input('total_people') : null,
+            'reservation_group_id' => $this->filled('reservation_group_id') ? (int) $this->input('reservation_group_id') : null,
             'confirm_reserved_conversion' => $this->boolean('confirm_reserved_conversion'),
             'notes' => $this->filled('notes') ? trim((string) $this->input('notes')) : null,
             'stays' => collect($this->input('stays', []))
@@ -291,6 +298,7 @@ class StoreCheckInRequest extends FormRequest
             ->where('status', 'active')
             ->whereDate('start_date', '<=', $lastNight->toDateString())
             ->whereDate('end_date', '>=', $checkIn->toDateString())
+            ->when($this->filled('reservation_group_id'), fn (Builder $query): Builder => $this->excludeReservationGroupBlocks($query, (int) $this->input('reservation_group_id')))
             ->when(
                 $bedUnit,
                 fn (Builder $query): Builder => $query->where(fn (Builder $query): Builder => $query
@@ -354,5 +362,13 @@ class StoreCheckInRequest extends FormRequest
                 $validator->errors()->add("stays.{$index}.space_id", 'No se puede vender la habitacion completa porque una cama no esta libre.');
             }
         }
+    }
+
+    private function excludeReservationGroupBlocks(Builder $query, int $reservationGroupId): Builder
+    {
+        return $query
+            ->whereDoesntHave('reservation', fn (Builder $reservation): Builder => $reservation->where('reservation_group_id', $reservationGroupId))
+            ->whereDoesntHave('reservationRoom.reservation', fn (Builder $reservation): Builder => $reservation->where('reservation_group_id', $reservationGroupId))
+            ->whereDoesntHave('reservationBedUnit.reservation', fn (Builder $reservation): Builder => $reservation->where('reservation_group_id', $reservationGroupId));
     }
 }

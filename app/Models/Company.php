@@ -40,6 +40,7 @@ class Company extends Model implements Auditable
         'instagram_url',
         'tiktok_url',
         'report_footer',
+        'reservation_advance_percentage',
         'is_active',
         'is_public_enabled',
     ];
@@ -49,6 +50,7 @@ class Company extends Model implements Auditable
         return [
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
+            'reservation_advance_percentage' => 'decimal:2',
             'is_active' => 'boolean',
             'is_public_enabled' => 'boolean',
             'is_online_enabled_by_admin' => 'boolean',

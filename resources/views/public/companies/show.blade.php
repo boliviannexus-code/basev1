@@ -98,6 +98,8 @@
                             : $location;
                         $category = $package->services->first()?->type ?: collect($package->badges)->filter()->first();
                         $detailUrl = route('public.company.packages.show', [$company->public_slug, $package->slug]);
+                        $reservationUrl = $packageSpace ? route('public.accommodations.show', ['space' => $packageSpace->id, 'package_id' => $package->id]) : null;
+                        $priceText = $package->price_display_text ?: 'Desde '.money_format_decimal($package->price).' '.$package->currency;
                     @endphp
 
                     <article class="company-package-card" id="paquete-{{ $package->id }}">
@@ -107,16 +109,24 @@
                             @else
                                 <span><i class="ti ti-gift"></i></span>
                             @endif
+                            <div class="company-package-media-overlay">
+                                @if ($category)
+                                    <span class="company-package-category">{{ str($category)->replace('_', ' ')->title() }}</span>
+                                @endif
+                                <strong>{{ $priceText }}</strong>
+                            </div>
                         </div>
                         <div class="company-package-body">
-                            <div class="public-package-badges">
+                            <div class="company-package-title-row">
+                                <h3>{{ $package->name }}</h3>
                                 @if ($package->is_featured)
-                                    <span>Destacado</span>
+                                    <span class="company-package-featured">Destacado</span>
                                 @endif
                             </div>
 
-                            <h3>{{ $package->name }}</h3>
-                            <p>{{ $package->short_description }}</p>
+                            @if ($package->short_description)
+                                <p class="company-package-summary">{{ $package->short_description }}</p>
+                            @endif
                             @if ($packageSpaceNames->isNotEmpty())
                                 <p class="company-package-spaces">
                                     <i class="ti ti-building-estate"></i>
@@ -126,8 +136,8 @@
                             @endif
 
                             <div class="company-package-facts">
-                                <span><i class="ti ti-currency-dollar"></i>{{ $package->price_display_text ?: 'Desde '.money_format_decimal($package->price).' '.$package->currency }}</span>
                                 <span><i class="ti ti-moon"></i>{{ $package->nights_included }} noche{{ $package->nights_included === 1 ? '' : 's' }}</span>
+                                <span><i class="ti ti-users"></i>{{ $package->included_people }} persona{{ $package->included_people === 1 ? '' : 's' }} incluida{{ $package->included_people === 1 ? '' : 's' }}</span>
                                 @if ($packageLocation)
                                     <span><i class="ti ti-map-pin"></i>{{ $packageLocation }}</span>
                                 @endif
@@ -138,8 +148,15 @@
                             @endif
 
                             <div class="company-package-actions">
-                                @if ($detailUrl)
-                                    <a class="btn btn-outline-dark btn-sm" href="{{ $detailUrl }}">Ver detalle</a>
+                                <a class="btn btn-outline-dark btn-sm" href="{{ $detailUrl }}">
+                                    <i class="ti ti-list-details"></i>
+                                    Ver detalle
+                                </a>
+                                @if ($reservationUrl)
+                                    <a class="btn btn-dark btn-sm" href="{{ $reservationUrl }}">
+                                        <i class="ti ti-calendar-check"></i>
+                                        Reservar
+                                    </a>
                                 @endif
                                 @if ($contact['whatsapp_url'])
                                     <a class="btn btn-success btn-sm" href="{{ $contact['whatsapp_url'] }}" target="_blank" rel="noopener noreferrer">

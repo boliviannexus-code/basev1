@@ -85,21 +85,35 @@ class OccupancyGridActionService
         }
 
         if ($reservation) {
-            return [
+            $actions = [
                 [
                     'key' => self::ACTION_EXTRA_CHARGE,
                     'label' => 'Agregar cargo extra',
                     'icon' => 'ti-plus',
                     'tone' => 'primary',
                 ],
-                [
-                    'key' => 'view_reservation',
-                    'label' => 'Ver reserva',
-                    'icon' => 'ti-calendar-check',
-                    'tone' => 'success',
-                    'url' => route('admin.reservations.show', $reservation),
-                ],
             ];
+
+            if ($reservation->reservation_group_id) {
+                $actions[] = [
+                    'key' => 'collect_reservation_payment',
+                    'label' => 'Cobrar',
+                    'icon' => 'ti-cash-register',
+                    'tone' => 'success',
+                ];
+            }
+
+            $actions[] = [
+                'key' => 'view_reservation',
+                'label' => 'Ver reserva',
+                'icon' => 'ti-calendar-check',
+                'tone' => 'success',
+                'url' => $reservation->reservation_group_id
+                    ? route('admin.reservation-groups.show', $reservation->reservation_group_id)
+                    : route('admin.reservations.show', $reservation),
+            ];
+
+            return $actions;
         }
 
         if ($date->lt($today) || in_array($availabilityStatus?->status, ['closed', 'reserved'], true)) {
@@ -418,6 +432,7 @@ class OccupancyGridActionService
             'label' => $meta['label'],
             'block_id' => $block->id,
             'reservation_id' => $reservation?->id,
+            'reservation_group_id' => $reservation?->reservation_group_id,
             'title' => $block->title,
             'description' => $block->description,
             'start_date' => $block->start_date?->toDateString(),

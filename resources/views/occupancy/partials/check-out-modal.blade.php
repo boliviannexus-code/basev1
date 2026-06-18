@@ -34,12 +34,12 @@
         @if ($summary['can_check_out'])
             <div class="alert alert-success mb-0">
                 <div class="fw-semibold">Sin deuda pendiente</div>
-                <div>Se cerrara el check-in completo y sus estancias ocupadas.</div>
+                <div>Se cerrara solo esta estancia. Las demas estancias del check-in seguiran activas.</div>
             </div>
         @else
             <div class="alert alert-warning mb-0">
                 <div class="fw-semibold">Hay deuda pendiente</div>
-                <div>Para realizar el check-out primero registra el cobro del saldo pendiente.</div>
+                <div>Para realizar el check-out primero registra el cobro del saldo pendiente de esta estancia.</div>
             </div>
 
             <div class="table-responsive">
@@ -75,9 +75,9 @@
             @if (! $summary['can_check_out'])
                 <a
                     class="btn btn-success"
-                    href="{{ route('stays.payments.create', ['stay' => $stay, 'scope' => 'group']) }}"
-                    data-modal-url="{{ route('stays.payments.create', ['stay' => $stay, 'scope' => 'group']) }}"
-                    data-modal-title="Cobrar check-in"
+                    href="{{ route('stays.payments.create', ['stay' => $stay, 'scope' => 'stay']) }}"
+                    data-modal-url="{{ route('stays.payments.create', ['stay' => $stay, 'scope' => 'stay']) }}"
+                    data-modal-title="Cobrar estancia"
                 >
                     <i class="ti ti-cash-register me-1"></i>Cobrar
                 </a>

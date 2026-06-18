@@ -222,12 +222,18 @@
                             <dd>{{ $quote['extra_people'] }}</dd>
                         </div>
                         <div>
-                            <dt>Total personas extra</dt>
-                            <dd>{{ money_format_decimal($quote['extra_people_total']) }} BOB</dd>
+                            <dt>Personas extra</dt>
+                            <dd>{{ $quote['extra_people'] }} x {{ $quote['nights'] }} noche{{ $quote['nights'] === 1 ? '' : 's' }} = {{ money_format_decimal($quote['extra_people_total']) }} BOB</dd>
                         </div>
+                        @foreach (($quote['extra_people_details'] ?? collect()) as $detail)
+                            <div>
+                                <dt>{{ $detail['date'] }}</dt>
+                                <dd>{{ $detail['quantity'] }} x {{ money_format_decimal($detail['unit_price']) }} BOB = {{ money_format_decimal($detail['total']) }} BOB</dd>
+                            </div>
+                        @endforeach
                         @if (($quote['package_extra_nights'] ?? 0) > 0)
                             <div>
-                                <dt>Noches extra preparadas</dt>
+                                <dt>Noches extra</dt>
                                 <dd>{{ $quote['package_extra_nights'] }} · {{ money_format_decimal($quote['package_extra_nights_total']) }} BOB</dd>
                             </div>
                         @endif

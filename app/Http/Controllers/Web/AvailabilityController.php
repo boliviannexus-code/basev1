@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Availability\BulkUpdateAvailabilityRequest;
 use App\Http\Requests\Availability\StoreAvailabilityStatusRequest;
 use App\Http\Requests\Availability\UpdateAvailabilityStatusRequest;
 use App\Models\AvailabilityStatus;
@@ -72,6 +73,17 @@ class AvailabilityController extends Controller
             'success' => true,
             'message' => 'Estado de disponibilidad actualizado correctamente.',
             'data' => ['id' => $status?->id],
+        ]);
+    }
+
+    public function bulkUpdate(BulkUpdateAvailabilityRequest $request): JsonResponse
+    {
+        $result = $this->statuses->bulkChange($this->companyId(), $request->validated(), $request->user());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Cambios aplicados en bloque correctamente.',
+            'data' => $result,
         ]);
     }
 

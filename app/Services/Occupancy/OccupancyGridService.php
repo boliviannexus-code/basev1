@@ -11,6 +11,7 @@ use App\Models\Stay;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class OccupancyGridService
 {
@@ -92,19 +93,21 @@ class OccupancyGridService
 
     private function spaces(int $companyId, array $filters): Collection
     {
-        return $this->spacesForFilters($companyId)
-            ->filter(function (Space $space) use ($filters): bool {
-                if (filled($filters['space_id'] ?? null) && (int) $filters['space_id'] !== (int) $space->id) {
-                    return false;
-                }
+        $view = $filters['view'] ?? 'private';
 
+        return $this->spacesForFilters($companyId)
+            ->filter(function (Space $space) use ($view): bool {
                 $mode = $space->spaceMode?->slug;
 
-                return match ($filters['type'] ?? 'all') {
-                    'private' => $mode === 'privado',
-                    'shared' => $mode === 'compartido',
-                    default => true,
-                };
+                if ($view === 'private') {
+                    return $mode === 'privado';
+                }
+
+                if (str_starts_with((string) $view, 'shared:')) {
+                    return $mode === 'compartido' && (int) Str::after((string) $view, 'shared:') === (int) $space->id;
+                }
+
+                return $mode === 'privado';
             })
             ->values();
     }
@@ -112,12 +115,12 @@ class OccupancyGridService
     private function blocks(int $companyId, Carbon $weekStart, Carbon $weekEnd, array $filters): Collection
     {
         return OccupancyBlock::query()
-            ->with(['space.spaceMode', 'room', 'bedUnit', 'reservation', 'reservationRoom.reservation', 'reservationBedUnit.reservation'])
+            ->with(['space.spaceMode', 'room', 'bedUnit', 'reservation.reservationGroup', 'reservationRoom.reservation.reservationGroup', 'reservationBedUnit.reservation.reservationGroup'])
             ->where('company_id', $companyId)
             ->where('status', 'active')
             ->where('start_date', '<=', $weekEnd->toDateString())
             ->where('end_date', '>=', $weekStart->toDateString())
-            ->when(filled($filters['space_id'] ?? null), fn (Builder $query): Builder => $query->where('space_id', $filters['space_id']))
+            ->where(fn (Builder $query): Builder => $this->applyViewFilter($query, $filters))
             ->get();
     }
 
@@ -126,7 +129,7 @@ class OccupancyGridService
         return AvailabilityStatus::query()
             ->where('company_id', $companyId)
             ->whereBetween('date', [$weekStart->toDateString(), $weekEnd->toDateString()])
-            ->when(filled($filters['space_id'] ?? null), fn (Builder $query): Builder => $query->where('space_id', $filters['space_id']))
+            ->where(fn (Builder $query): Builder => $this->applyViewFilter($query, $filters))
             ->get()
             ->keyBy(fn (AvailabilityStatus $status): string => $this->availabilityKey(
                 (int) $status->space_id,
@@ -144,7 +147,7 @@ class OccupancyGridService
             ->whereIn('status', ['occupied', 'checked_out'])
             ->whereDate('check_in_date', '<=', $weekEnd->toDateString())
             ->whereDate('check_out_date', '>', $weekStart->toDateString())
-            ->when(filled($filters['space_id'] ?? null), fn (Builder $query): Builder => $query->where('space_id', $filters['space_id']))
+            ->where(fn (Builder $query): Builder => $this->applyViewFilter($query, $filters))
             ->get();
     }
 
@@ -179,7 +182,6 @@ class OccupancyGridService
                     'cells' => $this->cells($dates, $blocks, $availabilityStatuses, $stays, $space->id, null, null, $filters),
                 ]];
             })
-            ->filter(fn (array $row): bool => $this->rowMatchesStatus($row, $filters['status'] ?? null))
             ->values()
             ->all();
     }
@@ -313,6 +315,7 @@ class OccupancyGridService
                     'holder_guest_name' => $this->holderGuestName($stay),
                     'account_statement_id' => $stay?->accountStatement?->id,
                     'reservation_id' => $reservation?->id,
+                    'reservation_group_id' => $reservation?->reservation_group_id,
                     'title' => $block?->title,
                     'description' => $block?->description,
                     'start_date' => $block?->start_date?->toDateString(),
@@ -446,13 +449,15 @@ class OccupancyGridService
         return trim($stay->holderGuest->first_name.' '.$stay->holderGuest->last_name) ?: null;
     }
 
-    private function rowMatchesStatus(array $row, ?string $status): bool
+    private function applyViewFilter(Builder $query, array $filters): Builder
     {
-        if (! filled($status) || $row['type'] === 'shared_space_group') {
-            return true;
+        $view = (string) ($filters['view'] ?? 'private');
+
+        if (str_starts_with($view, 'shared:')) {
+            return $query->where('space_id', (int) Str::after($view, 'shared:'));
         }
 
-        return collect($row['cells'])->contains(fn (array $cell): bool => $cell['status'] === $status);
+        return $query->whereHas('space.spaceMode', fn (Builder $spaceMode): Builder => $spaceMode->where('slug', 'privado'));
     }
 
     private function summary(Collection $spaces, Collection $blocks): array

@@ -157,9 +157,12 @@
                         <div><dt>Precio base paquete</dt><dd>{{ money_format_decimal($reservation->package_price) }} {{ $reservation->currency }}</dd></div>
                         <div><dt>Personas incluidas</dt><dd>{{ $reservation->included_people }}</dd></div>
                         <div><dt>Personas extra</dt><dd>{{ $reservation->extra_people }}</dd></div>
-                        <div><dt>Total personas extra</dt><dd>{{ money_format_decimal($reservation->extra_people_total) }} {{ $reservation->currency }}</dd></div>
+                        <div>
+                            <dt>Personas extra</dt>
+                            <dd>{{ $reservation->extra_people }} x {{ $reservation->nights }} noche{{ $reservation->nights === 1 ? '' : 's' }} = {{ money_format_decimal($reservation->extra_people_total) }} {{ $reservation->currency }}</dd>
+                        </div>
                         @if ((int) $reservation->package_extra_nights > 0)
-                            <div><dt>Noches extra preparadas</dt><dd>{{ $reservation->package_extra_nights }} · {{ money_format_decimal($reservation->package_extra_nights_total) }} {{ $reservation->currency }}</dd></div>
+                            <div><dt>Noches extra</dt><dd>{{ $reservation->package_extra_nights }} · {{ money_format_decimal($reservation->package_extra_nights_total) }} {{ $reservation->currency }}</dd></div>
                         @endif
                         <div><dt>Total final del paquete</dt><dd>{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</dd></div>
                     @else

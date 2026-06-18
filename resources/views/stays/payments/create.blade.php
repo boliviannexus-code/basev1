@@ -11,6 +11,7 @@
     data-stay-payment-form
     data-can-check-out-today="{{ $canCheckOutToday ? '1' : '0' }}"
     data-can-submit-payment="{{ $openRegister && $paymentMethods->isNotEmpty() ? '1' : '0' }}"
+    data-checkout-balance="{{ number_format((float) $stayBalance, 2, '.', '') }}"
 >
     @csrf
 
@@ -70,7 +71,7 @@
         <button class="btn btn-outline-success" type="submit" name="action" value="collect" @disabled(! $openRegister || $paymentMethods->isEmpty() || (float) $balance <= 0)>
             <i class="ti ti-cash-register me-1"></i>Registrar cobro
         </button>
-        <button class="btn btn-success" type="submit" name="action" value="collect_checkout" data-stay-payment-checkout-button @disabled(! $openRegister || $paymentMethods->isEmpty() || ! $canCheckOutToday || (float) $balance <= 0)>
+        <button class="btn btn-success" type="submit" name="action" value="collect_checkout" data-stay-payment-checkout-button @disabled(! $openRegister || $paymentMethods->isEmpty() || ! $canCheckOutToday || (float) $stayBalance <= 0)>
             <i class="ti ti-logout me-1"></i>Cobrar y check-out
         </button>
     </div>

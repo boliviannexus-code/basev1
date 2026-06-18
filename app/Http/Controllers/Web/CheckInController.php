@@ -11,6 +11,8 @@ use App\Models\Country;
 use App\Models\ExchangeRate;
 use App\Models\Guest;
 use App\Models\OccupancyBlock;
+use App\Models\Reservation;
+use App\Models\ReservationGroup;
 use App\Models\ReservationChannel;
 use App\Models\RoomBedUnit;
 use App\Models\Space;
@@ -38,8 +40,8 @@ class CheckInController extends Controller
 
         $context = $this->initialContext($request);
         $checkInDate = CarbonImmutable::parse($context['check_in_date']);
-        $checkOutDate = $request->filled('check_out_date')
-            ? CarbonImmutable::parse((string) $request->query('check_out_date'))
+        $checkOutDate = filled($context['check_out_date'] ?? null)
+            ? CarbonImmutable::parse((string) $context['check_out_date'])
             : $checkInDate->addDay();
 
         $reservationChannels = $this->reservationChannels($this->companyId());
@@ -49,11 +51,11 @@ class CheckInController extends Controller
                 ...$context,
                 'check_out_date' => $checkOutDate->toDateString(),
             ],
-            'resources' => $this->resourcesForDates($this->companyId(), $checkInDate, $checkOutDate),
+            'resources' => $this->resourcesForDates($this->companyId(), $checkInDate, $checkOutDate, $context['reservation_group_id'] ?? null),
             'reservationChannels' => $reservationChannels,
             'defaultReservationChannel' => $this->defaultReservationChannel($reservationChannels),
             'currentExchangeRate' => ExchangeRate::currentForCompany($this->companyId()),
-            'selectedBirthCountry' => $this->selectedBirthCountry($request),
+            'selectedBirthCountry' => $this->selectedBirthCountry($request, $context),
             'countries' => $this->birthCountries(),
             'documentTypes' => [
                 'passport' => 'Pasaporte',
@@ -225,7 +227,12 @@ class CheckInController extends Controller
             'space_room_id' => ['nullable', 'integer'],
             'room_bed_unit_id' => ['nullable', 'integer'],
             'resource_type' => ['nullable', 'in:private_space,shared_room,shared_bed_unit'],
+            'reservation_group_id' => ['nullable', 'integer'],
         ]);
+
+        if (filled($data['reservation_group_id'] ?? null)) {
+            return $this->contextFromReservationGroup((int) $data['reservation_group_id']);
+        }
 
         $checkInDate = $data['check_in_date'] ?? $data['date'] ?? today()->toDateString();
         $resourceType = $data['resource_type'] ?? (filled($data['room_bed_unit_id'] ?? null)
@@ -239,10 +246,150 @@ class CheckInController extends Controller
             'room_bed_unit_id' => $data['room_bed_unit_id'] ?? null,
             'resource_type' => $resourceType,
             'check_in_type' => filled($data['space_id'] ?? null) ? 'individual' : 'multiple',
+            'reservation_group_id' => null,
+            'reservation_channel_id' => null,
+            'total_people' => 1,
+            'notes' => null,
+            'confirm_reserved_conversion' => false,
+            'main_guest' => [
+                'document_type' => 'passport',
+                'document_number' => null,
+                'first_name' => null,
+                'last_name' => null,
+                'birth_country_id' => null,
+                'birth_date' => today()->toDateString(),
+            ],
         ];
     }
 
-    private function resourcesForDates(int $companyId, CarbonImmutable $checkInDate, CarbonImmutable $checkOutDate): array
+    private function contextFromReservationGroup(int $groupId): array
+    {
+        $group = ReservationGroup::query()
+            ->with([
+                'reservations.occupancyBlock',
+                'reservations.space',
+                'reservations.room',
+                'reservations.roomItems.room',
+                'reservations.bedUnitItems.bedUnit.room',
+            ])
+            ->where('company_id', $this->companyId())
+            ->whereKey($groupId)
+            ->firstOrFail();
+
+        if ($group->status === 'cancelled') {
+            abort(403, 'No se puede iniciar check-in de una reserva cancelada.');
+        }
+
+        if ($group->status === 'checked_in' && ! $this->hasActiveReservationBlocks($group)) {
+            abort(403, 'El check-in de esta reserva ya fue registrado.');
+        }
+
+        if (! $group->check_in->isSameDay(today())) {
+            abort(403, 'El check-in solo se puede iniciar en la fecha de ingreso de la reserva.');
+        }
+
+        $guest = $this->guestForReservation($group);
+        [$firstName, $lastName] = $this->splitGuestName($group->guest_name);
+        $stays = $this->staysForReservationGroup($group);
+        $firstStay = $stays[0] ?? null;
+
+        return [
+            'check_in_date' => $group->check_in->toDateString(),
+            'check_out_date' => $group->check_out->toDateString(),
+            'space_id' => $firstStay['space_id'] ?? null,
+            'space_room_id' => $firstStay['space_room_id'] ?? null,
+            'room_bed_unit_id' => $firstStay['room_bed_unit_id'] ?? null,
+            'resource_type' => $firstStay['resource_type'] ?? 'private_space',
+            'check_in_type' => count($stays) > 1 ? 'multiple' : 'individual',
+            'reservation_group_id' => $group->id,
+            'reservation_channel_id' => $group->reservation_channel_id,
+            'total_people' => max((int) $group->guests, 1),
+            'notes' => $group->notes,
+            'confirm_reserved_conversion' => true,
+            'main_guest' => [
+                'document_type' => $guest?->document_type ?: 'ci',
+                'document_number' => $guest?->document_number ?: $group->guest_document,
+                'first_name' => $guest?->first_name ?: $firstName,
+                'last_name' => $guest?->last_name ?: $lastName,
+                'birth_country_id' => $guest?->birth_country_id,
+                'birth_date' => $guest?->birth_date?->toDateString() ?: today()->toDateString(),
+            ],
+            'stays' => $stays,
+        ];
+    }
+
+    private function guestForReservation(ReservationGroup $group): ?Guest
+    {
+        if (! filled($group->guest_document)) {
+            return null;
+        }
+
+        return Guest::query()
+            ->where('company_id', $this->companyId())
+            ->where('document_number', $group->guest_document)
+            ->first();
+    }
+
+    private function hasActiveReservationBlocks(ReservationGroup $group): bool
+    {
+        return $group->reservations
+            ->pluck('occupancyBlock')
+            ->filter(fn ($block) => $block && $block->status === 'active' && ! $block->trashed())
+            ->isNotEmpty();
+    }
+
+    private function splitGuestName(?string $guestName): array
+    {
+        $parts = preg_split('/\s+/', trim((string) $guestName), 2) ?: [];
+
+        return [
+            $parts[0] ?? '',
+            $parts[1] ?? '',
+        ];
+    }
+
+    private function staysForReservationGroup(ReservationGroup $group): array
+    {
+        $remainingPeople = max((int) $group->guests, 1);
+        $reservations = $group->reservations
+            ->where('status', '!=', 'cancelled')
+            ->values();
+
+        return $reservations
+            ->map(function (Reservation $reservation, int $index) use (&$remainingPeople, $reservations): array {
+                $bedItem = $reservation->bedUnitItems->first();
+                $roomItem = $reservation->roomItems->first();
+                $room = $bedItem?->bedUnit?->room ?: $roomItem?->room ?: $reservation->room;
+                $bedUnit = $bedItem?->bedUnit;
+                $capacity = $bedUnit ? 1 : $this->resourceCapacity($reservation->space, $room);
+                $isLast = $index === $reservations->count() - 1;
+                $peopleCount = $isLast ? max($remainingPeople, 1) : max(min($remainingPeople, $capacity), 1);
+                $remainingPeople = max($remainingPeople - $peopleCount, 0);
+                $resourceType = $bedUnit ? 'shared_bed_unit' : ($room ? 'shared_room' : 'private_space');
+                $exchangeRate = ExchangeRate::currentForCompany($this->companyId())?->rate;
+                $priceBob = (float) $reservation->price_per_person;
+                $priceUsd = $exchangeRate && $exchangeRate > 0 ? round($priceBob / (float) $exchangeRate, 2) : null;
+
+                return [
+                    'resource_key' => $bedUnit ? 'bed:'.$bedUnit->id : (($room ? 'room:' : 'space:').($room?->id ?? $reservation->space_id)),
+                    'resource_type' => $resourceType,
+                    'space_id' => $reservation->space_id,
+                    'space_room_id' => $room?->id,
+                    'room_bed_unit_id' => $bedUnit?->id,
+                    'people_count' => $peopleCount,
+                    'currency' => 'BOB',
+                    'exchange_rate' => $exchangeRate ?? '',
+                    'price_per_night_bob' => number_format($priceBob, 2, '.', ''),
+                    'price_per_night_usd' => $priceUsd !== null ? number_format($priceUsd, 2, '.', '') : '',
+                    'breakfast_included' => (bool) $reservation->breakfast_included,
+                    'guests' => [],
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function resourcesForDates(int $companyId, CarbonImmutable $checkInDate, CarbonImmutable $checkOutDate, ?int $reservationGroupId = null): array
     {
         $lastNight = $checkOutDate->subDay();
         $availabilityStatuses = AvailabilityStatus::query()
@@ -254,6 +401,7 @@ class CheckInController extends Controller
             ->where('status', 'active')
             ->whereDate('start_date', '<=', $lastNight->toDateString())
             ->whereDate('end_date', '>=', $checkInDate->toDateString())
+            ->when($reservationGroupId, fn (Builder $query): Builder => $this->excludeReservationGroupBlocks($query, $reservationGroupId))
             ->get();
 
         return Space::query()
@@ -410,6 +558,14 @@ class CheckInController extends Controller
         });
     }
 
+    private function excludeReservationGroupBlocks(Builder $query, int $reservationGroupId): Builder
+    {
+        return $query
+            ->whereDoesntHave('reservation', fn (Builder $reservation): Builder => $reservation->where('reservation_group_id', $reservationGroupId))
+            ->whereDoesntHave('reservationRoom.reservation', fn (Builder $reservation): Builder => $reservation->where('reservation_group_id', $reservationGroupId))
+            ->whereDoesntHave('reservationBedUnit.reservation', fn (Builder $reservation): Builder => $reservation->where('reservation_group_id', $reservationGroupId));
+    }
+
     private function resourceCapacity(Space $space, ?SpaceRoom $room): int
     {
         if (! $room) {
@@ -448,9 +604,9 @@ class CheckInController extends Controller
             ->get(['id', 'name', 'iso_code']);
     }
 
-    private function selectedBirthCountry(Request $request): ?Country
+    private function selectedBirthCountry(Request $request, array $initial): ?Country
     {
-        $countryId = $request->old('main_guest.birth_country_id', $request->old('birth_country_id'));
+        $countryId = $request->old('main_guest.birth_country_id', $request->old('birth_country_id', $initial['main_guest']['birth_country_id'] ?? null));
 
         if (! $countryId) {
             return null;

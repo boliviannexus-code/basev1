@@ -8,6 +8,7 @@ use App\Http\Requests\PublicSite\StoreReservationRequest;
 use App\Http\Requests\PublicSite\SubmitReservationPaymentProofRequest;
 use App\Http\Requests\PublicSite\UpdateReservationRequest;
 use App\Models\Reservation;
+use App\Models\ReservationGroup;
 use App\Services\PublicSite\PublicAccommodationSearchService;
 use App\Services\PublicSite\PublicReservationService;
 use Illuminate\Contracts\View\View;
@@ -147,6 +148,17 @@ class PublicReservationController extends Controller
             'status' => 'payment_under_review',
             'payment_status' => 'submitted',
         ]);
+
+        if ($reservation->reservation_group_id) {
+            ReservationGroup::query()
+                ->withoutGlobalScope('company')
+                ->whereKey($reservation->reservation_group_id)
+                ->update([
+                    'payment_reference' => $request->validated('payment_reference'),
+                    'status' => 'payment_under_review',
+                    'payment_status' => 'pending',
+                ]);
+        }
 
         return redirect()
             ->route('public.reservations.show', $reservation->id)

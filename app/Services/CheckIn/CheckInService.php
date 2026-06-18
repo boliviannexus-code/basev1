@@ -57,6 +57,7 @@ class CheckInService
                         'check_in_date' => $data['check_in_date'],
                         'check_out_date' => $data['check_out_date'],
                         'confirm_reserved_conversion' => (bool) ($data['confirm_reserved_conversion'] ?? false),
+                        'reservation_group_id' => $data['reservation_group_id'] ?? null,
                     ],
                 );
                 $this->ensureCapacity($stayData['people_count'], $space, $room, $bedUnit);
@@ -110,6 +111,10 @@ class CheckInService
                 }
             }
 
+            if (filled($data['reservation_group_id'] ?? null)) {
+                $this->releaseReservationBlocks((int) $companyId, (int) $data['reservation_group_id']);
+            }
+
             return $group->load(['mainGuest', 'stays.guests', 'stays.accountStatement']);
         });
     }
@@ -120,10 +125,14 @@ class CheckInService
             ->withoutGlobalScope('company')
             ->with('extraCharges.category')
             ->where('company_id', $companyId)
-            ->whereIn('status', Reservation::BLOCKING_STATUSES)
+            ->whereIn('status', filled($data['reservation_group_id'] ?? null) ? [...Reservation::BLOCKING_STATUSES, 'checked_in'] : Reservation::BLOCKING_STATUSES)
             ->whereDate('check_in', $data['check_in_date'])
             ->whereDate('check_out', $data['check_out_date'])
             ->where('space_id', $stay->space_id);
+
+        if (filled($data['reservation_group_id'] ?? null)) {
+            $query->where('reservation_group_id', (int) $data['reservation_group_id']);
+        }
 
         if ($stay->room_bed_unit_id) {
             $query->whereHas('bedUnitItems', fn ($itemQuery) => $itemQuery->where('room_bed_unit_id', $stay->room_bed_unit_id));
@@ -140,6 +149,29 @@ class CheckInService
         }
 
         return $query->first();
+    }
+
+    private function releaseReservationBlocks(int $companyId, int $reservationGroupId): void
+    {
+        Reservation::query()
+            ->withoutGlobalScope('company')
+            ->with([
+                'occupancyBlock' => fn ($query) => $query->withTrashed(),
+                'roomItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
+                'bedUnitItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
+            ])
+            ->where('company_id', $companyId)
+            ->where('reservation_group_id', $reservationGroupId)
+            ->get()
+            ->flatMap(fn (Reservation $reservation) => collect([$reservation->occupancyBlock])
+                ->merge($reservation->roomItems->pluck('occupancyBlock'))
+                ->merge($reservation->bedUnitItems->pluck('occupancyBlock')))
+            ->filter()
+            ->unique('id')
+            ->each(function ($block): void {
+                $block->update(['status' => 'cancelled']);
+                $block->delete();
+            });
     }
 
     private function ensureCapacity(int $peopleCount, Space $space, ?SpaceRoom $room, ?RoomBedUnit $bedUnit): void

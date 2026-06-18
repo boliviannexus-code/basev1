@@ -14,6 +14,7 @@ class SpaceCashExpense extends Model
         'company_id',
         'space_cash_register_id',
         'user_id',
+        'extra_charge_category_id',
         'responsible_name',
         'detail',
         'amount',
@@ -31,5 +32,10 @@ class SpaceCashExpense extends Model
     public function register(): BelongsTo
     {
         return $this->belongsTo(SpaceCashRegister::class, 'space_cash_register_id');
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(ExtraChargeCategory::class, 'extra_charge_category_id');
     }
 }

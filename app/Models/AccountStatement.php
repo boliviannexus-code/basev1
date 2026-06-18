@@ -21,6 +21,8 @@ class AccountStatement extends Model
     protected $fillable = [
         'company_id',
         'stay_id',
+        'reservation_id',
+        'reservation_group_id',
         'currency',
         'subtotal',
         'discount_total',
@@ -49,6 +51,16 @@ class AccountStatement extends Model
     public function stay(): BelongsTo
     {
         return $this->belongsTo(Stay::class);
+    }
+
+    public function reservation(): BelongsTo
+    {
+        return $this->belongsTo(Reservation::class);
+    }
+
+    public function reservationGroup(): BelongsTo
+    {
+        return $this->belongsTo(ReservationGroup::class);
     }
 
     public function items(): HasMany

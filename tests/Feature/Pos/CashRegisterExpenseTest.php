@@ -5,6 +5,7 @@ namespace Tests\Feature\Pos;
 use App\Models\Branch;
 use App\Models\CashRegister;
 use App\Models\Company;
+use App\Models\ExtraChargeCategory;
 use App\Models\PointOfSale;
 use App\Models\Sale;
 use App\Models\User;
@@ -20,6 +21,7 @@ class CashRegisterExpenseTest extends TestCase
     public function test_user_can_register_cash_expense_when_cash_is_available(): void
     {
         $user = $this->userWithPosAccess();
+        $category = $this->expenseCategory($user->company_id);
         [$pointOfSale, $branch] = $this->assignedPointOfSale($user);
         $cashRegister = CashRegister::factory()->create([
             'point_of_sale_id' => $pointOfSale->id,
@@ -32,6 +34,7 @@ class CashRegisterExpenseTest extends TestCase
         $this
             ->actingAs($user)
             ->post(route('pos.expenses.store'), [
+                'extra_charge_category_id' => $category->id,
                 'responsible_name' => 'Maria Caja',
                 'detail' => 'Compra de bolsas',
                 'amount' => 25.50,
@@ -43,6 +46,7 @@ class CashRegisterExpenseTest extends TestCase
             'company_id' => $user->company_id,
             'point_of_sale_id' => null,
             'user_id' => $user->id,
+            'extra_charge_category_id' => $category->id,
             'responsible_name' => 'Maria Caja',
             'detail' => 'Compra de bolsas',
             'amount' => '25.50',
@@ -52,6 +56,7 @@ class CashRegisterExpenseTest extends TestCase
     public function test_cash_expense_cannot_exceed_available_cash_in_open_register(): void
     {
         $user = $this->userWithPosAccess();
+        $category = $this->expenseCategory($user->company_id);
         [$pointOfSale, $branch] = $this->assignedPointOfSale($user);
         CashRegister::factory()->create([
             'point_of_sale_id' => $pointOfSale->id,
@@ -64,6 +69,7 @@ class CashRegisterExpenseTest extends TestCase
         $this
             ->actingAs($user)
             ->post(route('pos.expenses.store'), [
+                'extra_charge_category_id' => $category->id,
                 'responsible_name' => 'Maria Caja',
                 'detail' => 'Compra de bolsas',
                 'amount' => 21,
@@ -76,6 +82,7 @@ class CashRegisterExpenseTest extends TestCase
     public function test_cash_expense_available_cash_includes_cash_sales_from_same_register(): void
     {
         $user = $this->userWithPosAccess();
+        $category = $this->expenseCategory($user->company_id);
         [$pointOfSale, $branch, $warehouse] = $this->assignedPointOfSale($user);
         $cashRegister = CashRegister::factory()->create([
             'point_of_sale_id' => $pointOfSale->id,
@@ -107,6 +114,7 @@ class CashRegisterExpenseTest extends TestCase
         $this
             ->actingAs($user)
             ->post(route('pos.expenses.store'), [
+                'extra_charge_category_id' => $category->id,
                 'responsible_name' => 'Maria Caja',
                 'detail' => 'Taxi de reparto',
                 'amount' => 20,
@@ -115,6 +123,7 @@ class CashRegisterExpenseTest extends TestCase
 
         $this->assertDatabaseHas('cash_register_expenses', [
             'cash_register_id' => $cashRegister->id,
+            'extra_charge_category_id' => $category->id,
             'amount' => '20.00',
         ]);
     }
@@ -122,10 +131,12 @@ class CashRegisterExpenseTest extends TestCase
     public function test_cash_expense_requires_open_cash_register(): void
     {
         $user = $this->userWithPosAccess();
+        $category = $this->expenseCategory($user->company_id);
 
         $this
             ->actingAs($user)
             ->post(route('pos.expenses.store'), [
+                'extra_charge_category_id' => $category->id,
                 'responsible_name' => 'Maria Caja',
                 'detail' => 'Compra de bolsas',
                 'amount' => 5,
@@ -152,5 +163,17 @@ class CashRegisterExpenseTest extends TestCase
         $user->givePermissionTo('pos.access');
 
         return $user;
+    }
+
+    private function expenseCategory(int $companyId): ExtraChargeCategory
+    {
+        return ExtraChargeCategory::query()->create([
+            'company_id' => $companyId,
+            'name' => 'Lavanderia',
+            'default_unit_price' => 0,
+            'currency' => 'BOB',
+            'is_active' => true,
+            'sort_order' => 1,
+        ]);
     }
 }

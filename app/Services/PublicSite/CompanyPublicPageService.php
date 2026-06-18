@@ -61,9 +61,14 @@ class CompanyPublicPageService
                 'spaces' => fn ($query) => $query
                     ->withoutGlobalScope('company')
                     ->where('status', 'active')
+                    ->where('is_public_online', true)
                     ->with(['location', 'photos' => fn ($photoQuery) => $photoQuery->orderBy('sort_order')])
                     ->orderByRaw('coalesce(title, name) asc'),
             ])
+            ->whereHas('spaces', fn ($query) => $query
+                ->withoutGlobalScope('company')
+                ->where('status', 'active')
+                ->where('is_public_online', true))
             ->firstOrFail();
 
         $displayName = $company->public_name ?: $company->name;
@@ -111,6 +116,7 @@ class CompanyPublicPageService
                 'spaces' => fn ($query) => $query
                     ->withoutGlobalScope('company')
                     ->where('status', 'active')
+                    ->where('is_public_online', true)
                     ->with(['location', 'spaceMode'])
                     ->orderByRaw('coalesce(title, name) asc'),
             ])
@@ -119,10 +125,15 @@ class CompanyPublicPageService
             ->orderBy('name')
             ->get()
             ->map(function (AccommodationPackage $package): AccommodationPackage {
-                $package->setRelation('spaces', $package->spaces->where('status', 'active')->values());
+                $package->setRelation('spaces', $package->spaces
+                    ->where('status', 'active')
+                    ->where('is_public_online', true)
+                    ->values());
 
                 return $package;
-            });
+            })
+            ->filter(fn (AccommodationPackage $package): bool => $package->spaces->isNotEmpty())
+            ->values();
     }
 
     private function spaces(Company $company): Collection
@@ -130,6 +141,7 @@ class CompanyPublicPageService
         return $company->spaces()
             ->withoutGlobalScope('company')
             ->where('status', 'active')
+            ->where('is_public_online', true)
             ->with('location')
             ->orderByRaw('coalesce(title, name) asc')
             ->get();

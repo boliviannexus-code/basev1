@@ -35,6 +35,8 @@ class AccountStatementItem extends Model
         'company_id',
         'account_statement_id',
         'stay_id',
+        'reservation_id',
+        'reservation_group_id',
         'extra_charge_category_id',
         'date',
         'type',
@@ -70,6 +72,16 @@ class AccountStatementItem extends Model
     public function stay(): BelongsTo
     {
         return $this->belongsTo(Stay::class);
+    }
+
+    public function reservation(): BelongsTo
+    {
+        return $this->belongsTo(Reservation::class);
+    }
+
+    public function reservationGroup(): BelongsTo
+    {
+        return $this->belongsTo(ReservationGroup::class);
     }
 
     public function extraChargeCategory(): BelongsTo

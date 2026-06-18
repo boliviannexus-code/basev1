@@ -50,4 +50,9 @@ class SpaceCashRegister extends Model
     {
         return $this->hasMany(SpaceCashLodgingPayment::class);
     }
+
+    public function reservationPayments(): HasMany
+    {
+        return $this->hasMany(SpaceCashReservationPayment::class);
+    }
 }

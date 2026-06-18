@@ -10,6 +10,7 @@
             'pending_payment' => 'Pendientes de pago',
             'payment_under_review' => 'Pagos en revision',
             'confirmed' => 'Confirmadas',
+            'checked_in' => 'En check-in',
             'rejected' => 'Rechazadas',
             'cancelled' => 'Canceladas',
             'expired' => 'Vencidas',
@@ -18,6 +19,7 @@
             'pending_payment' => 'warning',
             'payment_under_review' => 'info',
             'confirmed' => 'success',
+            'checked_in' => 'primary',
             'rejected' => 'danger',
             'cancelled' => 'secondary',
             'expired' => 'secondary',
@@ -36,6 +38,58 @@
             </a>
         @endforeach
     </div>
+
+    @if ($reservationGroups->isNotEmpty())
+        <x-ui.table-card title="Reservas internas agrupadas" class="mb-3">
+            <table class="table table-vcenter">
+                <thead>
+                    <tr>
+                        <th>Codigo</th>
+                        <th>Huesped</th>
+                        <th>Recursos</th>
+                        <th>Fechas</th>
+                        <th>Total</th>
+                        <th>Estado</th>
+                        <th class="w-1"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($reservationGroups as $group)
+                        <tr>
+                            <td><a class="fw-bold" href="{{ route('admin.reservation-groups.show', $group) }}">{{ $group->code }}</a></td>
+                            <td>
+                                <div>{{ $group->guest_name }}</div>
+                                <div class="text-muted small">{{ $group->guest_email ?: 'Sin correo' }}</div>
+                                <div class="text-muted small">Canal: {{ $group->reservationChannel?->name ?: 'Sin canal' }}</div>
+                            </td>
+                            <td>
+                                <div>{{ $group->reservations->count() }} recurso{{ $group->reservations->count() === 1 ? '' : 's' }}</div>
+                                <div class="text-muted small">{{ $group->reservations->pluck('space')->filter()->unique('id')->count() }} alojamiento{{ $group->reservations->pluck('space')->filter()->unique('id')->count() === 1 ? '' : 's' }}</div>
+                            </td>
+                            <td>
+                                <div>{{ $group->check_in->toDateString() }} al {{ $group->check_out->toDateString() }}</div>
+                                <div class="text-muted small">{{ $group->nights }} noche{{ $group->nights === 1 ? '' : 's' }} · {{ $group->guests }} persona{{ $group->guests === 1 ? '' : 's' }}</div>
+                            </td>
+                            <td>
+                                <div>{{ money_format_decimal($group->total_amount) }} {{ $group->currency }}</div>
+                                <div class="text-muted small">Adelanto {{ money_format_decimal($group->advance_amount) }}</div>
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ $statusTones[$group->status] ?? 'secondary' }}-lt">
+                                    {{ $statusLabels[$group->status] ?? str($group->status)->replace('_', ' ') }}
+                                </span>
+                            </td>
+                            <td>
+                                <a class="btn btn-outline-primary btn-sm" href="{{ route('admin.reservation-groups.show', $group) }}">
+                                    Revisar
+                                </a>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </x-ui.table-card>
+    @endif
 
     <x-ui.table-card title="Reservas">
         <table class="table table-vcenter">

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CashRegisterExpense;
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\ExtraChargeCategory;
 use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\Presentation;
@@ -26,6 +27,7 @@ class PosController extends Controller
     {
         $user = $request->user();
         PaymentMethodDefaults::ensureForCompany($user->company_id);
+        ExtraChargeCategory::ensureDefaultsForCompany((int) $user->company_id);
         $openRegister = $this->cashRegisters->currentForUser($user);
 
         return view('pos.index', [
@@ -37,6 +39,7 @@ class PosController extends Controller
             'stockAvailability' => [],
             'quickUnitPresentation' => Presentation::query()->where('company_id', $user->company_id)->where('units_per_package', 1)->first(),
             'quickSaleCategories' => Category::query()->where('company_id', $user->company_id)->where('is_active', true)->with('products')->get(),
+            'expenseCategories' => $this->expenseCategories((int) $user->company_id),
         ]);
     }
 
@@ -64,11 +67,23 @@ class PosController extends Controller
 
     public function storeExpense(Request $request): RedirectResponse
     {
+        ExtraChargeCategory::ensureDefaultsForCompany((int) $request->user()->company_id);
+
         $data = $request->validateWithBag('cashExpense', [
+            'extra_charge_category_id' => ['required', 'integer', 'exists:extra_charge_categories,id'],
             'responsible_name' => ['required', 'string', 'max:255'],
             'detail' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0.01'],
         ]);
+        $category = $this->expenseCategories((int) $request->user()->company_id)
+            ->firstWhere('id', (int) $data['extra_charge_category_id']);
+
+        if (! $category) {
+            throw ValidationException::withMessages([
+                'extra_charge_category_id' => 'La categoria seleccionada no esta disponible.',
+            ])->errorBag('cashExpense');
+        }
+
         $cashRegister = $this->cashRegisters->currentForUser($request->user());
 
         if (! $cashRegister) {
@@ -90,6 +105,7 @@ class PosController extends Controller
             'cash_register_id' => $cashRegister->id,
             'point_of_sale_id' => null,
             'user_id' => $request->user()->id,
+            'extra_charge_category_id' => $category->id,
             'responsible_name' => $data['responsible_name'],
             'detail' => $data['detail'],
             'amount' => $data['amount'],
@@ -104,5 +120,15 @@ class PosController extends Controller
         return back()->withErrors([
             'items' => 'La venta de productos esta desactivada hasta habilitar almacenes e inventario.',
         ])->withInput();
+    }
+
+    private function expenseCategories(int $companyId)
+    {
+        return ExtraChargeCategory::query()
+            ->where('company_id', $companyId)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
     }
 }

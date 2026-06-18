@@ -23,16 +23,16 @@ class OccupancyController extends Controller
     public function index(Request $request): View
     {
         Gate::authorize('occupancy.view');
+        $spaces = $this->grid->spacesForFilters($this->companyId());
 
         $filters = $request->only([
             'week_start',
-            'type',
-            'space_id',
-            'status',
+            'view',
         ]);
+        $filters['view'] = $this->initialView($filters['view'] ?? null, $spaces);
 
         return view('occupancy.index', [
-            'spaces' => $this->grid->spacesForFilters($this->companyId()),
+            'spaces' => $spaces,
             'initialWeek' => $this->grid->weekData($this->companyId(), $filters),
             'filters' => $filters,
         ]);
@@ -44,9 +44,7 @@ class OccupancyController extends Controller
 
         return response()->json($this->grid->weekData($this->companyId(), $request->only([
             'week_start',
-            'type',
-            'space_id',
-            'status',
+            'view',
         ])));
     }
 
@@ -114,6 +112,21 @@ class OccupancyController extends Controller
     private function companyId(): int
     {
         return (int) auth()->user()?->company_id;
+    }
+
+    private function initialView(?string $view, $spaces): string
+    {
+        if (filled($view)) {
+            return $view;
+        }
+
+        if ($spaces->contains(fn ($space): bool => $space->spaceMode?->slug === 'privado')) {
+            return 'private';
+        }
+
+        $shared = $spaces->first(fn ($space): bool => $space->spaceMode?->slug === 'compartido');
+
+        return $shared ? 'shared:'.$shared->id : 'private';
     }
 
     private function ensureOwnership(OccupancyBlock $occupancyBlock): void

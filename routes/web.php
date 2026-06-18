@@ -4,6 +4,7 @@ use App\Http\Controllers\Web\Admin\AccommodationCatalogController;
 use App\Http\Controllers\Web\Admin\CompanyOnlineStatusController;
 use App\Http\Controllers\Web\Admin\SpaceApprovalController;
 use App\Http\Controllers\Web\AdminDataTableController;
+use App\Http\Controllers\Web\AdminReservationGroupController;
 use App\Http\Controllers\Web\AdminReservationController;
 use App\Http\Controllers\Web\AccommodationPackages\AccommodationPackageController;
 use App\Http\Controllers\Web\AccommodationPackages\PackageServiceController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\ExchangeRateController;
 use App\Http\Controllers\Web\ExtraChargeCategoryController;
 use App\Http\Controllers\Web\ExtraChargeController;
+use App\Http\Controllers\Web\InternalReservationController;
 use App\Http\Controllers\Web\OccupancyController;
 use App\Http\Controllers\Web\OccupancyGridActionController;
 use App\Http\Controllers\Web\PaymentMethodController;
@@ -27,6 +29,8 @@ use App\Http\Controllers\Web\PublicSite\PublicAccommodationController;
 use App\Http\Controllers\Web\PublicSite\PublicCompanyPageController;
 use App\Http\Controllers\Web\PublicSite\PublicReservationController;
 use App\Http\Controllers\Web\ReservationChannelController;
+use App\Http\Controllers\Web\ReservationPaymentController;
+use App\Http\Controllers\Web\ReservationSettingsController;
 use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\SalesController;
 use App\Http\Controllers\Web\Spaces\SharedSpaceRegistrationStepperController;
@@ -44,6 +48,7 @@ Route::get('/', [PublicAccommodationController::class, 'index'])->name('public.a
 Route::get('p/{company_slug}/paquetes/{package_slug}', [PublicCompanyPageController::class, 'packageDetail'])->name('public.company.packages.show');
 Route::get('p/{company_slug}', [PublicCompanyPageController::class, 'show'])->name('public.company.show');
 Route::get('espacios/buscar', [PublicAccommodationController::class, 'search'])->name('public.accommodations.search');
+Route::get('espacios/{space}/cotizacion', [PublicAccommodationController::class, 'quote'])->whereNumber('space')->name('public.accommodations.quote');
 Route::get('espacios/{space}', [PublicAccommodationController::class, 'show'])->whereNumber('space')->name('public.accommodations.show');
 Route::redirect('alojamientos', '/');
 Route::get('alojamientos/buscar', [PublicAccommodationController::class, 'legacySearch']);
@@ -85,12 +90,19 @@ Route::middleware('auth')->group(function (): void {
             Route::get('check-in/modal', [OccupancyGridActionController::class, 'openCheckIn'])->middleware('permission:occupancy.manage')->name('check-in.modal');
             Route::get('check-out/modal', [OccupancyGridActionController::class, 'openCheckOut'])->middleware('permission:occupancy.manage')->name('check-out.modal');
             Route::post('check-out/{stay}', [OccupancyGridActionController::class, 'completeCheckOut'])->whereNumber('stay')->middleware('permission:occupancy.manage')->name('check-out.store');
-            Route::get('reservation/modal', [OccupancyGridActionController::class, 'openReservation'])->middleware('permission:occupancy.manage')->name('reservation.modal');
             Route::get('block/modal', [OccupancyGridActionController::class, 'openBlock'])->middleware('permission:occupancy.manage')->name('block.modal');
             Route::get('extra-charge/modal', [OccupancyGridActionController::class, 'openExtraCharge'])->middleware('permission:occupancy.manage')->name('extra-charge.modal');
             Route::post('blocks', [OccupancyController::class, 'storeBlock'])->middleware('permission:occupancy.manage')->name('blocks.store');
             Route::patch('blocks/{occupancyBlock}', [OccupancyController::class, 'updateBlock'])->whereNumber('occupancyBlock')->middleware('permission:occupancy.manage')->name('blocks.update');
             Route::delete('blocks/{occupancyBlock}', [OccupancyController::class, 'destroyBlock'])->whereNumber('occupancyBlock')->middleware('permission:occupancy.manage')->name('blocks.destroy');
+        });
+    Route::prefix('internal-reservations')
+        ->name('internal-reservations.')
+        ->middleware(['company_user', 'permission:occupancy.manage'])
+        ->group(function (): void {
+            Route::get('create', [InternalReservationController::class, 'create'])->name('create');
+            Route::post('/', [InternalReservationController::class, 'store'])->name('store');
+            Route::get('available-resources', [InternalReservationController::class, 'availableResources'])->name('available-resources');
         });
     Route::prefix('check-ins')
         ->name('check-ins.')
@@ -157,6 +169,18 @@ Route::middleware('auth')->group(function (): void {
             Route::patch('{reservation}/reject', [AdminReservationController::class, 'reject'])->whereNumber('reservation')->middleware('permission:reservations.manage')->name('reject');
             Route::patch('{reservation}/cancel', [AdminReservationController::class, 'cancel'])->whereNumber('reservation')->middleware('permission:reservations.manage')->name('cancel');
         });
+    Route::prefix('admin/reservation-groups')
+        ->name('admin.reservation-groups.')
+        ->middleware(['company_user'])
+        ->group(function (): void {
+            Route::get('{group}', [AdminReservationGroupController::class, 'show'])->whereNumber('group')->middleware('permission:reservations.view|occupancy.manage')->name('show');
+            Route::patch('{group}', [AdminReservationGroupController::class, 'update'])->whereNumber('group')->middleware('permission:reservations.manage|occupancy.manage')->name('update');
+            Route::get('{group}/payments/create', [ReservationPaymentController::class, 'create'])->whereNumber('group')->middleware('permission:reservations.manage|occupancy.manage')->name('payments.create');
+            Route::post('{group}/payments', [ReservationPaymentController::class, 'store'])->whereNumber('group')->middleware('permission:reservations.manage|occupancy.manage')->name('payments.store');
+            Route::post('{group}/check-in', [AdminReservationGroupController::class, 'checkIn'])->whereNumber('group')->middleware('permission:reservations.manage|occupancy.manage')->name('check-in');
+            Route::patch('{group}/confirm', [AdminReservationGroupController::class, 'confirm'])->whereNumber('group')->middleware('permission:reservations.manage')->name('confirm');
+            Route::patch('{group}/cancel', [AdminReservationGroupController::class, 'cancel'])->whereNumber('group')->middleware('permission:reservations.manage')->name('cancel');
+        });
     Route::patch('reservation-extra-charges/{charge}/cancel', [ExtraChargeController::class, 'cancelReservationCharge'])
         ->whereNumber('charge')
         ->middleware(['company_user', 'permission:reservations.manage|occupancy.manage'])
@@ -180,6 +204,13 @@ Route::middleware('auth')->group(function (): void {
             Route::put('{reservationChannel}', [ReservationChannelController::class, 'update'])->whereNumber('reservationChannel')->name('update');
             Route::patch('{reservationChannel}/toggle', [ReservationChannelController::class, 'toggle'])->whereNumber('reservationChannel')->name('toggle');
             Route::delete('{reservationChannel}', [ReservationChannelController::class, 'destroy'])->whereNumber('reservationChannel')->name('destroy');
+        });
+    Route::prefix('reservation-settings')
+        ->name('reservation-settings.')
+        ->middleware(['company_user', 'permission:reservation-settings.manage|reservations.manage|occupancy.manage'])
+        ->group(function (): void {
+            Route::get('/', [ReservationSettingsController::class, 'edit'])->name('edit');
+            Route::put('/', [ReservationSettingsController::class, 'update'])->name('update');
         });
     Route::prefix('countries')
         ->name('countries.')
@@ -242,6 +273,7 @@ Route::middleware('auth')->group(function (): void {
             Route::get('/', [AvailabilityController::class, 'index'])->middleware('permission:availability.view')->name('index');
             Route::get('week-data', [AvailabilityController::class, 'weekData'])->middleware('permission:availability.view')->name('week-data');
             Route::get('grid-data', [AvailabilityController::class, 'gridData'])->middleware('permission:availability.view')->name('grid-data');
+            Route::post('bulk', [AvailabilityController::class, 'bulkUpdate'])->middleware('permission:availability.manage')->name('bulk.update');
             Route::post('status', [AvailabilityController::class, 'storeStatus'])->middleware('permission:availability.manage')->name('status.store');
             Route::patch('status/{availabilityStatus}', [AvailabilityController::class, 'updateStatus'])->whereNumber('availabilityStatus')->middleware('permission:availability.manage')->name('status.update');
             Route::patch('day', [AvailabilityController::class, 'storeDay'])->middleware('permission:availability.manage')->name('day.store');
@@ -282,6 +314,8 @@ Route::middleware('auth')->group(function (): void {
             Route::get('{space}/continue', [SpaceController::class, 'continueRegistration'])->whereNumber('space')->middleware('permission:spaces.edit')->name('continue');
             Route::patch('{space}/activate', [SpaceController::class, 'activate'])->whereNumber('space')->middleware('permission:spaces.edit')->name('activate');
             Route::patch('{space}/deactivate', [SpaceController::class, 'deactivate'])->whereNumber('space')->middleware('permission:spaces.edit')->name('deactivate');
+            Route::patch('{space}/online', [SpaceController::class, 'putOnline'])->whereNumber('space')->middleware('permission:spaces.edit')->name('online');
+            Route::patch('{space}/offline', [SpaceController::class, 'takeOffline'])->whereNumber('space')->middleware('permission:spaces.edit')->name('offline');
         });
     Route::prefix('spaces/private')
         ->name('spaces.private.')

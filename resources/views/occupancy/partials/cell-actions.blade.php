@@ -38,6 +38,7 @@
                         data-room-id="{{ $room?->id }}"
                         data-room-bed-unit-id="{{ $bed_unit?->id }}"
                         data-stay-id="{{ $occupancy_state['stay_id'] ?? '' }}"
+                        data-reservation-group-id="{{ $occupancy_state['reservation_group_id'] ?? '' }}"
                         data-date="{{ $date->toDateString() }}"
                         @disabled(! empty($action['disabled']))
                     >

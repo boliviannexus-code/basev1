@@ -13,6 +13,7 @@
     </section>
 
     @php($publicCompanies = $publicCompanies ?? collect())
+    @php($spaceLocations = $spaceLocations ?? collect())
 
     @if (! $isSearch && $publicCompanies->isNotEmpty())
         <section class="container-xl public-companies">
@@ -147,4 +148,53 @@
             @endif
         @endif
     </section>
+
+    @if ($spaceLocations->isNotEmpty())
+        <section class="container-xl company-public-section company-public-location-grid public-accommodations-location-grid" id="ubicaciones">
+            <article class="company-public-panel">
+                <p class="public-eyebrow">{{ $isSearch ? 'Mapa de resultados' : 'Mapa de sugerencias' }}</p>
+                <h2>Ubicaciones de espacios</h2>
+
+                <div class="company-space-location-list">
+                    @foreach ($spaceLocations as $location)
+                        <article
+                            class="company-space-location-item"
+                            role="button"
+                            tabindex="0"
+                            data-public-company-location
+                            data-location-id="{{ $location['id'] }}"
+                            aria-label="Ver ubicación de {{ $location['name'] }} en el mapa"
+                        >
+                            <h3>{{ $location['name'] }}</h3>
+                            <p>{{ collect([$location['city'], $location['country']])->filter()->implode(', ') ?: 'Ubicación registrada' }}</p>
+                            <dl class="company-public-dl">
+                                <div><dt>Dirección</dt><dd>{{ $location['address'] ?: '-' }}</dd></div>
+                                <div><dt>Referencia</dt><dd>{{ $location['reference'] ?: '-' }}</dd></div>
+                            </dl>
+                            <a class="btn btn-outline-dark btn-sm mt-2" href="{{ route('public.accommodations.show', ['space' => $location['space'], ...$location['result']['query']]) }}">
+                                Ver disponibilidad
+                            </a>
+                        </article>
+                    @endforeach
+                </div>
+            </article>
+
+            <aside
+                class="company-public-map-panel"
+                data-public-company-map
+                data-google-maps-key="{{ $googleMapsKey ?? config('services.google_maps.key') }}"
+                data-locations='@json($spaceLocations->map(fn (array $location): array => collect($location)->except(['space', 'result'])->all())->values())'
+            >
+                @if (filled($googleMapsKey ?? config('services.google_maps.key')) && $spaceLocations->contains(fn (array $location): bool => filled($location['latitude']) && filled($location['longitude'])))
+                    <div class="company-public-map-canvas" data-public-company-map-canvas></div>
+                @else
+                    <div class="company-public-map-placeholder">
+                        <i class="ti ti-map-2"></i>
+                        <strong>Mapa no disponible</strong>
+                        <span>{{ blank($googleMapsKey ?? config('services.google_maps.key')) ? 'Configura Google Maps para mostrar el mapa público.' : 'Agrega coordenadas a los espacios para activar el mapa.' }}</span>
+                    </div>
+                @endif
+            </aside>
+        </section>
+    @endif
 @endsection

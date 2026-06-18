@@ -442,6 +442,22 @@
                         </div>
 
                         <div class="mb-3">
+                            <label class="form-label" for="expense_category">Categoria</label>
+                            <select
+                                class="form-select @error('extra_charge_category_id', 'cashExpense') is-invalid @enderror"
+                                id="expense_category"
+                                name="extra_charge_category_id"
+                                required
+                            >
+                                <option value="">Seleccionar categoria</option>
+                                @foreach ($expenseCategories as $category)
+                                    <option value="{{ $category->id }}" @selected((int) old('extra_charge_category_id') === (int) $category->id)>{{ $category->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('extra_charge_category_id', 'cashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
                             <label class="form-label" for="expense_detail">Detalle</label>
                             <textarea
                                 class="form-control @error('detail', 'cashExpense') is-invalid @enderror"
@@ -658,6 +674,7 @@
                                                     <tr>
                                                         <th>Hora</th>
                                                         <th>Encargado</th>
+                                                        <th>Categoria</th>
                                                         <th>Detalle</th>
                                                         <th class="text-end">Monto</th>
                                                     </tr>
@@ -667,12 +684,13 @@
                                                         <tr>
                                                             <td>{{ $expense->spent_at?->format('H:i') }}</td>
                                                             <td>{{ $expense->responsible_name }}</td>
+                                                            <td>{{ $expense->category?->name ?: '-' }}</td>
                                                             <td>{{ $expense->detail }}</td>
                                                             <td class="text-end fw-semibold">{{ money_format_decimal($expense->amount) }}</td>
                                                         </tr>
                                                     @empty
                                                         <tr>
-                                                            <td class="text-center text-body-secondary" colspan="4">Sin egresos registrados.</td>
+                                                            <td class="text-center text-body-secondary" colspan="5">Sin egresos registrados.</td>
                                                         </tr>
                                                     @endforelse
                                                 </tbody>

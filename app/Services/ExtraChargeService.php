@@ -48,6 +48,27 @@ class ExtraChargeService
 
             $this->recalculateReservation($reservation);
 
+            if ($reservation->reservation_group_id && $reservation->reservationGroup?->accountStatement) {
+                AccountStatementItem::query()->create([
+                    'company_id' => $reservation->company_id,
+                    'account_statement_id' => $reservation->reservationGroup->accountStatement->id,
+                    'stay_id' => null,
+                    'reservation_id' => $reservation->id,
+                    'reservation_group_id' => $reservation->reservation_group_id,
+                    'extra_charge_category_id' => $category->id,
+                    'date' => $charge->date?->toDateString() ?? now()->toDateString(),
+                    'type' => 'extra',
+                    'description' => $category->name.' - '.$detail,
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'total' => $charge->total,
+                    'currency' => 'BOB',
+                    'source' => 'manual',
+                    'status' => 'active',
+                ]);
+                $this->accountStatements->recalculate($reservation->reservationGroup->accountStatement);
+            }
+
             return $charge;
         });
     }
@@ -57,7 +78,17 @@ class ExtraChargeService
         DB::transaction(function () use ($charge): void {
             if ($charge->status === 'active') {
                 $charge->update(['status' => 'cancelled']);
+                AccountStatementItem::query()
+                    ->where('reservation_id', $charge->reservation_id)
+                    ->where('extra_charge_category_id', $charge->extra_charge_category_id)
+                    ->where('type', 'extra')
+                    ->whereDate('date', $charge->date?->toDateString() ?? now()->toDateString())
+                    ->where('status', 'active')
+                    ->update(['status' => 'cancelled']);
                 $this->recalculateReservation($charge->reservation);
+                $charge->reservation->reservationGroup?->accountStatement
+                    ? $this->accountStatements->recalculate($charge->reservation->reservationGroup->accountStatement)
+                    : null;
             }
         });
     }

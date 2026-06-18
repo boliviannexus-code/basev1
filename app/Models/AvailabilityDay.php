@@ -20,9 +20,11 @@ class AvailabilityDay extends Model
         'company_id',
         'space_id',
         'space_room_id',
+        'room_bed_unit_id',
         'date',
         'price',
         'status',
+        'is_public_online',
     ];
 
     protected function casts(): array
@@ -30,6 +32,7 @@ class AvailabilityDay extends Model
         return [
             'date' => 'date',
             'price' => 'decimal:2',
+            'is_public_online' => 'boolean',
         ];
     }
 
@@ -46,5 +49,10 @@ class AvailabilityDay extends Model
     public function room(): BelongsTo
     {
         return $this->belongsTo(SpaceRoom::class, 'space_room_id');
+    }
+
+    public function bedUnit(): BelongsTo
+    {
+        return $this->belongsTo(RoomBedUnit::class, 'room_bed_unit_id');
     }
 }

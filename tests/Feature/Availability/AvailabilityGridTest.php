@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Availability;
 
+use App\Models\AvailabilityDay;
 use App\Models\AvailabilityStatus;
 use App\Models\BathroomType;
 use App\Models\Company;
@@ -85,6 +86,161 @@ class AvailabilityGridTest extends TestCase
             'source' => 'manual',
             'notes' => 'Mantenimiento',
         ]);
+    }
+
+    public function test_private_space_price_can_be_saved_from_availability_grid(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        [$user, $company] = $this->companyUser();
+        $space = $this->privateSpace($company);
+
+        $this
+            ->actingAs($user)
+            ->postJson(route('availability.status.store'), [
+                'space_id' => $space->id,
+                'date' => '2026-06-18',
+                'status' => 'available',
+                'price' => 180.50,
+            ])
+            ->assertOk()
+            ->assertJson(['success' => true]);
+
+        $this->assertDatabaseHas('availability_days', [
+            'company_id' => $company->id,
+            'space_id' => $space->id,
+            'space_room_id' => null,
+            'room_bed_unit_id' => null,
+            'date' => '2026-06-18',
+            'price' => '180.50',
+            'status' => 'available',
+        ]);
+
+        $rows = $this
+            ->actingAs($user)
+            ->getJson(route('availability.week-data', ['week_start' => '2026-06-18']))
+            ->assertOk()
+            ->json('rows');
+
+        $cell = collect(collect($rows)->firstWhere('space_id', $space->id)['cells'])->firstWhere('date', '2026-06-18');
+
+        $this->assertSame(180.5, $cell['price']);
+        $this->assertSame('180.50', $cell['price_display']);
+    }
+
+    public function test_availability_bulk_update_sets_status_and_price_for_date_range(): void
+    {
+        Carbon::setTestNow('2026-06-15 10:00:00');
+
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user, $company] = $this->companyUser();
+            $space = $this->privateSpace($company);
+
+            $this
+                ->actingAs($user)
+                ->postJson(route('availability.bulk.update'), [
+                    'space_id' => $space->id,
+                    'start_date' => '2026-06-18',
+                    'end_date' => '2026-06-20',
+                    'status' => 'closed',
+                    'price' => 210.25,
+                    'notes' => 'Mantenimiento programado',
+                ])
+                ->assertOk()
+                ->assertJson([
+                    'success' => true,
+                    'data' => [
+                        'total_dates' => 3,
+                        'status_updated' => 3,
+                        'price_updated' => 3,
+                    ],
+                ]);
+
+            $this->assertSame(3, AvailabilityStatus::query()
+                ->where('company_id', $company->id)
+                ->where('space_id', $space->id)
+                ->whereNull('space_room_id')
+                ->whereBetween('date', ['2026-06-18', '2026-06-20'])
+                ->where('status', 'closed')
+                ->where('source', 'manual')
+                ->count());
+
+            $this->assertSame(3, AvailabilityDay::query()
+                ->where('company_id', $company->id)
+                ->where('space_id', $space->id)
+                ->whereNull('space_room_id')
+                ->whereNull('room_bed_unit_id')
+                ->whereBetween('date', ['2026-06-18', '2026-06-20'])
+                ->where('price', '210.25')
+                ->count());
+
+            $rows = $this
+                ->actingAs($user)
+                ->getJson(route('availability.week-data', ['week_start' => '2026-06-18']))
+                ->assertOk()
+                ->json('rows');
+
+            $cell = collect(collect($rows)->firstWhere('space_id', $space->id)['cells'])->firstWhere('date', '2026-06-19');
+
+            $this->assertSame('closed', $cell['status']);
+            $this->assertSame(210.25, $cell['price']);
+            $this->assertSame('210.25', $cell['price_display']);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_availability_bulk_update_sets_public_online_by_date_range(): void
+    {
+        Carbon::setTestNow('2026-06-15 10:00:00');
+
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user, $company] = $this->companyUser();
+            $space = $this->privateSpace($company);
+
+            $this
+                ->actingAs($user)
+                ->postJson(route('availability.bulk.update'), [
+                    'space_id' => $space->id,
+                    'start_date' => '2026-06-20',
+                    'end_date' => '2026-06-21',
+                    'is_public_online' => false,
+                ])
+                ->assertOk()
+                ->assertJson([
+                    'success' => true,
+                    'data' => [
+                        'total_dates' => 2,
+                        'status_updated' => 0,
+                        'price_updated' => 0,
+                        'public_updated' => 2,
+                    ],
+                ]);
+
+            $this->assertSame(2, AvailabilityDay::query()
+                ->where('company_id', $company->id)
+                ->where('space_id', $space->id)
+                ->whereNull('space_room_id')
+                ->whereNull('room_bed_unit_id')
+                ->whereBetween('date', ['2026-06-20', '2026-06-21'])
+                ->where('is_public_online', false)
+                ->count());
+
+            $rows = $this
+                ->actingAs($user)
+                ->getJson(route('availability.week-data', ['week_start' => '2026-06-20']))
+                ->assertOk()
+                ->json('rows');
+
+            $cell = collect(collect($rows)->firstWhere('space_id', $space->id)['cells'])->firstWhere('date', '2026-06-20');
+
+            $this->assertSame('available', $cell['status']);
+            $this->assertFalse($cell['is_public_online']);
+            $this->assertSame('Fuera de linea publico', $cell['public_online_label']);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_missing_status_is_presented_as_available(): void

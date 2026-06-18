@@ -102,6 +102,7 @@
                         <tr>
                             <th>Fecha</th>
                             <th>Encargado</th>
+                            <th>Categoria</th>
                             <th>Detalle</th>
                             <th class="text-end">Monto</th>
                         </tr>
@@ -111,12 +112,13 @@
                             <tr>
                                 <td>{{ $expense->spent_at?->format('Y-m-d H:i') }}</td>
                                 <td>{{ $expense->responsible_name }}</td>
+                                <td>{{ $expense->category?->name ?: '-' }}</td>
                                 <td>{{ $expense->detail }}</td>
                                 <td class="text-end fw-semibold">{{ money_format_decimal($expense->amount) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td class="text-center text-body-secondary" colspan="4">Sin egresos registrados.</td>
+                                <td class="text-center text-body-secondary" colspan="5">Sin egresos registrados.</td>
                             </tr>
                         @endforelse
                     </tbody>
