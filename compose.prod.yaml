@@ -1,0 +1,31 @@
+services:
+  app:
+    image: nidov1
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${APP_PORT:-8080}:80"
+    env_file:
+      - .env.production
+    depends_on:
+      - pgsql
+    networks:
+      - nidov1
+
+  pgsql:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: nido_db
+      POSTGRES_USER: nido_user
+      POSTGRES_PASSWORD: DaniloMoreno4
+    volumes:
+      - pgsql_data:/var/lib/postgresql/data
+    networks:
+      - nidov1
+
+networks:
+  nidov1:
+
+volumes:
+  pgsql_data:
