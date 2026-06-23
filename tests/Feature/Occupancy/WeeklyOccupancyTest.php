@@ -102,7 +102,8 @@ class WeeklyOccupancyTest extends TestCase
     {
         $this->seed(AccommodationCatalogSeeder::class);
         [$user, $company] = $this->companyUser();
-        [, $roomA] = $this->sharedSpaceWithRooms($company);
+        [$space, $roomA] = $this->sharedSpaceWithRooms($company);
+        $roomA->update(['sale_mode' => 'full_room']);
         $bedType = BedType::where('slug', 'cama-matrimonial')->firstOrFail();
         $roomA->beds()->create([
             'company_id' => $company->id,
@@ -114,11 +115,61 @@ class WeeklyOccupancyTest extends TestCase
 
         $labels = collect($this
             ->actingAs($user)
-            ->getJson(route('occupancy.week-data', ['week_start' => '2026-06-03']))
+            ->getJson(route('occupancy.week-data', [
+                'week_start' => '2026-06-03',
+                'view' => 'shared:'.$space->id,
+            ]))
             ->assertOk()
             ->json('rows'))->pluck('label');
 
         $this->assertTrue($labels->contains('101 - 2 Cama matrimonial'));
+    }
+
+    public function test_flexible_and_individual_room_labels_only_show_the_room_name(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        [$user, $company] = $this->companyUser();
+        [$space, $flexibleRoom, $individualRoom] = $this->sharedSpaceWithRooms($company);
+        $bedType = BedType::where('slug', 'cama-individual')->firstOrFail();
+
+        foreach ([$flexibleRoom, $individualRoom] as $room) {
+            $room->beds()->create([
+                'company_id' => $company->id,
+                'bed_type_id' => $bedType->id,
+                'quantity' => 2,
+                'capacity_per_bed' => $bedType->capacity,
+                'total_capacity' => 2 * $bedType->capacity,
+            ]);
+            RoomBedUnit::factory()->create([
+                'company_id' => $company->id,
+                'space_room_id' => $room->id,
+                'bed_type_id' => $bedType->id,
+                'label' => 'Cama 1',
+                'sort_order' => 1,
+            ]);
+        }
+
+        $flexibleRoom->update(['sale_mode' => 'flexible']);
+        $individualRoom->update(['sale_mode' => 'bed_unit']);
+
+        $rows = collect($this
+            ->actingAs($user)
+            ->getJson(route('occupancy.week-data', [
+                'week_start' => '2026-06-03',
+                'view' => 'shared:'.$space->id,
+            ]))
+            ->assertOk()
+            ->json('rows'));
+
+        $flexibleRow = $rows->first(fn (array $row): bool => ($row['type'] ?? null) === 'shared_room'
+            && (int) ($row['room_id'] ?? 0) === $flexibleRoom->id);
+        $individualRow = $rows->first(fn (array $row): bool => ($row['type'] ?? null) === 'shared_room'
+            && (int) ($row['room_id'] ?? 0) === $individualRoom->id);
+        $bedRows = $rows->where('type', 'shared_bed_unit');
+
+        $this->assertSame($flexibleRoom->name, $flexibleRow['label']);
+        $this->assertSame($individualRoom->name, $individualRow['label']);
+        $this->assertTrue($bedRows->contains(fn (array $row): bool => str_contains($row['label'], 'Cama individual')));
     }
 
     public function test_private_block_paints_inclusive_dates_in_week_grid(): void

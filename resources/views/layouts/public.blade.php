@@ -28,10 +28,17 @@
             </a>
             <div class="public-nav-actions">
                 @auth
-                    <a class="btn btn-outline-dark btn-sm" href="{{ route('public.reservations.index') }}">
-                        <i class="ti ti-calendar-check"></i>
-                        Mis reservas
-                    </a>
+                    @if (auth()->user()->roles()->exists())
+                        <a class="btn btn-outline-dark btn-sm" href="{{ route('dashboard') }}">
+                            <i class="ti ti-layout-dashboard"></i>
+                            Volver al dashboard
+                        </a>
+                    @else
+                        <a class="btn btn-outline-dark btn-sm" href="{{ route('public.reservations.index') }}">
+                            <i class="ti ti-calendar-check"></i>
+                            Mis reservas
+                        </a>
+                    @endif
                     <form action="{{ route('logout') }}" method="post">
                         @csrf
                         <button class="btn btn-outline-dark btn-sm" type="submit">

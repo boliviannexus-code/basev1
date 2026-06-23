@@ -195,18 +195,19 @@ class OccupancyGridService
         Collection $stays,
         array $filters,
     ): array {
+        $usesIndividualBedRows = in_array($room->sale_mode, ['bed_unit', 'flexible'], true);
         $roomRow = [
             'type' => 'shared_room',
             'space_id' => $space->id,
             'room_id' => $room->id,
             'room_bed_unit_id' => null,
-            'label' => $this->roomLabel($room),
+            'label' => $usesIndividualBedRows ? $this->roomName($room) : $this->roomLabel($room),
             'space_label' => $this->spaceLabel($space),
             'sale_mode' => $room->sale_mode ?? 'full_room',
             'cells' => $this->cells($dates, $blocks, $availabilityStatuses, $stays, $space->id, $room->id, null, $filters),
         ];
 
-        if (! in_array($room->sale_mode, ['bed_unit', 'flexible'], true)) {
+        if (! $usesIndividualBedRows) {
             return [$roomRow];
         }
 
@@ -220,7 +221,7 @@ class OccupancyGridService
                 'room_bed_unit_id' => $unit->id,
                 'label' => $unit->label.' - '.($unit->bedType?->name ?: 'Cama'),
                 'space_label' => $this->spaceLabel($space),
-                'room_label' => $this->roomLabel($room),
+                'room_label' => $this->roomName($room),
                 'sale_mode' => $room->sale_mode,
                 'renders_full_room_coverage' => $index === 0,
                 'full_room_rowspan' => $index === 0 ? $room->bedUnits->where('status', 'active')->count() : 1,
@@ -486,12 +487,17 @@ class OccupancyGridService
 
     private function roomLabel(SpaceRoom $room): string
     {
-        $label = $room->name ?: $room->title ?: 'Habitacion';
+        $label = $this->roomName($room);
         $beds = $room->beds
             ->map(fn ($bed): string => trim($bed->quantity.' '.($bed->bedType?->name ?: 'cama')))
             ->filter()
             ->implode(', ');
 
         return filled($beds) ? $label.' - '.$beds : $label;
+    }
+
+    private function roomName(SpaceRoom $room): string
+    {
+        return $room->name ?: $room->title ?: 'Habitacion';
     }
 }
