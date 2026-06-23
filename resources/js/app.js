@@ -158,6 +158,7 @@ async function refreshContainer(url) {
         initPhotoUploadPreviews(fresh);
         initPackageIconSelectors(fresh);
         initPackageServiceCarts(fresh);
+        initPermissionManagers(fresh);
     }
 }
 
@@ -933,14 +934,20 @@ function formatFileSize(bytes) {
     return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
+function queryOptionalSelector(selector, scope = document) {
+    const normalizedSelector = String(selector ?? '').trim();
+
+    return normalizedSelector ? scope.querySelector(normalizedSelector) : null;
+}
+
 function validatePhotoInput(input) {
     const files = [...input.files];
     const maxSizeKb = Number(input.dataset.photoMaxSize ?? 4096);
     const maxFiles = Number(input.dataset.photoMaxFiles ?? 1);
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     const errorTarget = input.closest('.col-md-6, .col-md-5, .col-12, form')?.querySelector('[data-photo-error]');
-    const preview = document.querySelector(input.dataset.photoPreview ?? '');
-    const clearButton = document.querySelector(input.dataset.photoClear ?? '');
+    const preview = queryOptionalSelector(input.dataset.photoPreview);
+    const clearButton = queryOptionalSelector(input.dataset.photoClear);
     const errors = [];
 
     if (files.length > maxFiles) {
@@ -999,11 +1006,64 @@ function initPhotoUploadPreviews(scope = document) {
         }
 
         input.addEventListener('change', () => validatePhotoInput(input));
-        document.querySelector(input.dataset.photoClear ?? '')?.addEventListener('click', () => {
+        queryOptionalSelector(input.dataset.photoClear)?.addEventListener('click', () => {
             input.value = '';
             validatePhotoInput(input);
         });
         input.dataset.photoPreviewInitialized = '1';
+    });
+}
+
+function initPermissionManagers(scope = document) {
+    scope.querySelectorAll('[data-permission-manager]').forEach((manager) => {
+        if (manager.dataset.permissionManagerInitialized === '1') {
+            return;
+        }
+
+        const search = manager.querySelector('[data-permission-search]');
+        const modules = [...manager.querySelectorAll('[data-permission-module]')];
+        const count = manager.querySelector('[data-permission-selected-count]');
+        const empty = manager.querySelector('[data-permission-empty]');
+        const updateCount = () => {
+            if (count) {
+                count.textContent = manager.querySelectorAll('input[name="permissions[]"]:checked').length;
+            }
+        };
+
+        modules.forEach((module) => {
+            const checkboxes = [...module.querySelectorAll('input[name="permissions[]"]')];
+
+            module.querySelector('[data-permission-group-select]')?.addEventListener('click', () => {
+                checkboxes.forEach((checkbox) => {
+                    checkbox.checked = true;
+                });
+                updateCount();
+            });
+
+            module.querySelector('[data-permission-group-clear]')?.addEventListener('click', () => {
+                checkboxes.forEach((checkbox) => {
+                    checkbox.checked = false;
+                });
+                updateCount();
+            });
+        });
+
+        manager.addEventListener('change', updateCount);
+        search?.addEventListener('input', () => {
+            const term = search.value.trim().toLocaleLowerCase();
+            let visibleModules = 0;
+
+            modules.forEach((module) => {
+                const visible = !term || (module.dataset.permissionSearchText ?? '').includes(term);
+                module.classList.toggle('d-none', !visible);
+                visibleModules += visible ? 1 : 0;
+            });
+
+            empty?.classList.toggle('d-none', visibleModules > 0);
+        });
+
+        manager.dataset.permissionManagerInitialized = '1';
+        updateCount();
     });
 }
 
@@ -4934,6 +4994,7 @@ initSharedRoomSort();
 initPhotoUploadPreviews();
 initPackageIconSelectors();
 initPackageServiceCarts();
+initPermissionManagers();
 initOccupancyWeekGrid();
 initAvailabilityGrid();
 initCheckInForm();

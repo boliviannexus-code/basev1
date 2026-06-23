@@ -30,18 +30,18 @@
                     </div>
                     <div class="col-12">
                         <label class="form-label" for="short-description">Descripcion corta</label>
-                        <textarea class="form-control @error('short_description') is-invalid @enderror" id="short-description" name="short_description" rows="4" minlength="100" maxlength="300" data-character-counter="#short-description-counter" required>{{ old('short_description', $space->short_description) }}</textarea>
+                        <textarea class="form-control @error('short_description') is-invalid @enderror" id="short-description" name="short_description" rows="4" maxlength="300" data-character-counter="#short-description-counter" required>{{ old('short_description', $space->short_description) }}</textarea>
                         <div class="form-hint d-flex justify-content-between gap-2">
-                            <span>Entre 100 y 300 caracteres.</span>
+                            <span>Maximo 300 caracteres.</span>
                             <span id="short-description-counter">0 caracteres</span>
                         </div>
                         <div class="invalid-feedback">{{ $errors->first('short_description') }}</div>
                     </div>
                     <div class="col-12">
                         <label class="form-label" for="full-description">Descripcion extendida</label>
-                        <textarea class="form-control @error('full_description') is-invalid @enderror" id="full-description" name="full_description" rows="8" minlength="300" maxlength="2000" data-character-counter="#full-description-counter" required>{{ old('full_description', $space->full_description) }}</textarea>
+                        <textarea class="form-control @error('full_description') is-invalid @enderror" id="full-description" name="full_description" rows="8" maxlength="2000" data-character-counter="#full-description-counter" required>{{ old('full_description', $space->full_description) }}</textarea>
                         <div class="form-hint d-flex justify-content-between gap-2">
-                            <span>Entre 300 y 2000 caracteres.</span>
+                            <span>Maximo 2000 caracteres.</span>
                             <span id="full-description-counter">0 caracteres</span>
                         </div>
                         <div class="invalid-feedback">{{ $errors->first('full_description') }}</div>

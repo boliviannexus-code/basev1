@@ -109,7 +109,7 @@ class SpaceCompletionService
                 'label' => 'Fotos',
                 'complete' => ($space->photos_skipped || $space->photos->contains('type', 'main'))
                     && $space->rooms->isNotEmpty()
-                    && $space->rooms->every(fn ($room): bool => $room->photos_skipped || $room->photos->isNotEmpty()),
+                    && ($space->room_photos_skipped || $space->rooms->every(fn ($room): bool => $room->photos->isNotEmpty())),
             ],
             'services' => [
                 'label' => 'Servicios',

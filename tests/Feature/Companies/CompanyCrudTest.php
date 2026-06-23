@@ -4,6 +4,7 @@ namespace Tests\Feature\Companies;
 
 use App\Models\Company;
 use App\Models\User;
+use App\Support\CompanyContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -74,6 +75,56 @@ class CompanyCrudTest extends TestCase
             ->assertSee('Empresa Asignada');
     }
 
+    public function test_company_admin_only_sees_and_accesses_its_assigned_company(): void
+    {
+        Permission::findOrCreate('companies.view');
+        Permission::findOrCreate('companies.update');
+
+        $company = Company::factory()->create(['name' => 'Empresa propia']);
+        $otherCompany = Company::factory()->create(['name' => 'Empresa ajena']);
+        $admin = User::factory()->create(['company_id' => $company->id]);
+        $admin->givePermissionTo(['companies.view', 'companies.update']);
+
+        $this->assertFalse(CompanyContext::isGlobalAdmin($admin));
+
+        $this
+            ->actingAs($admin)
+            ->get(route('companies.index'))
+            ->assertOk()
+            ->assertSee('Empresa propia')
+            ->assertDontSee('Empresa ajena');
+
+        $this
+            ->actingAs($admin)
+            ->get(route('companies.show', $otherCompany))
+            ->assertNotFound();
+
+        $this
+            ->actingAs($admin)
+            ->get(route('companies.edit', $otherCompany))
+            ->assertNotFound();
+    }
+
+    public function test_only_super_admin_without_company_sees_all_companies(): void
+    {
+        Permission::findOrCreate('companies.view');
+        Role::findOrCreate('super_admin')->givePermissionTo('companies.view');
+
+        $firstCompany = Company::factory()->create(['name' => 'Empresa uno']);
+        $secondCompany = Company::factory()->create(['name' => 'Empresa dos']);
+        $superAdmin = User::factory()->create(['company_id' => null]);
+        $superAdmin->assignRole('super_admin');
+
+        $this->assertTrue(CompanyContext::isGlobalAdmin($superAdmin));
+
+        $this
+            ->actingAs($superAdmin)
+            ->get(route('companies.index'))
+            ->assertOk()
+            ->assertSee($firstCompany->name)
+            ->assertSee($secondCompany->name);
+    }
+
     private function userWithCompanyPermissions(): User
     {
         $permissions = ['companies.view', 'companies.create', 'companies.update', 'companies.delete'];
@@ -83,6 +134,8 @@ class CompanyCrudTest extends TestCase
         }
 
         $user = User::factory()->create();
+        Role::findOrCreate('super_admin')->givePermissionTo($permissions);
+        $user->assignRole('super_admin');
         $user->givePermissionTo($permissions);
 
         return $user;

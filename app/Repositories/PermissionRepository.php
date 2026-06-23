@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Support\PermissionCatalog;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Spatie\Permission\Models\Permission;
@@ -18,8 +19,12 @@ class PermissionRepository
     public function allGroupedByModule(): Collection
     {
         return Permission::query()
-            ->orderBy('name')
             ->get()
+            ->sortBy(fn (Permission $permission): string => sprintf(
+                '%04d-%s',
+                PermissionCatalog::moduleOrder(str($permission->name)->before('.')->toString()),
+                $permission->name
+            ))
             ->groupBy(fn (Permission $permission): string => str($permission->name)->before('.')->toString());
     }
 

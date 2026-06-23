@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class CompanyPublicProfileTest extends TestCase
@@ -28,6 +29,8 @@ class CompanyPublicProfileTest extends TestCase
         $user = User::factory()->create([
             'company_id' => $company->id,
         ]);
+        Permission::findOrCreate('company-public-profile.manage');
+        $user->givePermissionTo('company-public-profile.manage');
 
         $this
             ->actingAs($user)
@@ -80,6 +83,8 @@ class CompanyPublicProfileTest extends TestCase
         $user = User::factory()->create([
             'company_id' => $company->id,
         ]);
+        Permission::findOrCreate('company-public-profile.manage');
+        $user->givePermissionTo('company-public-profile.manage');
 
         $this
             ->actingAs($user)
@@ -98,6 +103,17 @@ class CompanyPublicProfileTest extends TestCase
         $user = User::factory()->create([
             'company_id' => null,
         ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('company.public-profile.edit'))
+            ->assertForbidden();
+    }
+
+    public function test_company_user_without_permission_cannot_edit_public_profile(): void
+    {
+        $company = Company::factory()->create();
+        $user = User::factory()->create(['company_id' => $company->id]);
 
         $this
             ->actingAs($user)

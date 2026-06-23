@@ -74,7 +74,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('audits/{audit}', [AuditController::class, 'show'])->middleware('permission:audits.view')->name('audits.show');
     Route::prefix('company/public-profile')
         ->name('company.public-profile.')
-        ->middleware(['company_user'])
+        ->middleware(['company_user', 'permission:company-public-profile.manage'])
         ->group(function (): void {
             Route::get('/', [CompanyPublicProfileController::class, 'edit'])->name('edit');
             Route::put('/', [CompanyPublicProfileController::class, 'update'])->name('update');
@@ -316,6 +316,7 @@ Route::middleware('auth')->group(function (): void {
             Route::patch('{space}/deactivate', [SpaceController::class, 'deactivate'])->whereNumber('space')->middleware('permission:spaces.edit')->name('deactivate');
             Route::patch('{space}/online', [SpaceController::class, 'putOnline'])->whereNumber('space')->middleware('permission:spaces.edit')->name('online');
             Route::patch('{space}/offline', [SpaceController::class, 'takeOffline'])->whereNumber('space')->middleware('permission:spaces.edit')->name('offline');
+            Route::delete('{space}', [SpaceController::class, 'destroy'])->whereNumber('space')->middleware('permission:spaces.edit')->name('destroy');
         });
     Route::prefix('spaces/private')
         ->name('spaces.private.')
@@ -359,6 +360,7 @@ Route::middleware('auth')->group(function (): void {
             Route::post('{space}/rooms/{room}/services/copy', [SharedSpaceRegistrationStepperController::class, 'copyRoomServices'])->name('room-services.copy');
             Route::get('{space}/photos', [SharedSpaceRegistrationStepperController::class, 'editPhotos'])->name('photos.edit');
             Route::put('{space}/photos', [SharedSpaceRegistrationStepperController::class, 'storePhotos'])->name('photos.store');
+            Route::put('{space}/room-photo-settings', [SharedSpaceRegistrationStepperController::class, 'updateRoomPhotoSettings'])->name('room-photos.settings');
             Route::delete('{space}/photos/{photo}', [SharedSpaceRegistrationStepperController::class, 'destroyPhoto'])->name('photos.destroy');
             Route::put('{space}/rooms/{room}/photos', [SharedSpaceRegistrationStepperController::class, 'storeRoomPhotos'])->name('room-photos.store');
             Route::delete('{space}/rooms/{room}/photos/{photo}', [SharedSpaceRegistrationStepperController::class, 'destroyRoomPhoto'])->name('room-photos.destroy');

@@ -86,37 +86,45 @@
         </div>
     </x-ui.card>
 
-    @foreach ($space->rooms as $room)
-        <x-ui.card :title="'Fotos: '.$room->title" class="mb-3">
-            <div class="card-body">
-                <form method="POST" action="{{ route('spaces.shared.room-photos.store', [$space, $room]) }}" enctype="multipart/form-data" data-ajax-form data-photo-upload-form>
-                    @csrf
-                    @method('PUT')
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Foto principal de habitacion</label>
-                            <input class="form-control" name="main_photo" type="file" accept="image/jpeg,image/png,image/webp" data-photo-input data-photo-max-size="4096" data-photo-max-files="1" data-photo-preview="#room-main-photo-preview-{{ $room->id }}">
-                            <div class="form-hint">1 foto principal de la habitacion. Maximo 4 MB.</div>
-                            <div class="invalid-feedback" data-photo-error></div>
-                            <div class="photo-upload-preview mt-2" id="room-main-photo-preview-{{ $room->id }}" data-photo-preview></div>
+    <x-ui.card title="Fotografias de habitaciones" class="mb-3">
+        <div class="card-body">
+            <form method="POST" action="{{ route('spaces.shared.room-photos.settings', $space) }}" data-ajax-form>
+                @csrf
+                @method('PUT')
+                <label class="form-check">
+                    <input class="form-check-input" name="room_photos_skipped" type="checkbox" value="1" data-auto-submit-form @checked(old('room_photos_skipped', $space->room_photos_skipped))>
+                    <span class="form-check-label">No usar fotos para las habitaciones</span>
+                </label>
+                <div class="form-hint">Esta decision se aplica a todas las habitaciones del alojamiento.</div>
+            </form>
+        </div>
+    </x-ui.card>
+
+    @if (! $space->room_photos_skipped)
+        @foreach ($space->rooms as $room)
+            <x-ui.card :title="'Fotos: '.$room->title" class="mb-3">
+                <div class="card-body">
+                    <form method="POST" action="{{ route('spaces.shared.room-photos.store', [$space, $room]) }}" enctype="multipart/form-data" data-ajax-form data-photo-upload-form>
+                        @csrf
+                        @method('PUT')
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Foto principal de habitacion</label>
+                                <input class="form-control" name="main_photo" type="file" accept="image/jpeg,image/png,image/webp" data-photo-input data-photo-max-size="4096" data-photo-max-files="1" data-photo-preview="#room-main-photo-preview-{{ $room->id }}">
+                                <div class="form-hint">1 foto principal de la habitacion. Maximo 4 MB.</div>
+                                <div class="invalid-feedback" data-photo-error></div>
+                                <div class="photo-upload-preview mt-2" id="room-main-photo-preview-{{ $room->id }}" data-photo-preview></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Galeria de habitacion</label>
+                                <input class="form-control" name="gallery_photos[]" type="file" accept="image/jpeg,image/png,image/webp" multiple data-photo-input data-photo-max-size="4096" data-photo-max-files="3" data-photo-preview="#room-gallery-photos-preview-{{ $room->id }}">
+                                <div class="form-hint">Maximo 3 fotografias de habitacion. JPG, PNG o WebP. Maximo 4 MB cada una.</div>
+                                <div class="invalid-feedback" data-photo-error></div>
+                                <div class="photo-upload-preview mt-2" id="room-gallery-photos-preview-{{ $room->id }}" data-photo-preview></div>
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Galeria de habitacion</label>
-                            <input class="form-control" name="gallery_photos[]" type="file" accept="image/jpeg,image/png,image/webp" multiple data-photo-input data-photo-max-size="4096" data-photo-max-files="3" data-photo-preview="#room-gallery-photos-preview-{{ $room->id }}">
-                            <div class="form-hint">Maximo 3 fotografias de habitacion. JPG, PNG o WebP. Maximo 4 MB cada una.</div>
-                            <div class="invalid-feedback" data-photo-error></div>
-                            <div class="photo-upload-preview mt-2" id="room-gallery-photos-preview-{{ $room->id }}" data-photo-preview></div>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-check">
-                                <input class="form-check-input" name="photos_skipped" type="checkbox" value="1" data-auto-submit-form @checked(old('photos_skipped', $room->photos_skipped))>
-                                <span class="form-check-label">No usar fotos para esta habitacion</span>
-                            </label>
-                            <div class="form-hint">Si marcas esta opcion, las fotos de esta habitacion no bloquearan la publicacion.</div>
-                        </div>
-                    </div>
-                    <button class="btn btn-primary mt-3" type="submit">Guardar fotos de habitacion</button>
-                </form>
+                        <button class="btn btn-primary mt-3" type="submit">Guardar fotos de habitacion</button>
+                    </form>
 
                     @if ($room->photos->isNotEmpty())
                         <div class="space-photo-grid mt-3">
@@ -135,9 +143,10 @@
                             @endforeach
                         </div>
                     @endif
-            </div>
-        </x-ui.card>
-    @endforeach
+                </div>
+            </x-ui.card>
+        @endforeach
+    @endif
 
     <div class="d-flex justify-content-between mt-4">
         <a class="btn btn-outline-secondary" href="{{ route('spaces.shared.room-services.edit', $space) }}">Volver</a>

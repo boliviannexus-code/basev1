@@ -128,7 +128,13 @@
         <div class="btn-list">
             @can('spaces.edit')
                 <a class="btn btn-outline-info" href="{{ route('spaces.continue', $space) }}">Editar alojamiento</a>
-                @if ($space->status === 'active')
+                @if ($space->status === 'draft')
+                    <form method="POST" action="{{ route('spaces.destroy', $space) }}" data-confirm-delete="Eliminar definitivamente este alojamiento en borrador? Esta accion no se puede deshacer.">
+                        @csrf
+                        @method('DELETE')
+                        <button class="btn btn-outline-danger" type="submit">Eliminar definitivamente</button>
+                    </form>
+                @elseif ($space->status === 'active')
                     @if ($space->is_public_online)
                         <form method="POST" action="{{ route('spaces.offline', $space) }}">
                             @csrf

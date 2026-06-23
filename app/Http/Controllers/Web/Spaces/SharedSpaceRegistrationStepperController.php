@@ -20,7 +20,6 @@ use App\Models\RoomPhoto;
 use App\Models\RoomService;
 use App\Models\SharedSpaceType;
 use App\Models\Space;
-use App\Models\SpaceMode;
 use App\Models\SpacePhoto;
 use App\Models\SpaceRoom;
 use App\Services\Spaces\SpaceCapacityService;
@@ -47,8 +46,9 @@ class SharedSpaceRegistrationStepperController extends Controller
     {
         Gate::authorize('spaces.create');
 
-        return view('spaces.shared.modality', [
-            'spaceModes' => SpaceMode::active()->ordered()->get(),
+        return view('spaces.private.modality', [
+            'selectedMode' => 'compartido',
+            'formAction' => route('spaces.shared.modality.store'),
         ]);
     }
 
@@ -56,9 +56,15 @@ class SharedSpaceRegistrationStepperController extends Controller
     {
         Gate::authorize('spaces.create');
 
-        $request->validate([
-            'space_mode' => ['required', 'in:compartido'],
-        ]);
+        $mode = $request->validate([
+            'space_mode' => ['required', 'in:privado,compartido'],
+        ])['space_mode'];
+
+        if ($mode === 'privado') {
+            $space = $this->spaces->startPrivateSpace();
+
+            return $this->stepResponse($request, 'Alojamiento privado iniciado.', route('spaces.private.details.edit', $space));
+        }
 
         $space = $this->spaces->startSharedSpace();
 
@@ -302,14 +308,33 @@ class SharedSpaceRegistrationStepperController extends Controller
         return $this->stepResponse($request, 'Fotografia eliminada.', route('spaces.shared.photos.edit', $space), back());
     }
 
+    public function updateRoomPhotoSettings(Request $request, Space $space): RedirectResponse|JsonResponse
+    {
+        Gate::authorize('spaces.create');
+        $this->ensureSharedSpace($space);
+        $this->ensureEditable($space);
+
+        $skipRoomPhotos = $request->boolean('room_photos_skipped');
+
+        $space->update(['room_photos_skipped' => $skipRoomPhotos]);
+        $space->rooms()->update(['photos_skipped' => $skipRoomPhotos]);
+
+        $message = $skipRoomPhotos
+            ? 'Las fotografias de habitaciones quedaron deshabilitadas para todo el alojamiento.'
+            : 'Las fotografias quedaron habilitadas para todas las habitaciones.';
+
+        return $this->stepResponse($request, $message, route('spaces.shared.photos.edit', $space));
+    }
+
     public function storeRoomPhotos(StoreSharedRoomPhotosRequest $request, Space $space, SpaceRoom $room): RedirectResponse|JsonResponse
     {
         $this->ensureRoomBelongsToSpace($space, $room);
         $this->ensureRoomEditable($room);
-        $room->update(['photos_skipped' => $request->boolean('photos_skipped')]);
 
-        if ($room->photos_skipped) {
-            return $this->stepResponse($request, 'Se guardo la preferencia de no usar fotografias de habitacion.', route('spaces.shared.photos.edit', $space), back());
+        if ($space->room_photos_skipped) {
+            throw ValidationException::withMessages([
+                'room_photos' => 'Las fotografias de habitaciones estan deshabilitadas para este alojamiento.',
+            ]);
         }
 
         $this->ensureRoomGalleryLimit($room, $request->file('gallery_photos', []), 3);

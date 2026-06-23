@@ -165,6 +165,37 @@ class SpaceController extends Controller
         return back()->with('success', 'Alojamiento fuera de línea para reservas públicas.');
     }
 
+    public function destroy(Space $space): RedirectResponse
+    {
+        Gate::authorize('spaces.edit');
+        $this->ensureOwnership($space);
+
+        if ($space->status !== 'draft') {
+            throw ValidationException::withMessages([
+                'space' => 'Solo se pueden eliminar definitivamente los alojamientos en borrador.',
+            ]);
+        }
+
+        $photoPaths = $space->photos()->pluck('path')
+            ->merge(
+                $space->rooms()
+                    ->withTrashed()
+                    ->with('photos:id,space_room_id,path')
+                    ->get()
+                    ->flatMap(fn ($room) => $room->photos->pluck('path'))
+            )
+            ->filter()
+            ->values()
+            ->all();
+
+        $space->forceDelete();
+        Storage::disk('public')->delete($photoPaths);
+
+        return redirect()
+            ->route('spaces.index')
+            ->with('success', 'Alojamiento en borrador eliminado definitivamente.');
+    }
+
     private function baseQuery(): Builder
     {
         return Space::query()
@@ -270,7 +301,9 @@ class SpaceController extends Controller
         if (auth()->user()?->can('spaces.edit')) {
             $html .= '<a class="btn btn-outline-info btn-sm" href="'.e(route('spaces.continue', $space)).'">Editar</a>';
 
-            if ($space->status === 'active') {
+            if ($space->status === 'draft') {
+                $html .= $this->deleteForm($space);
+            } elseif ($space->status === 'active') {
                 $html .= $space->is_public_online
                     ? $this->actionForm(route('spaces.offline', $space), 'Sacar de linea', 'secondary')
                     : $this->actionForm(route('spaces.online', $space), 'Poner en linea', 'primary');
@@ -289,6 +322,15 @@ class SpaceController extends Controller
             .'<input type="hidden" name="_token" value="'.e(csrf_token()).'">'
             .'<input type="hidden" name="_method" value="PATCH">'
             .'<button class="btn btn-outline-'.$tone.' btn-sm" type="submit">'.e($label).'</button>'
+            .'</form>';
+    }
+
+    private function deleteForm(Space $space): string
+    {
+        return '<form method="POST" action="'.e(route('spaces.destroy', $space)).'" data-confirm-delete="Eliminar definitivamente este alojamiento en borrador? Esta accion no se puede deshacer.">'
+            .'<input type="hidden" name="_token" value="'.e(csrf_token()).'">'
+            .'<input type="hidden" name="_method" value="DELETE">'
+            .'<button class="btn btn-outline-danger btn-sm" type="submit">Eliminar definitivamente</button>'
             .'</form>';
     }
 

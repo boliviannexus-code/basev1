@@ -26,7 +26,7 @@
                                 <a class="btn btn-outline-primary btn-sm" href="{{ route('roles.edit', $role) }}" data-modal-url="{{ route('roles.edit', $role) }}" data-modal-title="Editar rol">Editar</a>
                             @endcan
                             @can('roles.assign-permissions')
-                                <a class="btn btn-outline-info btn-sm" href="{{ route('roles.permissions.form', $role) }}" data-modal-url="{{ route('roles.permissions.form', $role) }}" data-modal-title="Asignar permisos">Permisos</a>
+                                <a class="btn btn-outline-info btn-sm" href="{{ route('roles.permissions.form', $role) }}" data-modal-url="{{ route('roles.permissions.form', $role) }}" data-modal-title="Asignar permisos" data-modal-size="xl">Permisos</a>
                             @endcan
                             @can('roles.delete')
                                 <form class="d-inline" method="POST" action="{{ route('roles.destroy', $role) }}" data-confirm-delete="Eliminar rol?">

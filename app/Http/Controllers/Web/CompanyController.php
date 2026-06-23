@@ -7,6 +7,7 @@ use App\Http\Requests\StoreCompanyRequest;
 use App\Http\Requests\UpdateCompanyRequest;
 use App\Models\Company;
 use App\Services\CompanyService;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,13 +24,14 @@ class CompanyController extends Controller
         abort_unless(auth()->user()?->can('companies.view'), 403);
 
         return view('companies.index', [
-            'companies' => $this->companies->paginate(),
+            'companies' => $this->companies->paginate(auth()->user()),
         ]);
     }
 
     public function create(Request $request): View
     {
         abort_unless($request->user()?->can('companies.create'), 403);
+        abort_unless(CompanyContext::isGlobalAdmin($request->user()), 403);
 
         if ($request->ajax()) {
             return view('companies.partials.create-form');
@@ -56,6 +58,7 @@ class CompanyController extends Controller
     public function show(Request $request, Company $company): View
     {
         abort_unless($request->user()?->can('companies.view'), 403);
+        $this->ensureVisibleCompany($request, $company);
 
         $company->loadCount('users');
 
@@ -69,6 +72,7 @@ class CompanyController extends Controller
     public function edit(Request $request, Company $company): View
     {
         abort_unless($request->user()?->can('companies.update'), 403);
+        $this->ensureVisibleCompany($request, $company);
 
         if ($request->ajax()) {
             return view('companies.partials.edit-form', compact('company'));
@@ -79,6 +83,7 @@ class CompanyController extends Controller
 
     public function update(UpdateCompanyRequest $request, Company $company): JsonResponse|RedirectResponse
     {
+        $this->ensureVisibleCompany($request, $company);
         $company = $this->companies->update($company, $request->validated());
 
         if ($request->ajax()) {
@@ -92,12 +97,18 @@ class CompanyController extends Controller
         return redirect()->route('companies.index')->with('success', 'Empresa actualizada correctamente.');
     }
 
-    public function destroy(Company $company): RedirectResponse
+    public function destroy(Request $request, Company $company): RedirectResponse
     {
-        abort_unless(auth()->user()?->can('companies.delete'), 403);
+        abort_unless($request->user()?->can('companies.delete'), 403);
+        abort_unless(CompanyContext::isGlobalAdmin($request->user()), 403);
 
         $this->companies->delete($company);
 
         return redirect()->route('companies.index')->with('success', 'Empresa eliminada correctamente.');
+    }
+
+    private function ensureVisibleCompany(Request $request, Company $company): void
+    {
+        abort_unless(CompanyContext::belongsToUser($company->id, $request->user()), 404);
     }
 }

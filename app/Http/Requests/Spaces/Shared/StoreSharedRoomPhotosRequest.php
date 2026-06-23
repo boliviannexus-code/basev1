@@ -27,7 +27,6 @@ class StoreSharedRoomPhotosRequest extends FormRequest
             'main_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'gallery_photos' => ['nullable', 'array', 'max:3'],
             'gallery_photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'photos_skipped' => ['nullable', 'boolean'],
         ];
     }
 }

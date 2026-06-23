@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Company;
 use App\Models\ExtraChargeCategory;
+use App\Models\User;
+use App\Support\CompanyContext;
 use App\Support\CountryCatalog;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
@@ -11,9 +13,15 @@ use Illuminate\Support\Facades\Storage;
 
 class CompanyService
 {
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    public function paginate(?User $user = null, int $perPage = 15): LengthAwarePaginator
     {
+        $user ??= auth()->user();
+
         return Company::query()
+            ->when(
+                ! CompanyContext::isGlobalAdmin($user),
+                fn ($query) => $query->whereKey($user?->company_id ?? 0)
+            )
             ->withCount('users')
             ->latest()
             ->paginate($perPage);

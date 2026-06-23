@@ -33,8 +33,8 @@ class StoreSharedSpaceDetailsRequest extends FormRequest
                     ->where('company_id', $this->user()->company_id)
                     ->ignore($space->id),
             ],
-            'short_description' => ['required', 'string', 'min:100', 'max:300'],
-            'full_description' => ['required', 'string', 'min:300', 'max:2000'],
+            'short_description' => ['required', 'string', 'max:300'],
+            'full_description' => ['required', 'string', 'max:2000'],
         ];
     }
 }

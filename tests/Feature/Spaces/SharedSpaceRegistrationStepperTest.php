@@ -171,6 +171,73 @@ class SharedSpaceRegistrationStepperTest extends TestCase
         $this->assertSame('draft', $space->refresh()->status);
     }
 
+    public function test_shared_review_names_the_missing_general_and_room_photos(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        [$space, $room] = $this->sharedSpaceWithRooms($user, 1);
+        $bedType = BedType::where('slug', 'cama-matrimonial')->firstOrFail();
+
+        $space->update([
+            'name' => 'Hostal sin imagenes',
+            'title' => 'Hostal sin imagenes',
+            'short_description' => 'Breve',
+            'full_description' => 'Descripcion breve.',
+        ]);
+        $room->beds()->create([
+            'company_id' => $user->company_id,
+            'bed_type_id' => $bedType->id,
+            'quantity' => 1,
+            'capacity_per_bed' => $bedType->capacity,
+            'total_capacity' => $bedType->capacity,
+        ]);
+        $space->location()->create([
+            'company_id' => $space->company_id,
+            'country' => 'Bolivia',
+            'city' => 'La Paz',
+            'address' => 'Calle 1',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('spaces.shared.review', $space))
+            ->assertOk()
+            ->assertSee('Completa los siguientes datos: foto principal del alojamiento, fotos de habitaciones.');
+
+        $this
+            ->actingAs($user)
+            ->patch(route('spaces.shared.publish', $space))
+            ->assertSessionHasErrors([
+                'space' => 'Faltan datos obligatorios para publicar: foto principal del alojamiento, fotos de habitaciones.',
+            ]);
+    }
+
+    public function test_shared_space_descriptions_only_require_a_maximum_length(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        $space = Space::factory()->create([
+            'company_id' => $user->company_id,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->put(route('spaces.shared.details.store', $space), [
+                'shared_space_type_id' => SharedSpaceType::where('slug', 'hostal')->firstOrFail()->id,
+                'name' => 'Hostal breve',
+                'short_description' => 'Breve',
+                'full_description' => 'Descripcion breve.',
+            ])
+            ->assertSessionDoesntHaveErrors()
+            ->assertRedirect(route('spaces.shared.rooms.edit', $space));
+
+        $this->assertDatabaseHas('spaces', [
+            'id' => $space->id,
+            'short_description' => 'Breve',
+            'full_description' => 'Descripcion breve.',
+        ]);
+    }
+
     public function test_deleting_shared_room_bed_also_removes_physical_bed_units(): void
     {
         $this->seed(AccommodationCatalogSeeder::class);
@@ -218,6 +285,7 @@ class SharedSpaceRegistrationStepperTest extends TestCase
             'short_description' => str_repeat('Descripcion corta compartida ', 5),
             'full_description' => str_repeat('Descripcion extendida compartida suficiente para validar. ', 7),
             'photos_skipped' => true,
+            'room_photos_skipped' => true,
         ]);
         $room = $space->rooms()->create([
             'company_id' => $user->company_id,
@@ -225,7 +293,6 @@ class SharedSpaceRegistrationStepperTest extends TestCase
             'title' => 'Habitacion 101',
             'bathroom_type_id' => BathroomType::where('slug', 'privado')->firstOrFail()->id,
             'status' => 'active',
-            'photos_skipped' => true,
         ]);
         $bedType = BedType::where('slug', 'cama-matrimonial')->firstOrFail();
         $room->beds()->create([
@@ -251,6 +318,48 @@ class SharedSpaceRegistrationStepperTest extends TestCase
             ->assertRedirect(route('spaces.shared.review', $space));
 
         $this->assertSame('completed', $space->refresh()->status);
+    }
+
+    public function test_room_photo_preference_applies_to_every_room(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        [$space, $firstRoom, $secondRoom] = $this->sharedSpaceWithRooms($user);
+
+        $this
+            ->actingAs($user)
+            ->put(route('spaces.shared.room-photos.settings', $space), [
+                'room_photos_skipped' => true,
+            ])
+            ->assertRedirect(route('spaces.shared.photos.edit', $space));
+
+        $this->assertTrue($space->refresh()->room_photos_skipped);
+        $this->assertTrue($firstRoom->refresh()->photos_skipped);
+        $this->assertTrue($secondRoom->refresh()->photos_skipped);
+
+        $this
+            ->actingAs($user)
+            ->put(route('spaces.shared.room-photos.settings', $space))
+            ->assertRedirect(route('spaces.shared.photos.edit', $space));
+
+        $this->assertFalse($space->refresh()->room_photos_skipped);
+        $this->assertFalse($firstRoom->refresh()->photos_skipped);
+        $this->assertFalse($secondRoom->refresh()->photos_skipped);
+    }
+
+    public function test_shared_photo_page_has_one_global_room_photo_preference(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+        [$space] = $this->sharedSpaceWithRooms($user);
+
+        $this
+            ->actingAs($user)
+            ->get(route('spaces.shared.photos.edit', $space))
+            ->assertOk()
+            ->assertSee('No usar fotos para las habitaciones')
+            ->assertDontSee('No usar fotos para esta habitacion')
+            ->assertSee(route('spaces.shared.room-photos.settings', $space), false);
     }
 
     public function test_shared_space_gallery_is_limited_to_three_extra_photos(): void

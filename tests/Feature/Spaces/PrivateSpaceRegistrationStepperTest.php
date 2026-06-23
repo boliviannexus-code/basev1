@@ -18,6 +18,27 @@ class PrivateSpaceRegistrationStepperTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_modality_options_keep_the_same_visual_order_when_shared_is_selected(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUserWithSpacePermission();
+
+        $response = $this
+            ->actingAs($user)
+            ->get(route('spaces.shared.create'))
+            ->assertOk();
+
+        $html = $response->getContent();
+        $privatePosition = strpos($html, 'value="privado"');
+        $sharedPosition = strpos($html, 'value="compartido"');
+
+        $this->assertNotFalse($privatePosition);
+        $this->assertNotFalse($sharedPosition);
+        $this->assertLessThan($sharedPosition, $privatePosition);
+        $this->assertMatchesRegularExpression('/value="compartido"[^>]*checked/', $html);
+        $this->assertStringNotContainsString(route('spaces.private.create'), $html);
+    }
+
     public function test_company_user_can_complete_private_space_stepper_and_publish(): void
     {
         Storage::fake('public');
@@ -143,9 +164,40 @@ class PrivateSpaceRegistrationStepperTest extends TestCase
         $this
             ->actingAs($user)
             ->patch(route('spaces.private.publish', $space))
-            ->assertSessionHasErrors('space');
+            ->assertSessionHasErrors([
+                'space' => 'Faltan datos obligatorios para publicar: foto principal.',
+            ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('spaces.private.review', $space))
+            ->assertOk()
+            ->assertSee('Completa los siguientes datos: foto principal.');
 
         $this->assertSame('draft', $space->refresh()->status);
+    }
+
+    public function test_private_space_descriptions_only_require_a_maximum_length(): void
+    {
+        $user = $this->companyUserWithSpacePermission();
+        $space = Space::factory()->create([
+            'company_id' => $user->company_id,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->put(route('spaces.private.descriptions.store', $space), [
+                'short_description' => 'Breve',
+                'full_description' => 'Descripcion breve.',
+            ])
+            ->assertSessionDoesntHaveErrors()
+            ->assertRedirect(route('spaces.private.photos.edit', $space));
+
+        $this->assertDatabaseHas('spaces', [
+            'id' => $space->id,
+            'short_description' => 'Breve',
+            'full_description' => 'Descripcion breve.',
+        ]);
     }
 
     public function test_private_space_can_publish_without_photos_when_photos_are_skipped(): void

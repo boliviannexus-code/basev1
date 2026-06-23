@@ -11,7 +11,6 @@ use App\Http\Requests\Spaces\StoreSpaceServicesRequest;
 use App\Models\GeneralService;
 use App\Models\PrivateSpaceType;
 use App\Models\Space;
-use App\Models\SpaceMode;
 use App\Models\SpacePhoto;
 use App\Services\Spaces\SpacePhotoService;
 use App\Services\Spaces\SpaceRegistrationService;
@@ -34,7 +33,8 @@ class SpaceRegistrationStepperController extends Controller
         Gate::authorize('spaces.create');
 
         return view('spaces.private.modality', [
-            'spaceModes' => SpaceMode::active()->ordered()->get(),
+            'selectedMode' => 'privado',
+            'formAction' => route('spaces.private.modality.store'),
         ]);
     }
 
@@ -42,9 +42,15 @@ class SpaceRegistrationStepperController extends Controller
     {
         Gate::authorize('spaces.create');
 
-        $request->validate([
-            'space_mode' => ['required', 'in:privado'],
-        ]);
+        $mode = $request->validate([
+            'space_mode' => ['required', 'in:privado,compartido'],
+        ])['space_mode'];
+
+        if ($mode === 'compartido') {
+            $space = $this->spaces->startSharedSpace();
+
+            return $this->stepResponse($request, 'Alojamiento compartido iniciado.', route('spaces.shared.details.edit', $space));
+        }
 
         $space = $this->spaces->startPrivateSpace();
 

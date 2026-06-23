@@ -6,7 +6,8 @@
     $cashOpen = request()->routeIs('space-cash.*');
     $configurationOpen = request()->routeIs('countries.*', 'extra-charge-categories.*', 'exchange-rates.*', 'reservation-channels.*', 'reservation-settings.*', 'payment-methods.*');
 
-    $canPublicProfile = auth()->user()?->company_id !== null;
+    $canPublicProfile = auth()->user()?->company_id !== null
+        && auth()->user()?->can('company-public-profile.manage');
     $canOrganization = auth()->user()?->can('companies.view') || $canPublicProfile;
     $canSpaces = auth()->user()?->company_id !== null
         && (auth()->user()?->can('spaces.view') || auth()->user()?->can('spaces.create') || auth()->user()?->can('spaces.edit') || auth()->user()?->can('availability.view') || auth()->user()?->can('occupancy.view') || auth()->user()?->can('reservations.view'));

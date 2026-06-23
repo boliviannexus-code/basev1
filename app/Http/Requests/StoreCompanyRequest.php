@@ -2,13 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Support\CompanyContext;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreCompanyRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('companies.create') ?? false;
+        return ($this->user()?->can('companies.create') ?? false)
+            && CompanyContext::isGlobalAdmin($this->user());
     }
 
     public function rules(): array

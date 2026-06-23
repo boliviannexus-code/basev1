@@ -15,7 +15,7 @@
     @if ($missingRequirements)
         <div class="alert alert-warning">
             <div class="fw-semibold mb-1">Aun no se puede terminar el registro.</div>
-            <div>Faltan: {{ implode(', ', $missingRequirements) }}.</div>
+            <div>Completa los siguientes datos: {{ implode(', ', $missingRequirements) }}.</div>
         </div>
     @endif
 

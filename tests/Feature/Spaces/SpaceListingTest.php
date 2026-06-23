@@ -12,6 +12,7 @@ use App\Models\SpaceMode;
 use App\Models\User;
 use Database\Seeders\AccommodationCatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -197,6 +198,70 @@ class SpaceListingTest extends TestCase
         $this->assertStringContainsString(route('spaces.continue', $space), $actions);
         $this->assertStringContainsString('Continuar', $actions);
         $this->assertStringNotContainsString('Editar', $actions);
+    }
+
+    public function test_draft_space_can_be_permanently_deleted_with_its_photos(): void
+    {
+        Storage::fake('public');
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUser(['spaces.view', 'spaces.edit']);
+        $space = $this->privateDraftSpace($user->company_id);
+        $photoPath = 'spaces/draft-photo.webp';
+
+        Storage::disk('public')->put($photoPath, 'photo');
+        $space->photos()->create([
+            'company_id' => $user->company_id,
+            'path' => $photoPath,
+            'type' => 'main',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->delete(route('spaces.destroy', $space))
+            ->assertRedirect(route('spaces.index'))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('spaces', ['id' => $space->id]);
+        $this->assertDatabaseMissing('space_photos', ['space_id' => $space->id]);
+        Storage::disk('public')->assertMissing($photoPath);
+    }
+
+    public function test_non_draft_space_cannot_be_permanently_deleted(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUser(['spaces.view', 'spaces.edit']);
+        $space = $this->privateDraftSpace($user->company_id, ['status' => 'completed']);
+
+        $this
+            ->actingAs($user)
+            ->delete(route('spaces.destroy', $space))
+            ->assertSessionHasErrors('space');
+
+        $this->assertDatabaseHas('spaces', ['id' => $space->id]);
+    }
+
+    public function test_listing_only_shows_permanent_delete_action_for_drafts(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $user = $this->companyUser(['spaces.view', 'spaces.edit']);
+        $draft = $this->privateDraftSpace($user->company_id, ['title' => 'Borrador eliminable']);
+
+        $draftResponse = $this
+            ->actingAs($user)
+            ->getJson(route('datatables.spaces'));
+
+        $this->assertStringContainsString(route('spaces.destroy', $draft), $draftResponse->json('data.0.actions'));
+        $this->assertStringContainsString('Eliminar definitivamente', $draftResponse->json('data.0.actions'));
+        $this->assertStringContainsString('value="DELETE"', $draftResponse->json('data.0.actions'));
+
+        $draft->update(['status' => 'completed']);
+
+        $completedResponse = $this
+            ->actingAs($user)
+            ->getJson(route('datatables.spaces'));
+
+        $this->assertStringNotContainsString('Eliminar definitivamente', $completedResponse->json('data.0.actions'));
+        $this->assertStringNotContainsString('value="DELETE"', $completedResponse->json('data.0.actions'));
     }
 
     private function companyUser(array $permissions): User

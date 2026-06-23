@@ -172,8 +172,8 @@ class SpaceRegistrationService
             'tipo privado' => $space->private_space_type_id !== null && $space->privateSpaceType?->is_active,
             'titulo' => filled($space->title),
             'capacidad y distribucion' => $this->capacity->hasValidPrivateDistribution($space),
-            'descripcion corta' => filled($space->short_description) && strlen($space->short_description) >= 100,
-            'descripcion extendida' => filled($space->full_description) && strlen($space->full_description) >= 300,
+            'descripcion corta' => filled($space->short_description),
+            'descripcion extendida' => filled($space->full_description),
             'foto principal' => $space->photos_skipped || $space->photos->contains('type', 'main'),
             'ubicacion' => $space->location !== null
                 && filled($space->location->country)
@@ -181,7 +181,7 @@ class SpaceRegistrationService
                 && filled($space->location->address),
         ];
 
-        return Arr::where($requirements, fn (bool $completed): bool => ! $completed);
+        return array_keys(Arr::where($requirements, fn (bool $completed): bool => ! $completed));
     }
 
     public function missingSharedPublicationRequirements(Space $space): array
@@ -191,19 +191,19 @@ class SpaceRegistrationService
         $requirements = [
             'tipo compartido' => $space->shared_space_type_id !== null && $space->sharedSpaceType?->is_active,
             'nombre' => filled($space->name),
-            'descripcion corta' => filled($space->short_description) && strlen($space->short_description) >= 100,
-            'descripcion extendida' => filled($space->full_description) && strlen($space->full_description) >= 300,
+            'descripcion corta' => filled($space->short_description),
+            'descripcion extendida' => filled($space->full_description),
             'habitaciones' => $this->capacity->hasValidSharedDistribution($space),
             'foto principal del alojamiento' => $space->photos_skipped || $space->photos->contains('type', 'main'),
             'fotos de habitaciones' => $space->rooms->isNotEmpty()
-                && $space->rooms->every(fn ($room): bool => $room->photos_skipped || $room->photos->isNotEmpty()),
+                && ($space->room_photos_skipped || $space->rooms->every(fn ($room): bool => $room->photos->isNotEmpty())),
             'ubicacion' => $space->location !== null
                 && filled($space->location->country)
                 && filled($space->location->city)
                 && filled($space->location->address),
         ];
 
-        return Arr::where($requirements, fn (bool $completed): bool => ! $completed);
+        return array_keys(Arr::where($requirements, fn (bool $completed): bool => ! $completed));
     }
 
     public function publishShared(Space $space): Space

@@ -24,20 +24,7 @@ if (! function_exists('role_label')) {
 if (! function_exists('permission_module_label')) {
     function permission_module_label(string $module): string
     {
-        $labels = [
-            'dashboard' => 'Panel principal',
-            'users' => 'Usuarios',
-            'roles' => 'Roles',
-            'permissions' => 'Permisos',
-            'companies' => 'Empresas',
-            'audits' => 'Auditoria',
-            'accommodation-catalogs' => 'Catalogos de alojamientos',
-            'spaces' => 'Alojamientos',
-            'availability' => 'Disponibilidad',
-            'reservations' => 'Reservas',
-        ];
-
-        return $labels[$module] ?? str($module)->replace(['-', '_'], ' ')->headline()->toString();
+        return \App\Support\PermissionCatalog::moduleLabel($module);
     }
 }
 
@@ -55,9 +42,19 @@ if (! function_exists('permission_action_label')) {
             'assign-roles' => 'Asignar roles',
             'assign-permissions' => 'Asignar permisos',
             'manage' => 'Administrar',
+            'access' => 'Operar',
+            'approve' => 'Aprobar',
+            'void' => 'Anular',
         ];
 
         return $labels[$action] ?? str($action)->replace(['-', '_'], ' ')->headline()->toString();
+    }
+}
+
+if (! function_exists('permission_description')) {
+    function permission_description(string $name): string
+    {
+        return \App\Support\PermissionCatalog::permissionDescription($name);
     }
 }
 

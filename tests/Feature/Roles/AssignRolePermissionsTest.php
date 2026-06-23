@@ -17,6 +17,7 @@ class AssignRolePermissionsTest extends TestCase
         $actor = User::factory()->create();
         Permission::findOrCreate('roles.assign-permissions');
         Permission::findOrCreate('companies.view');
+        Permission::findOrCreate('company-public-profile.manage');
         $actor->givePermissionTo('roles.assign-permissions');
 
         $role = Role::findOrCreate('manager');
@@ -28,9 +29,13 @@ class AssignRolePermissionsTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Gerente');
-        $response->assertSee('Empresas');
-        $response->assertSee('Empresas: Ver');
+        $response->assertSee('Empresa');
+        $response->assertSee('Consultar la información de este módulo.');
         $response->assertSee('value="companies.view"', false);
+        $response->assertSee('Perfil público');
+        $response->assertSee('Ver y modificar el perfil público de la empresa.');
+        $response->assertSee('value="company-public-profile.manage"', false);
+        $response->assertSee('Buscar módulo o permiso');
     }
 
     public function test_role_permissions_can_be_saved_without_role_name(): void

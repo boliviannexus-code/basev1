@@ -2,13 +2,19 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Company;
+use App\Support\CompanyContext;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateCompanyRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('companies.update') ?? false;
+        $company = $this->route('company');
+
+        return ($this->user()?->can('companies.update') ?? false)
+            && $company instanceof Company
+            && CompanyContext::belongsToUser($company->id, $this->user());
     }
 
     public function rules(): array

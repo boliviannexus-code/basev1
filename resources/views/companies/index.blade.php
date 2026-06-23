@@ -6,12 +6,13 @@
 
 @section('content')
     @php($canManageCompanyOnlineStatus = \App\Support\CompanyContext::isGlobalAdmin(auth()->user()))
+    @php($canManageCompaniesGlobally = \App\Support\CompanyContext::isGlobalAdmin(auth()->user()))
 
     <x-ui.table-card title="Listado de empresas" data-refresh-container>
         <x-slot:actions>
-            @can('companies.create')
+            @if ($canManageCompaniesGlobally && auth()->user()?->can('companies.create'))
                 <a class="btn btn-primary btn-sm" href="{{ route('companies.create') }}" data-modal-url="{{ route('companies.create') }}" data-modal-title="Nueva empresa">Nueva empresa</a>
-            @endcan
+            @endif
         </x-slot:actions>
 
         <table class="table table-hover align-middle">
@@ -77,13 +78,13 @@
                                     </form>
                                 @endif
                             @endif
-                            @can('companies.delete')
+                            @if ($canManageCompaniesGlobally && auth()->user()?->can('companies.delete'))
                                 <form class="d-inline" method="POST" action="{{ route('companies.destroy', $company) }}" data-confirm-delete="Eliminar empresa? Los usuarios asignados quedaran sin empresa.">
                                     @csrf
                                     @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm" type="submit">Eliminar</button>
                                 </form>
-                            @endcan
+                            @endif
                         </td>
                     </tr>
                 @empty

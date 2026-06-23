@@ -11,7 +11,8 @@ class UpdateCompanyPublicProfileRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->company_id !== null;
+        return $this->user()?->company_id !== null
+            && $this->user()?->can('company-public-profile.manage') === true;
     }
 
     public function rules(): array

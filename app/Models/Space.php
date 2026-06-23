@@ -32,6 +32,7 @@ class Space extends Model
         'private_bathrooms_count',
         'shared_bathrooms_count',
         'photos_skipped',
+        'room_photos_skipped',
         'status',
         'is_public_online',
         'created_by',
@@ -48,6 +49,7 @@ class Space extends Model
             'private_bathrooms_count' => 'integer',
             'shared_bathrooms_count' => 'integer',
             'photos_skipped' => 'boolean',
+            'room_photos_skipped' => 'boolean',
             'is_public_online' => 'boolean',
             'approved_at' => 'datetime',
         ];
