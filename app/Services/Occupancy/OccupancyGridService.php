@@ -330,7 +330,7 @@ class OccupancyGridService
                     'actions' => $stay
                         ? $this->actionsForStay($stay)
                         : ($block
-                        ? ($reservation ? ['extra_charge', 'view_reservation'] : ['view', 'edit', 'cancel'])
+                        ? ($reservation ? ['move_reservation', 'extra_charge', 'view_reservation'] : ['view', 'edit', 'cancel'])
                         : ($blockedByAvailability ? [] : ['create_block', 'maintenance', 'owner_use', 'unavailable'])),
                 ];
             })
@@ -430,7 +430,7 @@ class OccupancyGridService
             return ['view_check_in', 'view_account'];
         }
 
-        return ['view_check_in', 'edit_stay', 'view_account', 'extra_charge', 'check_out'];
+        return ['view_check_in', 'move_stay', 'edit_stay', 'view_account', 'extra_charge', 'check_out'];
     }
 
     private function toneForReservation($reservation): string

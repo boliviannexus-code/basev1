@@ -56,7 +56,7 @@
     @endif
 
     <div class="mb-3">
-        <a class="btn btn-outline-secondary btn-sm" href="{{ route('admin.reservations.index') }}">
+        <a class="btn btn-outline-secondary btn-sm" href="{{ $occupancyUrl }}">
             <i class="ti ti-arrow-left me-1"></i>Volver
         </a>
     </div>

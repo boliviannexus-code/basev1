@@ -81,6 +81,7 @@ function openAjaxModal(trigger) {
             initExtraChargeForms(ajaxModalBody);
             initStayPaymentForms(ajaxModalBody);
             initRoomChangeForms(ajaxModalBody);
+            initReservationMoveForms(ajaxModalBody);
         })
         .catch((error) => {
             ajaxModal.hide();
@@ -98,10 +99,73 @@ function disableBusinessFormAutocomplete(scope = document) {
             return;
         }
 
-        const shouldUsePasswordToken = field.name === 'name' || field.id.endsWith('-name');
-        field.setAttribute('autocomplete', shouldUsePasswordToken ? 'new-password' : 'off');
-        field.setAttribute('data-lpignore', 'true');
-        field.setAttribute('data-1p-ignore', 'true');
+        hardenBrowserAutocomplete(field, field.name === 'name' || field.id.endsWith('-name'));
+    });
+
+    scope.querySelectorAll('[data-browser-autofill-off], [data-main-guest-name], [data-main-guest-last-name], [data-main-guest-country], [data-stay-guest-first-name], [data-stay-guest-last-name], [data-stay-guest-country]').forEach((field) => {
+        hardenBrowserAutocomplete(field, true);
+    });
+}
+
+function hardenBrowserAutocomplete(field, usePasswordToken = false) {
+    if (!field) {
+        return;
+    }
+
+    const token = usePasswordToken ? 'new-password' : 'off';
+    field.setAttribute('autocomplete', token);
+    field.setAttribute('autocorrect', 'off');
+    field.setAttribute('autocapitalize', 'off');
+    field.setAttribute('spellcheck', 'false');
+    field.setAttribute('data-lpignore', 'true');
+    field.setAttribute('data-1p-ignore', 'true');
+    field.setAttribute('data-bwignore', 'true');
+    field.setAttribute('data-form-type', 'other');
+
+    if (field.tomselect?.control_input) {
+        hardenBrowserAutocomplete(field.tomselect.control_input, usePasswordToken);
+    }
+}
+
+function humanNameFields(scope = document) {
+    return scope.querySelectorAll('[data-browser-capitalize], [data-main-guest-name], [data-main-guest-last-name], [data-stay-guest-first-name], [data-stay-guest-last-name]');
+}
+
+function titleCaseHumanText(value) {
+    const normalized = String(value ?? '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('es-BO');
+
+    return normalized.replace(/(^|[\s.'-])(\p{L})/gu, (match, separator, letter) => `${separator}${letter.toLocaleUpperCase('es-BO')}`);
+}
+
+function applyHumanTextCapitalization(field) {
+    if (!field || field.readOnly || field.disabled || !field.value) {
+        return;
+    }
+
+    const capitalized = titleCaseHumanText(field.value);
+
+    if (field.value !== capitalized) {
+        field.value = capitalized;
+        field.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
+function capitalizeHumanTextFields(scope = document) {
+    humanNameFields(scope).forEach(applyHumanTextCapitalization);
+}
+
+function initHumanTextCapitalization(scope = document) {
+    humanNameFields(scope).forEach((field) => {
+        field.setAttribute('autocapitalize', 'words');
+        applyHumanTextCapitalization(field);
+
+        if (field.dataset.humanTextCapitalizationInitialized === '1') {
+            return;
+        }
+
+        field.addEventListener('blur', () => applyHumanTextCapitalization(field));
+        field.addEventListener('change', () => applyHumanTextCapitalization(field));
+        field.dataset.humanTextCapitalizationInitialized = '1';
     });
 }
 
@@ -190,7 +254,14 @@ async function submitAjaxForm(form) {
             throw new Error(payload.message ?? 'No se pudo completar la operacion.');
         }
 
+        bootstrap.Modal.getInstance(form.closest('.modal'))?.hide();
         ajaxModal?.hide();
+        if (payload.refresh_availability) {
+            window.dispatchEvent(new CustomEvent('availability:refresh'));
+        }
+        if (payload.refresh_occupancy) {
+            window.dispatchEvent(new CustomEvent('occupancy:refresh'));
+        }
         await refreshContainer(payload.refresh_url ?? form.dataset.refreshUrl);
         toast.fire({ icon: 'success', title: payload.message ?? 'Operacion realizada correctamente.' });
     } catch (error) {
@@ -2405,14 +2476,15 @@ function initUserDropdowns() {
 }
 
 function initSidebarToggle() {
-    const toggle = document.querySelector('[data-sidebar-toggle]');
+    const toggles = Array.from(document.querySelectorAll('[data-sidebar-toggle]'));
     const sidebar = document.querySelector('.app-sidebar');
+    const backdrop = document.querySelector('[data-sidebar-backdrop]');
+    const mobileSidebarQuery = window.matchMedia('(max-width: 991.98px)');
 
-    if (!toggle || toggle.dataset.sidebarToggleInitialized === '1') {
+    if (toggles.length === 0 || document.body.dataset.sidebarToggleInitialized === '1') {
         return;
     }
 
-    const icon = toggle.querySelector('i');
     document.querySelectorAll('.app-sidebar .nav-link, .app-sidebar .app-menu-toggle').forEach((item) => {
         const label = item.querySelector('.nav-link-title')?.textContent?.trim();
 
@@ -2421,22 +2493,58 @@ function initSidebarToggle() {
         }
     });
 
-    const syncState = () => {
-        const collapsed = document.body.classList.contains('app-sidebar-collapsed');
-        toggle.setAttribute('aria-label', collapsed ? 'Expandir menu' : 'Replegar menu');
-        toggle.setAttribute('title', collapsed ? 'Expandir menu' : 'Replegar menu');
-
-        if (icon) {
-            icon.className = collapsed ? 'ti ti-layout-sidebar-left-expand' : 'ti ti-layout-sidebar-left-collapse';
-        }
+    const closeMobileSidebar = () => {
+        document.body.classList.remove('app-sidebar-mobile-open');
+        syncState();
     };
 
-    toggle.addEventListener('click', () => {
+    const syncState = () => {
+        const mobileOpen = document.body.classList.contains('app-sidebar-mobile-open');
+
+        if (mobileSidebarQuery.matches) {
+            toggles.forEach((toggle) => {
+                const icon = toggle.querySelector('i');
+                toggle.setAttribute('aria-expanded', mobileOpen ? 'true' : 'false');
+                toggle.setAttribute('aria-label', mobileOpen ? 'Cerrar menu' : 'Abrir menu');
+                toggle.setAttribute('title', mobileOpen ? 'Cerrar menu' : 'Abrir menu');
+
+                if (icon) {
+                    icon.className = mobileOpen ? 'ti ti-x' : 'ti ti-menu-2';
+                }
+            });
+
+            return;
+        }
+
+        const collapsed = document.body.classList.contains('app-sidebar-collapsed');
+        toggles.forEach((toggle) => {
+            const icon = toggle.querySelector('i');
+            toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            toggle.setAttribute('aria-label', collapsed ? 'Expandir menu' : 'Replegar menu');
+            toggle.setAttribute('title', collapsed ? 'Expandir menu' : 'Replegar menu');
+
+            if (icon) {
+                icon.className = collapsed ? 'ti ti-layout-sidebar-left-expand' : 'ti ti-layout-sidebar-left-collapse';
+            }
+        });
+    };
+
+    const toggleSidebar = () => {
+        if (mobileSidebarQuery.matches) {
+            document.body.classList.toggle('app-sidebar-mobile-open');
+            document.body.classList.remove('app-sidebar-peek');
+            syncState();
+
+            return;
+        }
+
         document.body.classList.toggle('app-sidebar-collapsed');
         document.body.classList.remove('app-sidebar-peek');
         localStorage.setItem('app-sidebar-collapsed', document.body.classList.contains('app-sidebar-collapsed') ? '1' : '0');
         syncState();
-    });
+    };
+
+    toggles.forEach((toggle) => toggle.addEventListener('click', toggleSidebar));
 
     const openPeek = () => {
         if (document.body.classList.contains('app-sidebar-collapsed')) {
@@ -2449,6 +2557,16 @@ function initSidebarToggle() {
     };
 
     sidebar?.addEventListener('click', (event) => {
+        if (mobileSidebarQuery.matches) {
+            const link = event.target.closest('a.nav-link');
+
+            if (link) {
+                closeMobileSidebar();
+            }
+
+            return;
+        }
+
         if (!document.body.classList.contains('app-sidebar-collapsed')) {
             return;
         }
@@ -2475,14 +2593,23 @@ function initSidebarToggle() {
         closePeek();
     });
 
+    backdrop?.addEventListener('click', closeMobileSidebar);
+
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             closePeek();
+            closeMobileSidebar();
         }
     });
 
+    mobileSidebarQuery.addEventListener?.('change', () => {
+        document.body.classList.remove('app-sidebar-mobile-open');
+        document.body.classList.remove('app-sidebar-peek');
+        syncState();
+    });
+
     syncState();
-    toggle.dataset.sidebarToggleInitialized = '1';
+    document.body.dataset.sidebarToggleInitialized = '1';
 }
 
 function initCashExpenseModal() {
@@ -2853,13 +2980,28 @@ function initOccupancyWeekGrid() {
             return;
         }
 
+        const positionActionsPopover = () => {
+            const cellRect = cell.getBoundingClientRect();
+            const rootRect = root.getBoundingClientRect();
+            const popoverWidth = actionsPopover.offsetWidth || 288;
+            const popoverHeight = actionsPopover.offsetHeight || 160;
+            const gap = 8;
+            const viewportMargin = 8;
+            const requestedLeft = cellRect.left - rootRect.left + root.scrollLeft;
+            const minLeft = window.scrollX + viewportMargin - rootRect.left + root.scrollLeft;
+            const maxLeft = window.scrollX + window.innerWidth - viewportMargin - popoverWidth - rootRect.left + root.scrollLeft;
+            const belowTop = cellRect.bottom - rootRect.top + gap + root.scrollTop;
+            const aboveTop = cellRect.top - rootRect.top - popoverHeight - gap + root.scrollTop;
+            const hasSpaceBelow = cellRect.bottom + popoverHeight + gap <= window.innerHeight - viewportMargin;
+            const hasMoreSpaceBelow = cellRect.bottom <= window.innerHeight - cellRect.top;
+
+            actionsPopover.style.left = `${Math.max(minLeft, Math.min(requestedLeft, maxLeft))}px`;
+            actionsPopover.style.top = `${hasSpaceBelow || hasMoreSpaceBelow ? belowTop : Math.max(root.scrollTop + viewportMargin, aboveTop)}px`;
+        };
+
         actionsPopover.classList.remove('d-none');
         actionsPopover.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>';
-
-        const cellRect = cell.getBoundingClientRect();
-        const rootRect = root.getBoundingClientRect();
-        actionsPopover.style.top = `${cellRect.bottom - rootRect.top + 6 + root.scrollTop}px`;
-        actionsPopover.style.left = `${cellRect.left - rootRect.left + root.scrollLeft}px`;
+        positionActionsPopover();
 
         const response = await fetch(`${root.dataset.cellActionsUrl}?${cellParams(cell.dataset.spaceId, cell.dataset.roomId, cell.dataset.date, cell.dataset.roomBedUnitId).toString()}`, {
             headers: {
@@ -2878,6 +3020,7 @@ function initOccupancyWeekGrid() {
         }
 
         actionsPopover.innerHTML = payload.html;
+        positionActionsPopover();
     };
 
     const openOccupancyActionModal = async (title, url, spaceId, roomId, date, bedUnitId = '', size = 'lg') => {
@@ -2906,6 +3049,8 @@ function initOccupancyWeekGrid() {
         actionModalBody.innerHTML = await response.text();
         initExtraChargeForms(actionModalBody);
         initOccupancyCheckOutForms(actionModalBody);
+        initRoomChangeForms(actionModalBody);
+        initReservationMoveForms(actionModalBody);
     };
 
     const openCheckInModal = (spaceId, date, roomId = '', bedUnitId = '') => {
@@ -2993,12 +3138,48 @@ function initOccupancyWeekGrid() {
 
         actionModalBody.innerHTML = await response.text();
     };
+    const openMoveModal = async (title, url) => {
+        if (!url) {
+            throw new Error('No se encontro el movimiento seleccionado.');
+        }
+
+        actionModalTitle.textContent = title;
+        actionModalDialog?.classList.toggle('modal-xl', false);
+        actionModalDialog?.classList.toggle('modal-lg', true);
+        actionModalBody.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
+        actionModal.show();
+
+        const response = await fetch(url, {
+            headers: {
+                Accept: 'text/html',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('No se pudo cargar el formulario de movimiento.');
+        }
+
+        actionModalBody.innerHTML = await response.text();
+        initRoomChangeForms(actionModalBody);
+        initReservationMoveForms(actionModalBody);
+    };
+    const openStayMoveModal = (stayId) => openMoveModal(
+        'Cambiar habitacion',
+        stayId && root.dataset.stayRoomChangeUrlTemplate ? routeFor(root.dataset.stayRoomChangeUrlTemplate, stayId) : null,
+    );
+    const openReservationMoveModal = (reservationId) => openMoveModal(
+        'Mover reserva',
+        reservationId && root.dataset.reservationMoveUrlTemplate ? routeFor(root.dataset.reservationMoveUrlTemplate, reservationId) : null,
+    );
     const openBlockModal = (spaceId, date, roomId = '', bedUnitId = '') => openEditBlockModal(spaceId, roomId, date, bedUnitId);
 
     const openActionFromMenu = (button) => {
-        const { occupancyAction, spaceId, roomId, roomBedUnitId, date, stayId, reservationGroupId } = button.dataset;
+        const { occupancyAction, spaceId, roomId, roomBedUnitId, date, stayId, reservationId, reservationGroupId } = button.dataset;
         const handlers = {
             view_check_in: () => openCheckInSummaryModal(spaceId, date, roomId, roomBedUnitId),
+            move_stay: () => openStayMoveModal(stayId),
+            move_reservation: () => openReservationMoveModal(reservationId),
             collect_stay_payment: () => openStayPaymentModal(stayId),
             collect_reservation_payment: () => openReservationPaymentModal(reservationGroupId),
             check_in: () => openCheckInModal(spaceId, date, roomId, roomBedUnitId),
@@ -3192,6 +3373,9 @@ function initOccupancyWeekGrid() {
     weekPicker.addEventListener('change', () => loadWeekData(weekPicker.value).catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
     filtersForm.addEventListener('change', () => loadWeekData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })));
     filtersForm.addEventListener('reset', () => window.setTimeout(() => loadWeekData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message })), 0));
+    window.addEventListener('occupancy:refresh', () => {
+        loadWeekData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+    });
 
     const occupancyViewStorageKey = 'occupancy-last-view';
     const getStoredOccupancyView = () => {
@@ -3661,6 +3845,9 @@ function initAvailabilityGrid() {
         event.preventDefault();
         saveBulkUpdate().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
     });
+    window.addEventListener('availability:refresh', () => {
+        loadGridData().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+    });
 
     renderGrid();
     root.dataset.availabilityInitialized = '1';
@@ -3677,7 +3864,7 @@ function initCountryAutocompleteSelect(select) {
         return;
     }
 
-    new TomSelect(select, {
+    const tomSelect = new TomSelect(select, {
         valueField: 'value',
         labelField: 'text',
         searchField: 'text',
@@ -3686,6 +3873,8 @@ function initCountryAutocompleteSelect(select) {
         dropdownParent: 'body',
         placeholder: select.dataset.placeholder ?? 'Buscar pais',
         plugins: ['clear_button'],
+        preload: 'focus',
+        openOnFocus: true,
         load(query, callback) {
             const params = new URLSearchParams({ q: query ?? '' });
             fetch(`${url}?${params.toString()}`, {
@@ -3704,6 +3893,8 @@ function initCountryAutocompleteSelect(select) {
             },
         },
     });
+    hardenBrowserAutocomplete(select, true);
+    hardenBrowserAutocomplete(tomSelect.control_input, true);
 }
 
 function setCountryAutocompleteValue(select, country) {
@@ -3895,6 +4086,7 @@ function bindStayGuestLookup(row) {
         if (firstName) firstName.value = guest.first_name ?? '';
         if (lastName) lastName.value = guest.last_name ?? '';
         if (birthDate) birthDate.value = guest.birth_date ?? birthDate.value;
+        capitalizeHumanTextFields(row);
         setCountryAutocompleteValue(country, guest.birth_country);
         showMessage('Datos encontrados', 'success');
     };
@@ -3992,7 +4184,7 @@ function initCheckInForm(scope = document) {
     const numberValue = (field) => Number(field?.value || 0);
 
     if (countrySelect && !countrySelect.tomselect) {
-        new TomSelect(countrySelect, {
+        const tomSelect = new TomSelect(countrySelect, {
             valueField: 'value',
             labelField: 'text',
             searchField: 'text',
@@ -4001,6 +4193,8 @@ function initCheckInForm(scope = document) {
             dropdownParent: 'body',
             placeholder: countrySelect.dataset.placeholder ?? 'Buscar pais',
             plugins: ['clear_button'],
+            preload: 'focus',
+            openOnFocus: true,
             load(query, callback) {
                 const params = new URLSearchParams({ q: query ?? '' });
                 fetch(`${form.dataset.countriesUrl}?${params.toString()}`, {
@@ -4019,6 +4213,8 @@ function initCheckInForm(scope = document) {
                 },
             },
         });
+        hardenBrowserAutocomplete(countrySelect, true);
+        hardenBrowserAutocomplete(tomSelect.control_input, true);
     }
 
     let guestLookupTimeout;
@@ -4107,6 +4303,7 @@ function initCheckInForm(scope = document) {
         if (firstName) firstName.value = guest.first_name ?? '';
         if (lastName) lastName.value = guest.last_name ?? '';
         if (birthDate) birthDate.value = guest.birth_date ?? '';
+        capitalizeHumanTextFields(form);
         syncGuestAge();
         setCountryValue(guest.birth_country);
 
@@ -4195,11 +4392,14 @@ function initCheckInForm(scope = document) {
 
     const disableNativeAutocomplete = (target = form) => {
         target.querySelectorAll('input:not([type="hidden"]), textarea').forEach((field) => {
-            field.setAttribute('autocomplete', 'off');
-            field.setAttribute('autocorrect', 'off');
-            field.setAttribute('autocapitalize', 'off');
-            field.setAttribute('spellcheck', 'false');
+            hardenBrowserAutocomplete(field, field.matches('[data-main-guest-name], [data-main-guest-last-name], [data-stay-guest-first-name], [data-stay-guest-last-name]'));
         });
+
+        target.querySelectorAll('[data-country-autocomplete], [data-stay-guest-country]').forEach((field) => {
+            hardenBrowserAutocomplete(field, true);
+        });
+
+        initHumanTextCapitalization(target);
     };
 
     const syncRowResource = (row) => {
@@ -4546,6 +4746,8 @@ function initCheckInForm(scope = document) {
     checkInDate?.addEventListener('change', loadResources);
     checkOutDate?.addEventListener('change', loadResources);
     form.addEventListener('submit', (event) => {
+        capitalizeHumanTextFields(form);
+
         if (!validateFrontend()) {
             event.preventDefault();
         }
@@ -4637,8 +4839,8 @@ function initStayGuestEditors(scope = document) {
             id: fieldValue(row, '[data-stay-guest-id]'),
             document_type: fieldValue(row, '[data-stay-guest-document-type]') || 'passport',
             document_number: fieldValue(row, '[data-stay-guest-document-number]'),
-            first_name: fieldValue(row, '[data-stay-guest-first-name]'),
-            last_name: fieldValue(row, '[data-stay-guest-last-name]'),
+            first_name: titleCaseHumanText(fieldValue(row, '[data-stay-guest-first-name]')),
+            last_name: titleCaseHumanText(fieldValue(row, '[data-stay-guest-last-name]')),
             birth_date: fieldValue(row, '[data-stay-guest-birth-date]') || localTodayString(),
             birth_country_id: selectedCountry(row).value,
             birth_country_text: selectedCountry(row).text,
@@ -4769,6 +4971,7 @@ function initStayGuestEditors(scope = document) {
                 return;
             }
 
+            capitalizeHumanTextFields(modalRow);
             const data = rowData(modalRow);
             const editIndex = fieldValue(modalRow, '[data-stay-guest-edit-index]');
             const requiredMissing = !data.document_type || !data.first_name || !data.last_name || !data.birth_date || !data.birth_country_id;
@@ -4796,6 +4999,7 @@ function initStayGuestEditors(scope = document) {
         };
 
         initCountryAutocompleteSelect(modalRow?.querySelector('[data-stay-guest-country]'));
+        initHumanTextCapitalization(section);
         bindStayGuestLookup(modalRow);
 
         addButton?.addEventListener('click', () => openModal());
@@ -4971,8 +5175,70 @@ function initRoomChangeForms(scope = document) {
     });
 }
 
+function initReservationMoveForms(scope = document) {
+    scope.querySelectorAll('[data-reservation-move-form]').forEach((form) => {
+        if (form.dataset.reservationMoveInitialized === '1') {
+            return;
+        }
+
+        const checkIn = form.querySelector('input[name="check_in"]');
+        const checkOut = form.querySelector('input[name="check_out"]');
+        const url = form.dataset.reservationMoveUrl;
+
+        const reloadResources = async () => {
+            if (!url || !checkIn?.value || !checkOut?.value) {
+                return;
+            }
+
+            const params = new URLSearchParams({
+                check_in: checkIn.value,
+                check_out: checkOut.value,
+            });
+            const html = await fetchHtml(`${url}?${params.toString()}`);
+            const fragment = new DOMParser().parseFromString(html, 'text/html');
+            const fresh = fragment.querySelector('[data-reservation-move-form]');
+
+            if (!fresh) {
+                return;
+            }
+
+            form.replaceWith(fresh);
+            disableBusinessFormAutocomplete(fresh);
+            initRoomChangeForms(fresh.parentElement ?? document);
+            initReservationMoveForms(fresh.parentElement ?? document);
+        };
+
+        const syncDates = () => {
+            if (!checkIn || !checkOut) {
+                return;
+            }
+
+            const minCheckout = new Date(`${checkIn.value}T00:00:00`);
+            minCheckout.setDate(minCheckout.getDate() + 1);
+            const nextMin = minCheckout.toISOString().slice(0, 10);
+            checkOut.min = nextMin;
+
+            if (checkOut.value && checkOut.value < nextMin) {
+                checkOut.value = nextMin;
+            }
+        };
+
+        checkIn?.addEventListener('change', () => {
+            syncDates();
+            reloadResources().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+        });
+        checkOut?.addEventListener('change', () => {
+            syncDates();
+            reloadResources().catch((error) => Swal.fire({ icon: 'error', title: 'Error', text: error.message }));
+        });
+        syncDates();
+        form.dataset.reservationMoveInitialized = '1';
+    });
+}
+
 showInitialAlerts();
 disableBusinessFormAutocomplete();
+initHumanTextCapitalization();
 initTomSelects();
 initPurchaseForm();
 syncPointSaleWarehouse();
@@ -5003,6 +5269,7 @@ initStayGuestEditors();
 initExtraChargeForms();
 initStayPaymentForms();
 initRoomChangeForms();
+initReservationMoveForms();
 
 document.addEventListener('click', (event) => {
     const modalTrigger = event.target.closest('[data-modal-url]');

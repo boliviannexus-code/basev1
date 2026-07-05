@@ -8,7 +8,7 @@
     $canMove = $stay->status === 'occupied' && $moveStart->lt($checkOut) && count($resources) > 0;
 @endphp
 
-<form method="POST" action="{{ route('stays.room-change.store', $stay) }}" autocomplete="off" novalidate data-room-change-form>
+<form method="POST" action="{{ route('stays.room-change.store', $stay) }}" autocomplete="off" novalidate data-ajax-form data-room-change-form>
     @csrf
 
     <div class="vstack gap-3">
@@ -78,6 +78,7 @@
         <div class="d-flex justify-content-end gap-2">
             <button class="btn btn-link link-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
             <button class="btn btn-primary" type="submit" @disabled(! $canMove)>
+                <span class="spinner-border spinner-border-sm d-none me-1" data-submit-spinner></span>
                 <i class="ti ti-switch-horizontal me-1"></i>Cambiar habitacion
             </button>
         </div>

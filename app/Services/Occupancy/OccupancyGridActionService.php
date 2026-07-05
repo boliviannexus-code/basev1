@@ -2,8 +2,8 @@
 
 namespace App\Services\Occupancy;
 
-use App\Models\OccupancyBlock;
 use App\Models\AvailabilityStatus;
+use App\Models\OccupancyBlock;
 use App\Models\Reservation;
 use App\Models\RoomBedUnit;
 use App\Models\Space;
@@ -15,9 +15,13 @@ use Illuminate\Validation\ValidationException;
 class OccupancyGridActionService
 {
     public const ACTION_CHECK_IN = 'check_in';
+
     public const ACTION_CHECK_OUT = 'check_out';
+
     public const ACTION_RESERVATION = 'reservation';
+
     public const ACTION_BLOCK = 'block';
+
     public const ACTION_EXTRA_CHARGE = 'extra_charge';
 
     public function cellContext(int $companyId, array $data): array
@@ -86,6 +90,13 @@ class OccupancyGridActionService
 
         if ($reservation) {
             $actions = [
+                [
+                    'key' => 'move_reservation',
+                    'label' => 'Mover reserva',
+                    'icon' => 'ti-switch-horizontal',
+                    'tone' => 'primary',
+                    'disabled' => ! $reservation->shouldBlockAvailability(),
+                ],
                 [
                     'key' => self::ACTION_EXTRA_CHARGE,
                     'label' => 'Agregar cargo extra',
@@ -172,6 +183,12 @@ class OccupancyGridActionService
 
         return [
             $base[0],
+            [
+                'key' => 'move_stay',
+                'label' => 'Cambiar habitacion',
+                'icon' => 'ti-switch-horizontal',
+                'tone' => 'primary',
+            ],
             [
                 'key' => 'edit_stay',
                 'label' => 'Editar estancia',

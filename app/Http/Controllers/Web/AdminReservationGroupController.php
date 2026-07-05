@@ -27,7 +27,7 @@ class AdminReservationGroupController extends Controller
             'group' => $group->load([
                 'reservationChannel',
                 'reservations.occupancyBlock' => fn ($query) => $query->withTrashed(),
-                'reservations.space',
+                'reservations.space.spaceMode',
                 'reservations.room',
                 'reservations.rooms',
                 'reservations.roomItems.room',
@@ -36,6 +36,7 @@ class AdminReservationGroupController extends Controller
                 'reservations.bedUnitItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
                 'accountStatement.items.extraChargeCategory',
             ]),
+            'occupancyUrl' => $this->occupancyUrlForGroup($group),
         ]);
     }
 
@@ -75,7 +76,7 @@ class AdminReservationGroupController extends Controller
         $this->groups->cancel($group, $data['reason'] ?? null);
 
         return redirect()
-            ->route('admin.reservation-groups.show', $group)
+            ->to($this->occupancyUrlForGroup($group))
             ->with('success', 'Reserva cancelada y disponibilidad liberada.');
     }
 
@@ -100,5 +101,21 @@ class AdminReservationGroupController extends Controller
     private function ensureOwnership(ReservationGroup $group): void
     {
         abort_unless((int) $group->company_id === (int) auth()->user()?->company_id, 404);
+    }
+
+    private function occupancyUrlForGroup(ReservationGroup $group): string
+    {
+        $group->loadMissing('reservations.space.spaceMode');
+        $reservation = $group->reservations->first();
+        $space = $reservation?->space;
+        $params = [
+            'week_start' => $group->check_in?->toDateString() ?? today()->toDateString(),
+        ];
+
+        $params['view'] = $space?->spaceMode?->slug === 'compartido'
+            ? 'shared:'.$space->id
+            : 'private';
+
+        return route('occupancy.index', $params);
     }
 }

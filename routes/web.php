@@ -29,6 +29,7 @@ use App\Http\Controllers\Web\PublicSite\PublicAccommodationController;
 use App\Http\Controllers\Web\PublicSite\PublicCompanyPageController;
 use App\Http\Controllers\Web\PublicSite\PublicReservationController;
 use App\Http\Controllers\Web\ReservationChannelController;
+use App\Http\Controllers\Web\ReservationMoveController;
 use App\Http\Controllers\Web\ReservationPaymentController;
 use App\Http\Controllers\Web\ReservationSettingsController;
 use App\Http\Controllers\Web\RoleController;
@@ -163,6 +164,8 @@ Route::middleware('auth')->group(function (): void {
         ->group(function (): void {
             Route::get('/', [AdminReservationController::class, 'index'])->middleware('permission:reservations.view')->name('index');
             Route::get('{reservation}', [AdminReservationController::class, 'show'])->whereNumber('reservation')->middleware('permission:reservations.view')->name('show');
+            Route::get('{reservation}/move/create', [ReservationMoveController::class, 'create'])->whereNumber('reservation')->middleware('permission:reservations.manage|occupancy.manage')->name('move.create');
+            Route::post('{reservation}/move', [ReservationMoveController::class, 'store'])->whereNumber('reservation')->middleware('permission:reservations.manage|occupancy.manage')->name('move.store');
             Route::get('{reservation}/extra-charges/create', [ExtraChargeController::class, 'reservationForm'])->whereNumber('reservation')->middleware('permission:reservations.manage|occupancy.manage')->name('extra-charges.create');
             Route::post('{reservation}/extra-charges', [ExtraChargeController::class, 'storeForReservation'])->whereNumber('reservation')->middleware('permission:reservations.manage|occupancy.manage')->name('extra-charges.store');
             Route::patch('{reservation}/approve', [AdminReservationController::class, 'approve'])->whereNumber('reservation')->middleware('permission:reservations.manage')->name('approve');

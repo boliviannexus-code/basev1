@@ -43,10 +43,13 @@
                     @endif
                 </span>
             </a>
+            <button class="btn btn-icon btn-sm ms-auto app-sidebar-brand-toggle" type="button" data-sidebar-toggle aria-label="Replegar menu" title="Replegar menu" aria-controls="adminSidebar" aria-expanded="true">
+                <i class="ti ti-layout-sidebar-left-collapse"></i>
+            </button>
         </h1>
 
         <div class="navbar-collapse" id="sidebar-menu">
-            <ul class="navbar-nav pt-lg-3">
+            <ul class="navbar-nav">
                 <li class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                     <a class="nav-link" href="{{ route('dashboard') }}">
                         <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-dashboard"></i></span>

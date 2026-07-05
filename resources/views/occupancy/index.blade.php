@@ -34,6 +34,8 @@
         data-reservation-create-url="{{ route('internal-reservations.create') }}"
         data-reservation-payment-create-url-template="{{ route('admin.reservation-groups.payments.create', ['group' => '__ID__']) }}"
         data-stay-payment-create-url-template="{{ route('stays.payments.create', ['stay' => '__ID__']) }}"
+        data-reservation-move-url-template="{{ route('admin.reservations.move.create', ['reservation' => '__ID__']) }}"
+        data-stay-room-change-url-template="{{ route('stays.room-change.create', ['stay' => '__ID__']) }}"
         data-check-out-modal-url="{{ route('occupancy.check-out.modal') }}"
         data-check-out-store-url-template="{{ route('occupancy.check-out.store', ['stay' => '__ID__']) }}"
         data-extra-charge-modal-url="{{ route('occupancy.extra-charge.modal') }}"

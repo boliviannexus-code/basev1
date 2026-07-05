@@ -160,6 +160,10 @@ body {
     border-right: 1px solid rgba(var(--tblr-light-rgb), .08);
 }
 
+.app-sidebar-backdrop {
+    display: none;
+}
+
 .app-wrapper {
     min-width: 0;
     width: auto;
@@ -777,6 +781,7 @@ body {
 
 .occupancy-week-toolbar {
     display: flex;
+    flex-wrap: wrap;
     gap: .75rem;
     align-items: center;
     justify-content: space-between;
@@ -785,6 +790,7 @@ body {
 
 .occupancy-week-controls {
     flex: 0 0 auto;
+    align-items: center;
 }
 
 .occupancy-week-date {
@@ -808,6 +814,7 @@ body {
     padding-bottom: 1px;
     /* justify-content: flex-end; */
     border-bottom: 0;
+    scrollbar-width: thin;
 }
 
 .occupancy-view-tabs .nav-link {
@@ -838,6 +845,8 @@ body {
     overflow-y: auto;
     max-height: calc(100vh - 12rem);
     min-height: 28rem;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 .occupancy-grid {
@@ -1067,6 +1076,7 @@ body {
     position: absolute;
     z-index: 1050;
     width: min(18rem, calc(100vw - 2rem));
+    max-width: calc(100vw - 1.5rem);
     padding: .75rem;
     border: 1px solid var(--tblr-border-color);
     border-radius: .5rem;
@@ -1099,6 +1109,7 @@ body {
 .occupancy-action-button {
     justify-content: center;
     min-height: 2.25rem;
+    white-space: normal;
 }
 
 .occupancy-flow-summary {
@@ -2044,7 +2055,63 @@ body {
 
 @media (max-width: 991.98px) {
     .app-sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 1055;
+        width: min(19rem, 86vw);
+        max-width: 86vw;
+        overflow-y: auto;
+        transform: translateX(-100%);
+        transition: transform .18s ease-in-out, box-shadow .18s ease-in-out;
+    }
+
+    .app-sidebar .navbar-brand {
+        min-height: 3.25rem;
+    }
+
+    body.app-sidebar-mobile-open {
+        overflow: hidden;
+    }
+
+    body.app-sidebar-mobile-open .app-sidebar {
+        box-shadow: 0 1rem 2rem rgba(0, 0, 0, .28);
+        transform: translateX(0);
+    }
+
+    .app-sidebar-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1050;
+        display: block;
+        pointer-events: none;
+        background: rgba(15, 23, 42, .44);
+        opacity: 0;
+        transition: opacity .18s ease-in-out;
+    }
+
+    body.app-sidebar-mobile-open .app-sidebar-backdrop {
+        pointer-events: auto;
+        opacity: 1;
+    }
+
+    .app-wrapper {
         width: 100%;
+        min-width: 0;
+    }
+
+    .app-navbar .container-xl {
+        gap: .25rem;
+    }
+
+    .app-navbar .navbar-brand {
+        min-width: 0;
+    }
+
+    .app-navbar .page-title,
+    .app-navbar .text-muted {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .stock-filter-bar {
@@ -2071,6 +2138,41 @@ body {
     .pos-checkout {
         position: static;
     }
+
+    .occupancy-week-toolbar {
+        align-items: stretch;
+    }
+
+    .occupancy-view-tabs-wrap {
+        flex-basis: 100%;
+        order: 2;
+    }
+
+    .occupancy-week-controls {
+        width: 100%;
+        justify-content: flex-start;
+        order: 1;
+    }
+
+    .occupancy-grid-shell {
+        max-height: calc(100vh - 13.5rem);
+        min-height: 24rem;
+    }
+
+    .occupancy-grid {
+        min-width: 50rem;
+    }
+
+    .occupancy-grid th:first-child,
+    .occupancy-resource-cell {
+        width: 12rem;
+        min-width: 12rem;
+        max-width: 12rem;
+    }
+
+    .occupancy-cell-actions-popover {
+        width: min(20rem, calc(100vw - 1.5rem));
+    }
 }
 
 @media (max-width: 575.98px) {
@@ -2085,17 +2187,140 @@ body {
     .pos-quick-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    .occupancy-week-toolbar {
+        gap: .55rem;
+        margin-bottom: .75rem;
+    }
+
+    .occupancy-week-controls {
+        display: grid;
+        grid-template-columns: 2.25rem minmax(3.5rem, auto) 2.25rem minmax(0, 1fr);
+        gap: .4rem;
+    }
+
+    .occupancy-week-controls .btn {
+        width: 100%;
+        min-height: 2.15rem;
+        padding-inline: .5rem;
+    }
+
+    .occupancy-week-date {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .occupancy-view-tabs .nav-link {
+        min-height: 2.15rem;
+        padding: .35rem .55rem;
+        font-size: .78rem;
+    }
+
+    .occupancy-grid-shell {
+        max-height: calc(100vh - 12.5rem);
+        min-height: 22rem;
+    }
+
+    .occupancy-grid {
+        min-width: 42rem;
+    }
+
+    .occupancy-grid th {
+        padding: .5rem .45rem;
+        font-size: .72rem;
+    }
+
+    .occupancy-grid th:first-child,
+    .occupancy-resource-cell {
+        width: 9.5rem;
+        min-width: 9.5rem;
+        max-width: 9.5rem;
+    }
+
+    .occupancy-resource-cell {
+        padding: .5rem .55rem;
+        font-size: .78rem;
+        line-height: 1.2;
+    }
+
+    .occupancy-room-row .occupancy-resource-cell {
+        padding-left: .85rem;
+    }
+
+    .occupancy-bed-unit-row .occupancy-resource-cell,
+    .availability-bed-unit-row .availability-resource-cell {
+        padding-left: 1.15rem;
+        font-size: .74rem;
+    }
+
+    .occupancy-cell,
+    .occupancy-cell-empty {
+        min-width: 4.85rem;
+        height: 2.25rem;
+        padding: .16rem;
+    }
+
+    .occupancy-cell-span {
+        padding-inline: .18rem;
+    }
+
+    .occupancy-cell-label {
+        min-height: 1.75rem;
+        padding: .12rem .22rem;
+        font-size: .66rem;
+    }
+
+    .occupancy-cell-state {
+        font-size: .58rem;
+    }
+
+    .occupancy-cell-guest {
+        font-size: .66rem;
+    }
+
+    .occupancy-cell-code {
+        font-size: .56rem;
+    }
+
+    .occupancy-cell-actions-popover {
+        width: min(18rem, calc(100vw - 1rem));
+        max-height: min(22rem, calc(100vh - 1rem));
+        overflow-y: auto;
+        border-radius: .5rem;
+        z-index: 1080;
+    }
+
+    .occupancy-action-list {
+        grid-template-columns: 1fr;
+    }
+
+    .occupancy-action-button {
+        min-height: 2.5rem;
+    }
 }
 
 .app-sidebar .navbar-brand {
-    min-height: 4rem;
-    padding-inline: 1rem;
+    min-height: 3.35rem;
+    margin-bottom: 0;
+    padding: .55rem .75rem;
     border-bottom: 1px solid rgba(var(--tblr-light-rgb), .08);
 }
 
 .app-sidebar .navbar-nav {
     gap: .125rem;
-    padding-inline: .75rem;
+    padding: .45rem .75rem .75rem;
+}
+
+.app-sidebar-brand-toggle {
+    flex: 0 0 auto;
+    color: rgba(var(--tblr-light-rgb), .76);
+    border-color: rgba(var(--tblr-light-rgb), .12);
+}
+
+.app-sidebar-brand-toggle:hover {
+    color: #fff;
+    border-color: rgba(var(--tblr-light-rgb), .28);
+    background: rgba(var(--tblr-light-rgb), .08);
 }
 
 .app-sidebar .nav-link {

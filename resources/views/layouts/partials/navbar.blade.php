@@ -4,7 +4,7 @@
 
 <header class="navbar navbar-expand-md d-print-none app-navbar">
     <div class="container-xl">
-        <button class="btn btn-icon d-none d-lg-inline-flex me-3" type="button" data-sidebar-toggle aria-label="Replegar menu" title="Replegar menu">
+        <button class="btn btn-icon d-inline-flex me-3" type="button" data-sidebar-toggle aria-label="Replegar menu" title="Replegar menu" aria-controls="adminSidebar" aria-expanded="false">
             <i class="ti ti-layout-sidebar-left-collapse"></i>
         </button>
 

@@ -79,7 +79,10 @@ class AdminReservationController extends Controller
             return redirect()->route('admin.reservation-groups.show', $reservation->reservation_group_id);
         }
 
-        return view('reservations.admin.show', ['reservation' => $reservation]);
+        return view('reservations.admin.show', [
+            'reservation' => $reservation,
+            'occupancyUrl' => $this->occupancyUrlForReservation($reservation),
+        ]);
     }
 
     public function approve(Request $request, int $reservation): RedirectResponse
@@ -128,7 +131,7 @@ class AdminReservationController extends Controller
         $this->reservationManagement->cancel($reservation, $data['reason'] ?? null);
 
         return redirect()
-            ->route('admin.reservations.show', $reservation)
+            ->to($this->occupancyUrlForReservation($reservation))
             ->with('success', 'Reserva cancelada y disponibilidad liberada.');
     }
 
@@ -158,5 +161,19 @@ class AdminReservationController extends Controller
     private function companyId(): int
     {
         return (int) auth()->user()?->company_id;
+    }
+
+    private function occupancyUrlForReservation(Reservation $reservation): string
+    {
+        $reservation->loadMissing('space.spaceMode');
+        $params = [
+            'week_start' => $reservation->check_in?->toDateString() ?? today()->toDateString(),
+        ];
+
+        $params['view'] = $reservation->space?->spaceMode?->slug === 'compartido'
+            ? 'shared:'.$reservation->space_id
+            : 'private';
+
+        return route('occupancy.index', $params);
     }
 }

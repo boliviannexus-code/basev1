@@ -8,6 +8,7 @@ use App\Models\Stay;
 use App\Services\CheckIn\AvailableStayResourceService;
 use App\Services\CheckIn\StayRoomMoveService;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
@@ -37,10 +38,18 @@ class StayRoomChangeController extends Controller
         ]);
     }
 
-    public function store(ChangeStayRoomRequest $request, Stay $stay): RedirectResponse
+    public function store(ChangeStayRoomRequest $request, Stay $stay): RedirectResponse|JsonResponse
     {
         $this->ensureOwnership($stay);
         $newStay = $this->moves->move($stay, $request->validated(), $request->user());
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Habitacion cambiada correctamente a estancia #'.$newStay->id.'.',
+                'refresh_occupancy' => true,
+            ]);
+        }
 
         return redirect()
             ->route('occupancy.index')

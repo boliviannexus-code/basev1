@@ -16,6 +16,7 @@
 </script>
 <div class="page">
     @include('layouts.partials.sidebar')
+    <div class="app-sidebar-backdrop" data-sidebar-backdrop aria-hidden="true"></div>
 
     <div class="page-wrapper app-wrapper">
         @include('layouts.partials.navbar')

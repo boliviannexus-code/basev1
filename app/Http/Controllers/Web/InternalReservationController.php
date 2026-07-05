@@ -7,6 +7,7 @@ use App\Http\Requests\Reservations\StoreInternalReservationRequest;
 use App\Models\Country;
 use App\Models\ExchangeRate;
 use App\Models\ReservationChannel;
+use App\Models\ReservationGroup;
 use App\Services\Reservations\InternalReservationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -85,14 +86,14 @@ class InternalReservationController extends Controller
 
         if (! $request->expectsJson()) {
             return redirect()
-                ->route('admin.reservation-groups.show', $group)
+                ->to($this->occupancyUrlForGroup($group))
                 ->with('success', 'Reserva '.$group->code.' creada correctamente.');
         }
 
         return response()->json([
             'success' => true,
             'message' => 'Reserva '.$group->code.' creada correctamente.',
-            'redirect_url' => route('admin.reservation-groups.show', $group),
+            'redirect_url' => $this->occupancyUrlForGroup($group),
         ], 201);
     }
 
@@ -124,6 +125,8 @@ class InternalReservationController extends Controller
 
     private function reservationChannels(int $companyId)
     {
+        ReservationChannel::ensureDefaultsForCompany($companyId);
+
         return ReservationChannel::query()
             ->where('company_id', $companyId)
             ->where('is_active', true)
@@ -163,5 +166,21 @@ class InternalReservationController extends Controller
     private function companyId(): int
     {
         return (int) auth()->user()?->company_id;
+    }
+
+    private function occupancyUrlForGroup(ReservationGroup $group): string
+    {
+        $group->loadMissing('reservations.space.spaceMode');
+        $reservation = $group->reservations->first();
+        $space = $reservation?->space;
+        $params = [
+            'week_start' => $group->check_in?->toDateString() ?? today()->toDateString(),
+        ];
+
+        $params['view'] = $space?->spaceMode?->slug === 'compartido'
+            ? 'shared:'.$space->id
+            : 'private';
+
+        return route('occupancy.index', $params);
     }
 }

@@ -230,11 +230,11 @@
                                                     </div>
                                                     <div class="col-md-3">
                                                         <label class="form-label">Nombre</label>
-                                                        <input class="form-control" autocomplete="off" data-stay-guest-first-name>
+                                                        <input class="form-control" autocomplete="new-password" data-browser-autofill-off data-stay-guest-first-name>
                                                     </div>
                                                     <div class="col-md-3">
                                                         <label class="form-label">Apellido paterno</label>
-                                                        <input class="form-control" autocomplete="off" data-stay-guest-last-name>
+                                                        <input class="form-control" autocomplete="new-password" data-browser-autofill-off data-stay-guest-last-name>
                                                     </div>
                                                     <div class="col-md-4">
                                                         <label class="form-label">Nacimiento</label>
@@ -242,7 +242,7 @@
                                                     </div>
                                                     <div class="col-md-8">
                                                         <label class="form-label">Pais nacimiento</label>
-                                                        <select class="form-select" data-stay-guest-country data-countries-url="{{ route('countries.autocomplete') }}" data-placeholder="Buscar pais"></select>
+                                                        <select class="form-select" autocomplete="new-password" data-browser-autofill-off data-stay-guest-country data-countries-url="{{ route('countries.autocomplete') }}" data-placeholder="Buscar pais"></select>
                                                     </div>
                                                 </div>
                                             </div>

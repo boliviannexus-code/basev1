@@ -29,12 +29,12 @@
         </div>
         <div class="col-md-2">
             <label class="form-label">Nombre</label>
-            <input class="form-control @error("{$errorPrefix}.first_name") is-invalid @enderror" name="{{ $field('first_name') }}" value="{{ old("{$errorPrefix}.first_name", $guest['first_name'] ?? '') }}" autocomplete="off" data-stay-guest-input data-stay-guest-first-name>
+            <input class="form-control @error("{$errorPrefix}.first_name") is-invalid @enderror" name="{{ $field('first_name') }}" value="{{ old("{$errorPrefix}.first_name", $guest['first_name'] ?? '') }}" autocomplete="new-password" data-browser-autofill-off data-stay-guest-input data-stay-guest-first-name>
             <div class="invalid-feedback">{{ $errors->first("{$errorPrefix}.first_name") }}</div>
         </div>
         <div class="col-md-2">
             <label class="form-label">Apellido paterno</label>
-            <input class="form-control @error("{$errorPrefix}.last_name") is-invalid @enderror" name="{{ $field('last_name') }}" value="{{ old("{$errorPrefix}.last_name", $guest['last_name'] ?? '') }}" autocomplete="off" data-stay-guest-input data-stay-guest-last-name>
+            <input class="form-control @error("{$errorPrefix}.last_name") is-invalid @enderror" name="{{ $field('last_name') }}" value="{{ old("{$errorPrefix}.last_name", $guest['last_name'] ?? '') }}" autocomplete="new-password" data-browser-autofill-off data-stay-guest-input data-stay-guest-last-name>
             <div class="invalid-feedback">{{ $errors->first("{$errorPrefix}.last_name") }}</div>
         </div>
         <div class="col-md-2">
@@ -44,7 +44,7 @@
         </div>
         <div class="col-md-2">
             <label class="form-label">Pais nacimiento</label>
-            <select class="form-select @error("{$errorPrefix}.birth_country_id") is-invalid @enderror" name="{{ $field('birth_country_id') }}" data-stay-guest-input data-stay-guest-country data-countries-url="{{ route('countries.autocomplete') }}" data-placeholder="Buscar pais">
+            <select class="form-select @error("{$errorPrefix}.birth_country_id") is-invalid @enderror" name="{{ $field('birth_country_id') }}" autocomplete="new-password" data-browser-autofill-off data-stay-guest-input data-stay-guest-country data-countries-url="{{ route('countries.autocomplete') }}" data-placeholder="Buscar pais">
                 @if ($selectedCountry)
                     <option value="{{ $selectedCountry->id }}" selected>{{ $selectedCountry->name }} ({{ $selectedCountry->iso_code }})</option>
                 @endif

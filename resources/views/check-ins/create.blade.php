@@ -77,7 +77,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label" for="birth_country_id">Pais de nacimiento</label>
-                                <select class="form-select @error('main_guest.birth_country_id') is-invalid @enderror @error('birth_country_id') is-invalid @enderror" id="birth_country_id" name="birth_country_id" data-country-autocomplete data-placeholder="Buscar pais" required data-main-guest-country>
+                                <select class="form-select @error('main_guest.birth_country_id') is-invalid @enderror @error('birth_country_id') is-invalid @enderror" id="birth_country_id" name="birth_country_id" autocomplete="new-password" data-browser-autofill-off data-country-autocomplete data-placeholder="Buscar pais" required data-main-guest-country>
                                     @if ($selectedBirthCountry)
                                         <option value="{{ $selectedBirthCountry->id }}" selected>{{ $selectedBirthCountry->name }} ({{ $selectedBirthCountry->iso_code }})</option>
                                     @endif
@@ -95,12 +95,12 @@
                             </div>
                             <div class="col-md-5">
                                 <label class="form-label" for="first_name">Nombre</label>
-                                <input class="form-control @error('main_guest.first_name') is-invalid @enderror @error('first_name') is-invalid @enderror" id="first_name" name="first_name" value="{{ old('main_guest.first_name', old('first_name', $initial['main_guest']['first_name'] ?? '')) }}" autocomplete="off" required data-main-guest-name>
+                                <input class="form-control @error('main_guest.first_name') is-invalid @enderror @error('first_name') is-invalid @enderror" id="first_name" name="first_name" value="{{ old('main_guest.first_name', old('first_name', $initial['main_guest']['first_name'] ?? '')) }}" autocomplete="new-password" data-browser-autofill-off required data-main-guest-name>
                                 <div class="invalid-feedback">{{ $errors->first('main_guest.first_name') ?: $errors->first('first_name') }}</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" for="last_name">Apellido</label>
-                                <input class="form-control @error('main_guest.last_name') is-invalid @enderror @error('last_name') is-invalid @enderror" id="last_name" name="last_name" value="{{ old('main_guest.last_name', old('last_name', $initial['main_guest']['last_name'] ?? '')) }}" autocomplete="off" required data-main-guest-last-name>
+                                <input class="form-control @error('main_guest.last_name') is-invalid @enderror @error('last_name') is-invalid @enderror" id="last_name" name="last_name" value="{{ old('main_guest.last_name', old('last_name', $initial['main_guest']['last_name'] ?? '')) }}" autocomplete="new-password" data-browser-autofill-off required data-main-guest-last-name>
                                 <div class="invalid-feedback">{{ $errors->first('main_guest.last_name') ?: $errors->first('last_name') }}</div>
                             </div>
                         </div>

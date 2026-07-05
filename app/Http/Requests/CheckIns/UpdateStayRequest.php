@@ -6,6 +6,7 @@ use App\Models\Country;
 use App\Models\Guest;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -131,13 +132,18 @@ class UpdateStayRequest extends FormRequest
                     'id' => filled($guest['id'] ?? null) ? (int) $guest['id'] : null,
                     'document_type' => filled($guest['document_type'] ?? null) ? trim((string) $guest['document_type']) : 'passport',
                     'document_number' => filled($guest['document_number'] ?? null) ? trim((string) $guest['document_number']) : null,
-                    'first_name' => filled($guest['first_name'] ?? null) ? trim((string) $guest['first_name']) : null,
-                    'last_name' => filled($guest['last_name'] ?? null) ? trim((string) $guest['last_name']) : null,
+                    'first_name' => filled($guest['first_name'] ?? null) ? $this->capitalizeHumanText((string) $guest['first_name']) : null,
+                    'last_name' => filled($guest['last_name'] ?? null) ? $this->capitalizeHumanText((string) $guest['last_name']) : null,
                     'birth_date' => filled($guest['birth_date'] ?? null) ? $guest['birth_date'] : null,
                     'birth_country_id' => filled($guest['birth_country_id'] ?? null) ? (int) $guest['birth_country_id'] : null,
                 ])
                 ->values()
                 ->all(),
         ]);
+    }
+
+    private function capitalizeHumanText(string $value): string
+    {
+        return Str::of($value)->squish()->title()->toString();
     }
 }

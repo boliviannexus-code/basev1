@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Company;
 use App\Models\ExtraChargeCategory;
+use App\Models\ReservationChannel;
 use App\Models\User;
 use App\Support\CompanyContext;
 use App\Support\CountryCatalog;
@@ -41,6 +42,7 @@ class CompanyService
 
         CountryCatalog::seedForCompany((int) $company->id);
         ExtraChargeCategory::ensureDefaultsForCompany((int) $company->id);
+        ReservationChannel::ensureDefaultsForCompany((int) $company->id);
 
         return $company;
     }

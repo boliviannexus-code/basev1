@@ -14,6 +14,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -159,8 +160,12 @@ class StoreCheckInRequest extends FormRequest
                 'document_number' => $this->filled('main_guest.document_number') || $this->filled('document_number')
                     ? trim((string) $this->input('main_guest.document_number', $this->input('document_number')))
                     : null,
-                'first_name' => $this->filled('main_guest.first_name') ? trim((string) $this->input('main_guest.first_name')) : trim((string) $this->input('first_name', '')),
-                'last_name' => $this->filled('main_guest.last_name') ? trim((string) $this->input('main_guest.last_name')) : trim((string) $this->input('last_name', '')),
+                'first_name' => $this->filled('main_guest.first_name') || $this->filled('first_name')
+                    ? $this->capitalizeHumanText((string) $this->input('main_guest.first_name', $this->input('first_name', '')))
+                    : '',
+                'last_name' => $this->filled('main_guest.last_name') || $this->filled('last_name')
+                    ? $this->capitalizeHumanText((string) $this->input('main_guest.last_name', $this->input('last_name', '')))
+                    : '',
                 'birth_country_id' => filled($this->input('main_guest.birth_country_id', $this->input('birth_country_id')))
                     ? (int) $this->input('main_guest.birth_country_id', $this->input('birth_country_id'))
                     : null,
@@ -191,8 +196,8 @@ class StoreCheckInRequest extends FormRequest
                         ->map(fn (array $guest): array => [
                             'document_type' => filled($guest['document_type'] ?? null) ? trim((string) $guest['document_type']) : 'passport',
                             'document_number' => filled($guest['document_number'] ?? null) ? trim((string) $guest['document_number']) : null,
-                            'first_name' => filled($guest['first_name'] ?? null) ? trim((string) $guest['first_name']) : null,
-                            'last_name' => filled($guest['last_name'] ?? null) ? trim((string) $guest['last_name']) : null,
+                            'first_name' => filled($guest['first_name'] ?? null) ? $this->capitalizeHumanText((string) $guest['first_name']) : null,
+                            'last_name' => filled($guest['last_name'] ?? null) ? $this->capitalizeHumanText((string) $guest['last_name']) : null,
                             'birth_date' => filled($guest['birth_date'] ?? null) ? $guest['birth_date'] : null,
                             'birth_country_id' => filled($guest['birth_country_id'] ?? null) ? (int) $guest['birth_country_id'] : null,
                         ])
@@ -201,6 +206,11 @@ class StoreCheckInRequest extends FormRequest
                 ])
                 ->all(),
         ]);
+    }
+
+    private function capitalizeHumanText(string $value): string
+    {
+        return Str::of($value)->squish()->title()->toString();
     }
 
     private function validateStayResource(Validator $validator, int $companyId, int $index, array $stay): void
