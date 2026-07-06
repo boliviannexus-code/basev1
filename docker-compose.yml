@@ -6,31 +6,24 @@ services:
     image: ${DOCKER_IMAGE:-nexgol-app:latest}
     restart: unless-stopped
     env_file:
-      - .env
+      - .env.docker
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
       DB_HOST: pgsql
       DB_PORT: 5432
-      LEGACY_DB_HOST: legacy_mysql
-      LEGACY_DB_PORT: 3306
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      BIOMETRIC_ENGINE_URL: http://biometric-engine:8001
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}
     ports:
-      - "8082:80"
+      - "${APP_PORT:-8082}:80"
     volumes:
       - nexgol-storage:/var/www/html/storage
     depends_on:
       pgsql:
         condition: service_healthy
-      legacy_mysql:
-        condition: service_healthy
       redis:
         condition: service_healthy
-      biometric-engine:
-        condition: service_started
     networks:
       - nexgol
 
@@ -38,17 +31,14 @@ services:
     image: ${DOCKER_IMAGE:-nexgol-app:latest}
     restart: unless-stopped
     env_file:
-      - .env
+      - .env.docker
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
       DB_HOST: pgsql
       DB_PORT: 5432
-      LEGACY_DB_HOST: legacy_mysql
-      LEGACY_DB_PORT: 3306
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      BIOMETRIC_ENGINE_URL: http://biometric-engine:8001
     command: php artisan queue:work --sleep=3 --tries=3 --timeout=120
     volumes:
       - nexgol-storage:/var/www/html/storage
@@ -62,17 +52,14 @@ services:
     image: ${DOCKER_IMAGE:-nexgol-app:latest}
     restart: unless-stopped
     env_file:
-      - .env
+      - .env.docker
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
       DB_HOST: pgsql
       DB_PORT: 5432
-      LEGACY_DB_HOST: legacy_mysql
-      LEGACY_DB_PORT: 3306
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      BIOMETRIC_ENGINE_URL: http://biometric-engine:8001
     command: sh -c "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"
     volumes:
       - nexgol-storage:/var/www/html/storage
@@ -86,31 +73,13 @@ services:
     image: postgres:17
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_DATABASE:-nexgol}
-      POSTGRES_USER: ${DB_USERNAME:-sail}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: nexgol_db
+      POSTGRES_USER: nexgol_user
+      POSTGRES_PASSWORD: DaniloMoreno4
     volumes:
       - nexgol-pgsql:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-sail} -d ${DB_DATABASE:-nexgol}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - nexgol
-
-  legacy_mysql:
-    image: mariadb:11
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${LEGACY_DB_ROOT_PASSWORD:-root}
-      MYSQL_DATABASE: ${LEGACY_DB_DATABASE:-nexucjns_mejillones}
-      MYSQL_USER: ${LEGACY_DB_USERNAME:-legacy}
-      MYSQL_PASSWORD: ${LEGACY_DB_PASSWORD:-legacy}
-    volumes:
-      - nexgol-legacy-mysql:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: ["CMD-SHELL", "pg_isready -U nexgol_user -d nexgol_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -130,14 +99,6 @@ services:
     networks:
       - nexgol
 
-  biometric-engine:
-    build:
-      context: ./biometric-engine
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    networks:
-      - nexgol
-
 networks:
   nexgol:
     driver: bridge
@@ -145,5 +106,4 @@ networks:
 volumes:
   nexgol-storage:
   nexgol-pgsql:
-  nexgol-legacy-mysql:
   nexgol-redis:
