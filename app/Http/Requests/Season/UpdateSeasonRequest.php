@@ -24,10 +24,17 @@ class UpdateSeasonRequest extends FormRequest
         $companyId = $season?->company_id ?? CompanyContext::id($this->user());
 
         return [
-            'name' => ['required', 'string', 'max:255', Rule::unique('seasons')->where('company_id', $companyId)->whereNull('deleted_at')->ignore($season?->id)],
-            'year' => ['nullable', 'integer', 'between:1900,2100'],
-            'status' => ['required', Rule::in(['planned', 'active', 'closed'])],
-            'is_active' => ['sometimes', 'boolean'],
+            'name' => ['required', 'string', 'max:255'],
+            'year' => [
+                'required',
+                'integer',
+                'between:1900,2100',
+                Rule::unique('seasons', 'year')
+                    ->where('company_id', $companyId)
+                    ->whereNull('deleted_at')
+                    ->ignore($season?->id),
+            ],
+            'status' => ['required', Rule::in(['active', 'closed'])],
         ];
     }
 }

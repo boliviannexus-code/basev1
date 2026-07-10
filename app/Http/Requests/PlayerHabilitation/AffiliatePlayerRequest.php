@@ -23,6 +23,7 @@ class AffiliatePlayerRequest extends FormRequest
             'ci' => ['required', 'string', 'max:50'],
             'first_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['nullable', 'string', 'max:255'],
+            'maternal_name' => ['nullable', 'string', 'max:255'],
             'birth_date' => ['nullable', 'date', 'before:today'],
             'joined_at' => ['nullable', 'date', 'before_or_equal:today'],
             'notes' => ['nullable', 'string', 'max:1000'],
@@ -34,14 +35,24 @@ class AffiliatePlayerRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
-                if (Player::query()->where('ci_normalized', Player::normalizeCi((string) $this->input('ci')))->exists()) {
+                if (Player::query()
+                    ->forCompany(CompanyContext::id($this->user()))
+                    ->where('ci_normalized', Player::normalizeCi((string) $this->input('ci')))
+                    ->exists()) {
                     return;
                 }
 
-                foreach (['first_name', 'last_name', 'birth_date'] as $field) {
+                foreach (['first_name', 'birth_date'] as $field) {
                     if (! $this->filled($field)) {
                         $validator->errors()->add($field, 'Este dato es obligatorio cuando el CI no existe.');
                     }
+                }
+
+                if (! $this->filled('last_name') && ! $this->filled('maternal_name')) {
+                    $message = 'Registra al menos un apellido cuando el CI no existe.';
+
+                    $validator->errors()->add('last_name', $message);
+                    $validator->errors()->add('maternal_name', $message);
                 }
             },
         ];
@@ -53,6 +64,7 @@ class AffiliatePlayerRequest extends FormRequest
             'ci' => is_string($this->input('ci')) ? str($this->input('ci'))->squish()->upper()->toString() : $this->input('ci'),
             'first_name' => is_string($this->input('first_name')) ? str($this->input('first_name'))->squish()->toString() : $this->input('first_name'),
             'last_name' => is_string($this->input('last_name')) ? str($this->input('last_name'))->squish()->toString() : $this->input('last_name'),
+            'maternal_name' => is_string($this->input('maternal_name')) ? str($this->input('maternal_name'))->squish()->toString() : $this->input('maternal_name'),
         ]);
     }
 }

@@ -13,6 +13,7 @@ use App\Models\TournamentTeamPlayer;
 use App\Services\PlayerPhotoService;
 use App\Services\PlayerQrCodeService;
 use App\Services\PlayerService;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -61,7 +62,9 @@ class PlayerController extends Controller
 
     public function show(Request $request, Player $player): View
     {
-        $player->load(['teamPlayers.team', 'teamPlayers.division']);
+        $this->authorizePlayerAccess($player);
+
+        $player->load($this->playerHistoryRelations());
         $qrCodeDataUri = $this->qrCodeDataUri($player);
         $photoDataUri = $this->photos->dataUriFor($player);
         $rightIndexFingerprint = $this->rightIndexFingerprint($player);
@@ -75,6 +78,8 @@ class PlayerController extends Controller
 
     public function edit(Request $request, Player $player): View
     {
+        $this->authorizePlayerAccess($player);
+
         if ($request->ajax()) {
             return view('players.partials.edit-form', compact('player'));
         }
@@ -84,6 +89,8 @@ class PlayerController extends Controller
 
     public function editPhoto(Request $request, Player $player): View
     {
+        $this->authorizePlayerAccess($player);
+
         $photoDataUri = $this->photos->dataUriFor($player);
 
         if ($request->ajax()) {
@@ -95,6 +102,8 @@ class PlayerController extends Controller
 
     public function update(UpdatePlayerRequest $request, Player $player): JsonResponse|RedirectResponse
     {
+        $this->authorizePlayerAccess($player);
+
         $player = $this->players->update($player, $request->validated());
 
         if ($request->ajax()) {
@@ -145,6 +154,8 @@ class PlayerController extends Controller
 
     public function destroy(Player $player): RedirectResponse
     {
+        $this->authorizePlayerAccess($player);
+
         $this->players->delete($player);
 
         return redirect()->route('players.index')->with('success', 'Jugador eliminado correctamente.');
@@ -153,6 +164,7 @@ class PlayerController extends Controller
     private function qrCodeDataUri(Player $player): ?string
     {
         if (blank($player->qr_code_path) && $player->tournamentTeamPlayers()
+            ->when(CompanyContext::id(), fn ($query, int $companyId) => $query->where('company_id', $companyId))
             ->where('status', TournamentTeamPlayer::STATUS_ENABLED)
             ->whereNull('deleted_at')
             ->exists()) {
@@ -160,6 +172,34 @@ class PlayerController extends Controller
         }
 
         return $this->qrCodes->dataUriFor($player);
+    }
+
+    private function authorizePlayerAccess(Player $player): void
+    {
+        if (CompanyContext::isGlobalAdmin()) {
+            return;
+        }
+
+        abort_unless(
+            CompanyContext::id() !== null
+            && (int) $player->company_id === (int) CompanyContext::id(),
+            403
+        );
+    }
+
+    private function playerHistoryRelations(): array
+    {
+        if (CompanyContext::isGlobalAdmin()) {
+            return ['teamPlayers.team', 'teamPlayers.division'];
+        }
+
+        $companyId = CompanyContext::id();
+
+        return [
+            'teamPlayers' => fn ($query) => $query->where('company_id', $companyId),
+            'teamPlayers.team',
+            'teamPlayers.division',
+        ];
     }
 
     private function rightIndexFingerprint(Player $player): ?BiometricFingerprint

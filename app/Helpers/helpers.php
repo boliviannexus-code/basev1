@@ -51,7 +51,10 @@ if (! function_exists('permission_module_label')) {
             'players' => 'Jugadores',
             'tournaments' => 'Torneos',
             'tournament-registrations' => 'Inscripciones',
+            'fixtures' => 'Fixture',
+            'match-reports' => 'Registro de partidos',
             'player-habilitations' => 'Habilitaciones',
+            'player-transfers' => 'Pases',
             'categories' => 'Categorias',
             'audits' => 'Auditoria',
         ];
@@ -94,6 +97,8 @@ if (! function_exists('permission_action_label')) {
             'assign-roles' => 'Asignar roles',
             'assign-permissions' => 'Asignar permisos',
             'approve-updates' => 'Aprobar ediciones',
+            'review' => 'Revisar',
+            'settings' => 'Configurar',
             'manage' => 'Administrar',
         ];
 
@@ -152,6 +157,28 @@ if (! function_exists('registration_status_tone')) {
         return [
             'registered' => 'success',
             'withdrawn' => 'secondary',
+        ][$status] ?? 'secondary';
+    }
+}
+
+if (! function_exists('player_transfer_status_label')) {
+    function player_transfer_status_label(string $status): string
+    {
+        return [
+            'pending' => 'Pendiente',
+            'approved' => 'Aprobado',
+            'rejected' => 'Rechazado',
+        ][$status] ?? str($status)->replace(['-', '_'], ' ')->headline()->toString();
+    }
+}
+
+if (! function_exists('player_transfer_status_tone')) {
+    function player_transfer_status_tone(string $status): string
+    {
+        return [
+            'pending' => 'warning',
+            'approved' => 'success',
+            'rejected' => 'danger',
         ][$status] ?? 'secondary';
     }
 }

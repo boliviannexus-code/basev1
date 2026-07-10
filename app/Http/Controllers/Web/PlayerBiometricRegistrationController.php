@@ -21,6 +21,8 @@ class PlayerBiometricRegistrationController extends Controller
 
     public function create(Request $request, Player $player): View
     {
+        $this->authorizePlayerAccess($player);
+
         $activeFingerprint = $this->activeRightIndexFingerprint($player);
 
         $view = $request->ajax()
@@ -35,6 +37,8 @@ class PlayerBiometricRegistrationController extends Controller
 
     public function store(Request $request, Player $player, BiometricEngineClient $engine): JsonResponse
     {
+        $this->authorizePlayerAccess($player);
+
         if (! Schema::hasTable('biometric_fingerprints')) {
             return response()->json([
                 'success' => false,
@@ -121,5 +125,18 @@ class PlayerBiometricRegistrationController extends Controller
             ->latest('enrolled_at')
             ->latest()
             ->first();
+    }
+
+    private function authorizePlayerAccess(Player $player): void
+    {
+        if (CompanyContext::isGlobalAdmin()) {
+            return;
+        }
+
+        abort_unless(
+            CompanyContext::id() !== null
+            && (int) $player->company_id === (int) CompanyContext::id(),
+            403
+        );
     }
 }

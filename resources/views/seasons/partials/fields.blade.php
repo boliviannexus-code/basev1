@@ -29,17 +29,10 @@
     <div class="col-md-6">
         <label class="form-label" for="season-status">Estado</label>
         <select class="form-select" id="season-status" name="status" required>
-            @foreach (['planned', 'active', 'closed'] as $status)
-                <option value="{{ $status }}" @selected(old('status', $season->status ?? 'planned') === $status)>{{ sports_status_label($status) }}</option>
+            @foreach (['active', 'closed'] as $status)
+                <option value="{{ $status }}" @selected(old('status', $season->status ?? 'active') === $status)>{{ $status === 'closed' ? 'Finalizado' : sports_status_label($status) }}</option>
             @endforeach
         </select>
         <div class="invalid-feedback" data-error-for="status"></div>
     </div>
-</div>
-
-<input type="hidden" name="is_active" value="0">
-<div class="form-check form-switch mt-4">
-    <input class="form-check-input" id="season-is-active" name="is_active" type="checkbox" value="1" @checked(old('is_active', $season->is_active ?? true))>
-    <label class="form-check-label" for="season-is-active">Activo</label>
-    <div class="invalid-feedback d-block" data-error-for="is_active"></div>
 </div>

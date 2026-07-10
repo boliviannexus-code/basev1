@@ -22,6 +22,7 @@ class Team extends Model implements Auditable
         'company_id',
         'name',
         'name_normalized',
+        'name_match_key',
         'founded_at',
         'notes',
         'is_active',
@@ -38,9 +39,10 @@ class Team extends Model implements Auditable
     protected static function booted(): void
     {
         static::saving(function (Team $team): void {
-            if ($team->isDirty('name') || blank($team->name_normalized)) {
-                $team->name = str((string) $team->name)->squish()->toString();
+            if ($team->isDirty('name') || blank($team->name_normalized) || blank($team->name_match_key)) {
+                $team->name = self::formatName((string) $team->name);
                 $team->name_normalized = self::normalizeName($team->name);
+                $team->name_match_key = self::matchKey($team->name);
             }
         });
     }
@@ -89,5 +91,59 @@ class Team extends Model implements Auditable
             ->lower()
             ->ascii()
             ->toString();
+    }
+
+    public static function formatName(string $name): string
+    {
+        return str($name)
+            ->squish()
+            ->upper()
+            ->toString();
+    }
+
+    public static function matchKey(string $name): string
+    {
+        $normalized = self::normalizeName($name);
+        $words = collect(explode(' ', preg_replace('/[^a-z0-9]+/', ' ', $normalized) ?: ''))
+            ->filter()
+            ->reject(fn (string $word): bool => in_array($word, self::ignoredMatchWords(), true))
+            ->values();
+
+        return $words->isNotEmpty() ? $words->implode(' ') : $normalized;
+    }
+
+    public static function ignoredMatchWords(): array
+    {
+        return [
+            'a',
+            'ac',
+            'ad',
+            'asociacion',
+            'atletico',
+            'athletic',
+            'c',
+            'cd',
+            'cf',
+            'club',
+            'de',
+            'del',
+            'deportes',
+            'deportiva',
+            'deportivo',
+            'el',
+            'equipo',
+            'f',
+            'fc',
+            'futbol',
+            'la',
+            'las',
+            'los',
+            'real',
+            'sc',
+            'sd',
+            'sporting',
+            'team',
+            'union',
+        ];
     }
 }

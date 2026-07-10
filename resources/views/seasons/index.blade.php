@@ -32,13 +32,19 @@
                         <td>{{ $season->company?->name ?? '-' }}</td>
                         <td>{{ $season->tournaments_count }}</td>
                         <td>
-                            <span class="badge text-bg-{{ sports_status_tone($season->status) }}">{{ sports_status_label($season->status) }}</span>
-                            <span class="badge text-bg-{{ $season->is_active ? 'success' : 'secondary' }}">{{ $season->is_active ? 'Activo' : 'Inactivo' }}</span>
+                            <span class="badge text-bg-{{ sports_status_tone($season->status) }}">{{ $season->status === 'closed' ? 'Finalizado' : sports_status_label($season->status) }}</span>
                         </td>
                         <td class="text-end">
                             <a class="btn btn-outline-secondary btn-sm" href="{{ route('seasons.show', $season) }}" data-modal-url="{{ route('seasons.show', $season) }}" data-modal-title="Detalle de gestion">Ver</a>
                             @can('seasons.update')
                                 <a class="btn btn-outline-primary btn-sm" href="{{ route('seasons.edit', $season) }}" data-modal-url="{{ route('seasons.edit', $season) }}" data-modal-title="Editar gestion">Editar</a>
+                                @if ($season->status === 'active')
+                                    <form class="d-inline" method="POST" action="{{ route('seasons.finish', $season) }}" data-confirm-delete="Finalizar gestion activa?" data-confirm-button-text="Si, finalizar" data-confirm-text="La gestion quedara finalizada e inactiva." data-confirm-color="#ffc107">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button class="btn btn-outline-warning btn-sm" type="submit">Finalizar</button>
+                                    </form>
+                                @endif
                             @endcan
                             @can('seasons.delete')
                                 <form class="d-inline" method="POST" action="{{ route('seasons.destroy', $season) }}" data-confirm-delete="Eliminar gestion? Tambien se eliminaran sus torneos.">

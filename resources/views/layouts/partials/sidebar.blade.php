@@ -1,17 +1,26 @@
 @php
-    $organizationOpen = request()->routeIs('companies.*', 'seasons.*', 'divisions.*', 'teams.*', 'players.*', 'categories.*');
-    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'player-habilitations.*');
+    $organizationOpen = request()->routeIs('companies.*', 'seasons.*', 'divisions.*', 'courts.*', 'teams.*', 'players.*', 'categories.*');
+    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'fixtures.*', 'matchdays.*', 'match-reports.*', 'standings.*', 'accreditations.*', 'player-habilitations.*', 'player-transfers.*');
+    $settingsOpen = request()->routeIs('league-settings.*');
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'biometric.*');
 
     $canOrganization = auth()->user()?->can('companies.view')
         || auth()->user()?->can('seasons.view')
         || auth()->user()?->can('divisions.view')
+        || auth()->user()?->can('courts.view')
         || auth()->user()?->can('teams.view')
         || auth()->user()?->can('players.view')
         || auth()->user()?->can('categories.view');
     $canTournament = auth()->user()?->can('tournaments.view')
         || auth()->user()?->can('tournament-registrations.view')
-        || auth()->user()?->can('player-habilitations.view');
+        || auth()->user()?->can('fixtures.view')
+        || auth()->user()?->can('matchdays.view')
+        || auth()->user()?->can('match-reports.view')
+        || auth()->user()?->can('standings.view')
+        || auth()->user()?->can('accreditations.view')
+        || auth()->user()?->can('player-habilitations.view')
+        || auth()->user()?->can('player-transfers.view');
+    $canSettings = auth()->user()?->can('league-settings.view');
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('fingerprint-templates.view')
         || auth()->user()?->can('roles.view')
@@ -82,6 +91,14 @@
                                         </a>
                                     </li>
                                 @endcan
+                                @can('courts.view')
+                                    <li class="nav-item {{ request()->routeIs('courts.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('courts.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-map-pin"></i></span>
+                                            <span class="nav-link-title">Canchas</span>
+                                        </a>
+                                    </li>
+                                @endcan
                                 @can('teams.view')
                                     <li class="nav-item {{ request()->routeIs('teams.*') ? 'active' : '' }}">
                                         <a class="nav-link" href="{{ route('teams.index') }}">
@@ -95,6 +112,14 @@
                                         <a class="nav-link" href="{{ route('players.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-user-star"></i></span>
                                             <span class="nav-link-title">Jugadores</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('player-imports.view')
+                                    <li class="nav-item {{ request()->routeIs('player-imports.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('player-imports.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-file-spreadsheet"></i></span>
+                                            <span class="nav-link-title">Importar jugadores</span>
                                         </a>
                                     </li>
                                 @endcan
@@ -136,6 +161,52 @@
                                         </a>
                                     </li>
                                 @endcan
+                                @can('fixtures.view')
+                                    <li class="nav-item {{ request()->routeIs('fixtures.index', 'fixtures.categories', 'fixtures.series', 'fixtures.configure', 'fixtures.report') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('fixtures.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-tournament"></i></span>
+                                            <span class="nav-link-title">Fixture</span>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item {{ request()->routeIs('fixtures.patterns') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('fixtures.patterns') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-printer"></i></span>
+                                            <span class="nav-link-title">Plantillas fixture</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('matchdays.view')
+                                    <li class="nav-item {{ request()->routeIs('matchdays.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('matchdays.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-calendar-event"></i></span>
+                                            <span class="nav-link-title">Jornadas</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('match-reports.view')
+                                    <li class="nav-item {{ request()->routeIs('match-reports.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('match-reports.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-clipboard-check"></i></span>
+                                            <span class="nav-link-title">Registro de partidos</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('standings.view')
+                                    <li class="nav-item {{ request()->routeIs('standings.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('standings.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-list-numbers"></i></span>
+                                            <span class="nav-link-title">Tabla de posiciones</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('accreditations.view')
+                                    <li class="nav-item {{ request()->routeIs('accreditations.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('accreditations.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-id-badge-2"></i></span>
+                                            <span class="nav-link-title">Acreditaciones</span>
+                                        </a>
+                                    </li>
+                                @endcan
                                 @can('player-habilitations.view')
                                     <li class="nav-item {{ request()->routeIs('player-habilitations.*') ? 'active' : '' }}">
                                         <a class="nav-link" href="{{ route('player-habilitations.index') }}">
@@ -144,6 +215,34 @@
                                         </a>
                                     </li>
                                 @endcan
+                                @can('player-transfers.view')
+                                    <li class="nav-item {{ request()->routeIs('player-transfers.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('player-transfers.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-switch-horizontal"></i></span>
+                                            <span class="nav-link-title">Pases</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                            </ul>
+                        </div>
+                    </li>
+                @endif
+
+                @if ($canSettings)
+                    <li class="nav-item app-menu-section {{ $settingsOpen ? 'active' : '' }}">
+                        <button class="nav-link app-menu-toggle {{ $settingsOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-settings" aria-expanded="{{ $settingsOpen ? 'true' : 'false' }}" aria-controls="menu-settings">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-adjustments-horizontal"></i></span>
+                            <span class="nav-link-title">Configuraciones</span>
+                            <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
+                        </button>
+                        <div class="collapse {{ $settingsOpen ? 'show' : '' }}" id="menu-settings">
+                            <ul class="nav app-submenu">
+                                <li class="nav-item {{ request()->routeIs('league-settings.*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('league-settings.index') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-cash"></i></span>
+                                        <span class="nav-link-title">Parametros de liga</span>
+                                    </a>
+                                </li>
                             </ul>
                         </div>
                     </li>

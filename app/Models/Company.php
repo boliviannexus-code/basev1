@@ -7,6 +7,7 @@ use Database\Factories\CompanyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 use OwenIt\Auditing\Contracts\Auditable;
 
@@ -17,11 +18,15 @@ class Company extends Model implements Auditable
 
     protected $fillable = [
         'name',
+        'code',
         'phone',
         'email',
         'address',
         'city',
         'country',
+        'foundation_date',
+        'legal_personality',
+        'interest_data',
         'logo_path',
         'report_footer',
         'is_active',
@@ -30,8 +35,16 @@ class Company extends Model implements Auditable
     protected function casts(): array
     {
         return [
+            'foundation_date' => 'date',
             'is_active' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (Company $company): void {
+            $company->code = self::normalizeCode((string) $company->code);
+        });
     }
 
     public function users(): HasMany
@@ -64,9 +77,24 @@ class Company extends Model implements Auditable
         return $this->hasMany(TeamPlayer::class);
     }
 
+    public function players(): HasMany
+    {
+        return $this->hasMany(Player::class);
+    }
+
     public function tournamentTeamPlayers(): HasMany
     {
         return $this->hasMany(TournamentTeamPlayer::class);
+    }
+
+    public function playerTransferSetting(): HasOne
+    {
+        return $this->hasOne(PlayerTransferSetting::class);
+    }
+
+    public function leagueSetting(): HasOne
+    {
+        return $this->hasOne(LeagueSetting::class);
     }
 
     public function getLogoUrlAttribute(): ?string
@@ -89,5 +117,15 @@ class Company extends Model implements Auditable
         $mimeType = $disk->mimeType($this->logo_path) ?: 'image/png';
 
         return 'data:'.$mimeType.';base64,'.base64_encode($disk->get($this->logo_path));
+    }
+
+    public static function normalizeCode(string $code): string
+    {
+        return str($code)
+            ->squish()
+            ->upper()
+            ->replaceMatches('/[^A-Z]/', '')
+            ->limit(3, '')
+            ->toString();
     }
 }

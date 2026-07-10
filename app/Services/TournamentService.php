@@ -8,6 +8,7 @@ use App\Models\Season;
 use App\Models\Tournament;
 use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class TournamentService
@@ -15,30 +16,46 @@ class TournamentService
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
         return CompanyContext::scope(Tournament::query())
-            ->with(['company', 'season', 'division', 'category'])
+            ->with(['company', 'season', 'division', 'categories'])
             ->latest()
             ->paginate($perPage);
     }
 
     public function create(array $data): Tournament
     {
-        $data = $this->normalizeCompanySeasonDivisionCategory($data);
+        $data = $this->normalizeCompanySeasonDivision($data);
         $data = $this->normalize($data, true);
 
-        return Tournament::query()->create($data);
+        $categoryIds = $data['category_ids'];
+        unset($data['category_ids']);
+        $data['category_id'] = $categoryIds[0] ?? null;
+
+        return DB::transaction(function () use ($data, $categoryIds): Tournament {
+            $tournament = Tournament::query()->create($data);
+            $tournament->categories()->sync($categoryIds);
+
+            return $tournament->refresh();
+        });
     }
 
     public function update(Tournament $tournament, array $data): Tournament
     {
-        $this->ensureVisible($tournament);
+        $this->ensureEditable($tournament);
 
         $data['company_id'] = $tournament->company_id;
-        $data = $this->normalizeCompanySeasonDivisionCategory($data, $tournament->category_id);
+        $data = $this->normalizeCompanySeasonDivision($data);
         $data = $this->normalize($data);
 
-        $tournament->update($data);
+        $categoryIds = $data['category_ids'];
+        unset($data['category_ids']);
+        $data['category_id'] = $categoryIds[0] ?? null;
 
-        return $tournament->refresh();
+        return DB::transaction(function () use ($tournament, $data, $categoryIds): Tournament {
+            $tournament->update($data);
+            $tournament->categories()->sync($categoryIds);
+
+            return $tournament->refresh();
+        });
     }
 
     public function delete(Tournament $tournament): bool
@@ -48,12 +65,43 @@ class TournamentService
         return (bool) $tournament->delete();
     }
 
+    public function activate(Tournament $tournament): Tournament
+    {
+        $this->ensureVisible($tournament);
+
+        $tournament->forceFill([
+            'status' => 'active',
+            'is_active' => true,
+        ])->save();
+
+        return $tournament->refresh();
+    }
+
+    public function finish(Tournament $tournament): Tournament
+    {
+        $this->ensureVisible($tournament);
+
+        $tournament->forceFill([
+            'status' => 'closed',
+            'is_active' => false,
+        ])->save();
+
+        return $tournament->refresh();
+    }
+
     public function ensureVisible(Tournament $tournament): void
     {
         abort_unless(CompanyContext::belongsToUser($tournament->company_id, auth()->user()), 403);
     }
 
-    private function normalizeCompanySeasonDivisionCategory(array $data, ?int $allowedInactiveCategoryId = null): array
+    public function ensureEditable(Tournament $tournament): void
+    {
+        $this->ensureVisible($tournament);
+
+        abort_unless($tournament->status === 'planned', 403);
+    }
+
+    private function normalizeCompanySeasonDivision(array $data): array
     {
         $companyId = CompanyContext::id();
 
@@ -89,41 +137,46 @@ class TournamentService
             ]);
         }
 
-        $category = DivisionCategory::query()
-            ->whereKey($data['category_id'] ?? null)
-            ->where('company_id', $data['company_id'])
-            ->where('division_id', $division->id)
-            ->where(function ($query) use ($allowedInactiveCategoryId): void {
-                $query->where('is_active', true)
-                    ->when($allowedInactiveCategoryId, fn ($query, $categoryId) => $query->orWhere('id', $categoryId));
-            })
-            ->first();
-
-        if (! $category) {
-            throw ValidationException::withMessages([
-                'category_id' => 'La categoria seleccionada no pertenece a la division indicada.',
-            ]);
-        }
-
-        $data['name'] = $this->buildName($division, $category, $season);
+        $data['name'] = str((string) ($data['name'] ?? ''))->squish()->toString();
+        $data['category_ids'] = $this->validCategoryIds($data, $division);
 
         return $data;
     }
 
-    private function buildName(Division $division, DivisionCategory $category, Season $season): string
+    private function validCategoryIds(array $data, Division $division): array
     {
-        return trim($division->name.' - '.$category->name.' - '.$season->name);
+        $categoryIds = collect($data['category_ids'] ?? [])
+            ->map(fn ($id): int => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($categoryIds->isEmpty()) {
+            throw ValidationException::withMessages([
+                'category_ids' => 'Selecciona al menos una categoria del torneo.',
+            ]);
+        }
+
+        $validCount = DivisionCategory::query()
+            ->where('company_id', $data['company_id'])
+            ->where('division_id', $division->id)
+            ->whereIn('id', $categoryIds)
+            ->whereNull('deleted_at')
+            ->count();
+
+        if ($validCount !== $categoryIds->count()) {
+            throw ValidationException::withMessages([
+                'category_ids' => 'Selecciona solo categorias de la division indicada.',
+            ]);
+        }
+
+        return $categoryIds->all();
     }
 
     private function normalize(array $data, ?bool $defaultActive = null): array
     {
-        if (array_key_exists('is_active', $data)) {
-            $data['is_active'] = (bool) $data['is_active'];
-        } elseif ($defaultActive !== null) {
-            $data['is_active'] = $defaultActive;
-        }
-
         $data['status'] = $data['status'] ?? 'planned';
+        $data['is_active'] = $data['status'] === 'active';
 
         return $data;
     }

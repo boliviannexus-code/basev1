@@ -7,8 +7,8 @@
     <dd class="col-sm-8">{{ $tournament->season?->name ?? '-' }}</dd>
     <dt class="col-sm-4">Division</dt>
     <dd class="col-sm-8">{{ $tournament->division?->name ?? '-' }}</dd>
-    <dt class="col-sm-4">Categoria</dt>
-    <dd class="col-sm-8">{{ $tournament->category?->name ?? '-' }}</dd>
+    <dt class="col-sm-4">Categorias</dt>
+    <dd class="col-sm-8">{{ $tournament->categories->pluck('name')->implode(', ') ?: '-' }}</dd>
     <dt class="col-sm-4">Estado</dt>
     <dd class="col-sm-8">
         <span class="badge text-bg-{{ sports_status_tone($tournament->status) }}">{{ sports_status_label($tournament->status) }}</span>

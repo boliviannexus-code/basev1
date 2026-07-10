@@ -29,7 +29,9 @@ class TournamentRegistrationTest extends TestCase
             ->actingAs($user)
             ->post(route('tournament-registrations.store'), [
                 'tournament_id' => $firstTournament->id,
+                'category_id' => $firstTournament->category_id,
                 'team_id' => $team->id,
+                'series' => 'serie_a',
                 'status' => 'registered',
             ])
             ->assertRedirect(route('tournament-registrations.index'));
@@ -38,12 +40,18 @@ class TournamentRegistrationTest extends TestCase
             ->actingAs($user)
             ->post(route('tournament-registrations.store'), [
                 'tournament_id' => $secondTournament->id,
+                'category_id' => $secondTournament->category_id,
                 'team_id' => $team->id,
                 'status' => 'registered',
             ])
             ->assertRedirect(route('tournament-registrations.index'));
 
         $this->assertDatabaseCount('tournament_registrations', 2);
+        $this->assertDatabaseHas('tournament_registrations', [
+            'tournament_id' => $firstTournament->id,
+            'team_id' => $team->id,
+            'series' => 'serie_a',
+        ]);
     }
 
     public function test_team_cannot_register_twice_to_same_tournament(): void
@@ -63,13 +71,116 @@ class TournamentRegistrationTest extends TestCase
             ->actingAs($user)
             ->post(route('tournament-registrations.store'), [
                 'tournament_id' => $tournament->id,
+                'category_id' => $tournament->category_id,
                 'team_id' => $team->id,
                 'status' => 'registered',
             ])
             ->assertSessionHasErrors('team_id');
     }
 
-    public function test_team_cannot_register_twice_in_same_division_even_with_different_tournaments(): void
+    public function test_team_numbers_are_assigned_by_registration_order_per_series(): void
+    {
+        [$company, , $user] = $this->leagueUser(['tournament-registrations.create']);
+        $tournament = $this->tournamentFor($company);
+        $teams = Team::factory()->count(4)->create(['company_id' => $company->id]);
+        $seriesByTeam = ['serie_a', 'serie_a', 'serie_b', 'serie_b'];
+
+        foreach ($teams->values() as $index => $team) {
+            $this
+                ->actingAs($user)
+                ->post(route('tournament-registrations.store'), [
+                    'tournament_id' => $tournament->id,
+                    'category_id' => $tournament->category_id,
+                    'team_id' => $team->id,
+                    'series' => $seriesByTeam[$index],
+                    'status' => 'registered',
+                ])
+                ->assertRedirect(route('tournament-registrations.index'));
+        }
+
+        foreach ($teams->values() as $index => $team) {
+            $expectedNumber = $index % 2 === 0 ? 1 : 2;
+
+            $this->assertDatabaseHas('tournament_registrations', [
+                'tournament_id' => $tournament->id,
+                'team_id' => $team->id,
+                'series' => $seriesByTeam[$index],
+                'team_number' => $expectedNumber,
+            ]);
+        }
+    }
+
+    public function test_team_number_can_be_updated_inline_and_must_be_unique_per_category_series(): void
+    {
+        [$company, , $user] = $this->leagueUser(['tournament-registrations.update']);
+        $tournament = $this->tournamentFor($company);
+        $firstTeam = Team::factory()->create(['company_id' => $company->id]);
+        $secondTeam = Team::factory()->create(['company_id' => $company->id]);
+        $thirdTeam = Team::factory()->create(['company_id' => $company->id]);
+        $firstRegistration = TournamentRegistration::factory()->create([
+            'company_id' => $company->id,
+            'tournament_id' => $tournament->id,
+            'division_id' => $tournament->division_id,
+            'category_id' => $tournament->category_id,
+            'team_id' => $firstTeam->id,
+            'series' => 'serie_a',
+            'team_number' => 1,
+        ]);
+        $secondRegistration = TournamentRegistration::factory()->create([
+            'company_id' => $company->id,
+            'tournament_id' => $tournament->id,
+            'division_id' => $tournament->division_id,
+            'category_id' => $tournament->category_id,
+            'team_id' => $secondTeam->id,
+            'series' => 'serie_a',
+            'team_number' => 2,
+        ]);
+        $thirdRegistration = TournamentRegistration::factory()->create([
+            'company_id' => $company->id,
+            'tournament_id' => $tournament->id,
+            'division_id' => $tournament->division_id,
+            'category_id' => $tournament->category_id,
+            'team_id' => $thirdTeam->id,
+            'series' => 'serie_b',
+            'team_number' => 1,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->patchJson(route('tournament-registrations.team-number.update', $secondRegistration), [
+                'team_number' => 5,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.team_number', 5);
+
+        $this->assertDatabaseHas('tournament_registrations', [
+            'id' => $secondRegistration->id,
+            'team_number' => 5,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->patchJson(route('tournament-registrations.team-number.update', $secondRegistration), [
+                'team_number' => 1,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('data.team_number.0', 'Ya existe otro equipo con este numero en esta categoria y serie.');
+
+        $this->assertDatabaseHas('tournament_registrations', [
+            'id' => $firstRegistration->id,
+            'team_number' => 1,
+        ]);
+        $this->assertDatabaseHas('tournament_registrations', [
+            'id' => $secondRegistration->id,
+            'team_number' => 5,
+        ]);
+        $this->assertDatabaseHas('tournament_registrations', [
+            'id' => $thirdRegistration->id,
+            'team_number' => 1,
+        ]);
+    }
+
+    public function test_team_can_register_to_different_tournaments_in_same_division(): void
     {
         [$company, , $user] = $this->leagueUser(['tournament-registrations.create']);
         $team = Team::factory()->create(['company_id' => $company->id]);
@@ -79,6 +190,7 @@ class TournamentRegistrationTest extends TestCase
 
         $this->actingAs($user)->post(route('tournament-registrations.store'), [
             'tournament_id' => $firstTournament->id,
+            'category_id' => $firstTournament->category_id,
             'team_id' => $team->id,
             'status' => 'registered',
         ]);
@@ -87,10 +199,13 @@ class TournamentRegistrationTest extends TestCase
             ->actingAs($user)
             ->post(route('tournament-registrations.store'), [
                 'tournament_id' => $secondTournament->id,
+                'category_id' => $secondTournament->category_id,
                 'team_id' => $team->id,
                 'status' => 'registered',
             ])
-            ->assertSessionHasErrors('team_id');
+            ->assertRedirect(route('tournament-registrations.index'));
+
+        $this->assertDatabaseCount('tournament_registrations', 2);
     }
 
     public function test_team_and_tournament_must_belong_to_same_league(): void
@@ -103,6 +218,7 @@ class TournamentRegistrationTest extends TestCase
             ->actingAs($user)
             ->post(route('tournament-registrations.store'), [
                 'tournament_id' => $otherTournament->id,
+                'category_id' => $otherTournament->category_id,
                 'team_id' => $team->id,
                 'status' => 'registered',
             ])
@@ -134,8 +250,74 @@ class TournamentRegistrationTest extends TestCase
             ->actingAs($user)
             ->get(route('tournament-registrations.index'))
             ->assertOk()
-            ->assertSee('Equipo Propio')
-            ->assertDontSee('Equipo Ajeno');
+            ->assertSee('EQUIPO PROPIO')
+            ->assertDontSee('EQUIPO AJENO');
+    }
+
+    public function test_registrations_index_starts_from_existing_teams(): void
+    {
+        [$company, $otherCompany, $user] = $this->leagueUser(['tournament-registrations.view', 'tournament-registrations.create']);
+        $historicTeam = Team::factory()->create(['company_id' => $company->id, 'name' => 'Equipo Historico']);
+        Team::factory()->create(['company_id' => $otherCompany->id, 'name' => 'Equipo Ajeno']);
+
+        $this
+            ->actingAs($user)
+            ->get(route('tournament-registrations.index'))
+            ->assertOk()
+            ->assertSee('Equipos disponibles para inscripcion')
+            ->assertSee('EQUIPO HISTORICO')
+            ->assertSee(route('tournament-registrations.create', ['team_id' => $historicTeam->id]), false)
+            ->assertDontSee('EQUIPO AJENO');
+    }
+
+    public function test_tournament_categories_endpoint_only_returns_enabled_tournament_categories(): void
+    {
+        [$company, , $user] = $this->leagueUser(['tournament-registrations.create']);
+        $team = Team::factory()->create(['company_id' => $company->id]);
+        $tournament = $this->tournamentFor($company, 'Sub 17');
+        $otherCategory = DivisionCategory::factory()->create([
+            'company_id' => $company->id,
+            'division_id' => $tournament->division_id,
+            'name' => 'Sub 20',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->getJson(route('tournament-registrations.tournaments.categories', [
+                'tournament' => $tournament,
+                'team_id' => $team->id,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('already_registered', false)
+            ->assertSee('Sub 17')
+            ->assertDontSee('Sub 20');
+
+        $this->assertNotNull($otherCategory->id);
+    }
+
+    public function test_tournament_categories_endpoint_marks_already_registered_team(): void
+    {
+        [$company, , $user] = $this->leagueUser(['tournament-registrations.create']);
+        $team = Team::factory()->create(['company_id' => $company->id]);
+        $tournament = $this->tournamentFor($company, 'Sub 17');
+
+        TournamentRegistration::factory()->create([
+            'company_id' => $company->id,
+            'tournament_id' => $tournament->id,
+            'division_id' => $tournament->division_id,
+            'category_id' => $tournament->category_id,
+            'team_id' => $team->id,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->getJson(route('tournament-registrations.tournaments.categories', [
+                'tournament' => $tournament,
+                'team_id' => $team->id,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('already_registered', true)
+            ->assertJsonCount(0, 'data');
     }
 
     public function test_registrations_index_groups_teams_by_tournament_tabs(): void
@@ -157,7 +339,7 @@ class TournamentRegistrationTest extends TestCase
             ->assertOk()
             ->assertSee('nav-tabs', false)
             ->assertSee($tournament->name)
-            ->assertSee('Equipo Tab');
+            ->assertSee('EQUIPO TAB');
     }
 
     public function test_registrations_index_only_shows_divisions_with_registered_teams(): void
@@ -202,8 +384,8 @@ class TournamentRegistrationTest extends TestCase
                 'tournament_id' => $tournament->id,
             ]))
             ->assertOk()
-            ->assertSee('Autocomplete Propio')
-            ->assertDontSee('Autocomplete Ajeno');
+            ->assertSee('AUTOCOMPLETE PROPIO')
+            ->assertDontSee('AUTOCOMPLETE AJENO');
     }
 
     private function leagueUser(array $permissions): array

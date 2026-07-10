@@ -18,7 +18,8 @@ class TeamFactory extends Factory
         return [
             'company_id' => Company::factory(),
             'name' => $name,
-            'name_normalized' => Team::normalizeName($name),
+            'name_normalized' => fn (array $attributes): string => Team::normalizeName($attributes['name']),
+            'name_match_key' => fn (array $attributes): string => Team::matchKey($attributes['name']),
             'founded_at' => fake()->dateTimeBetween('-80 years', 'now')->format('Y-m-d'),
             'notes' => fake()->optional()->sentence(),
             'is_active' => true,

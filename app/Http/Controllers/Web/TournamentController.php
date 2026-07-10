@@ -75,7 +75,7 @@ class TournamentController extends Controller
     {
         $this->tournaments->ensureVisible($tournament);
 
-        $tournament->load(['company', 'season', 'division', 'category']);
+        $tournament->load(['company', 'season', 'division', 'categories']);
 
         if ($request->ajax()) {
             return view('tournaments.partials.show', compact('tournament'));
@@ -86,7 +86,8 @@ class TournamentController extends Controller
 
     public function edit(Request $request, Tournament $tournament): View
     {
-        $this->tournaments->ensureVisible($tournament);
+        $this->tournaments->ensureEditable($tournament);
+        $tournament->loadMissing('categories');
 
         $data = $this->formData(['tournament' => $tournament]);
 
@@ -131,10 +132,23 @@ class TournamentController extends Controller
         return redirect()->route('tournaments.index')->with('success', 'Torneo eliminado correctamente.');
     }
 
+    public function activate(Tournament $tournament): RedirectResponse
+    {
+        $this->tournaments->activate($tournament);
+
+        return redirect()->route('tournaments.index')->with('success', 'Torneo activado correctamente.');
+    }
+
+    public function finish(Tournament $tournament): RedirectResponse
+    {
+        $this->tournaments->finish($tournament);
+
+        return redirect()->route('tournaments.index')->with('success', 'Torneo finalizado correctamente.');
+    }
+
     private function formData(array $data = []): array
     {
         $selectedCompanyId = $data['tournament']->company_id ?? CompanyContext::id();
-        $selectedCategoryId = $data['tournament']->category_id ?? null;
 
         return $data + [
             'companies' => Company::query()
@@ -146,10 +160,7 @@ class TournamentController extends Controller
             'divisions' => $this->divisions->forSelect($selectedCompanyId),
             'categories' => CompanyContext::scope(DivisionCategory::query())
                 ->when($selectedCompanyId, fn ($query, $companyId) => $query->where('company_id', $companyId))
-                ->where(function ($query) use ($selectedCategoryId): void {
-                    $query->where('is_active', true)
-                        ->when($selectedCategoryId, fn ($query, $categoryId) => $query->orWhere('id', $categoryId));
-                })
+                ->where('is_active', true)
                 ->orderBy('name')
                 ->get(),
         ];

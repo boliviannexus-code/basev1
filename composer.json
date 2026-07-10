@@ -18,6 +18,7 @@
         "owen-it/laravel-auditing": "^14.0",
         "spatie/laravel-medialibrary": "^11.22",
         "spatie/laravel-permission": "^7.4",
+        "tecnickcom/tcpdf": "^6.11",
         "yajra/laravel-datatables-oracle": "^13.1"
     },
     "require-dev": {

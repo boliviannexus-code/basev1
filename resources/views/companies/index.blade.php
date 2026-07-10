@@ -35,7 +35,7 @@
                         </td>
                         <td>
                             <div class="fw-semibold">{{ $company->name }}</div>
-                            <div class="text-body-secondary small">{{ trim(($company->city ?: '').' / '.($company->country ?: ''), ' /') ?: '-' }}</div>
+                            <div class="text-body-secondary small">{{ $company->code ?: 'Sin codigo' }} · {{ trim(($company->city ?: '').' / '.($company->country ?: ''), ' /') ?: '-' }}</div>
                         </td>
                         <td>
                             <div>{{ $company->phone ?: '-' }}</div>

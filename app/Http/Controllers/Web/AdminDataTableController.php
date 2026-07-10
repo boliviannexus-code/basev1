@@ -20,6 +20,7 @@ class AdminDataTableController extends Controller
 
         $query = Player::query()
             ->select('players.*')
+            ->forCompany(CompanyContext::id())
             ->when($request->filled('is_active'), fn ($query) => $query->where('players.is_active', (bool) $request->boolean('is_active')));
 
         return DataTables::eloquent($query)
@@ -45,7 +46,8 @@ class AdminDataTableController extends Controller
                             $builder
                                 ->whereRaw('LOWER(players.first_name) LIKE ?', [$like])
                                 ->orWhereRaw('LOWER(players.last_name) LIKE ?', [$like])
-                                ->orWhereRaw("LOWER(CONCAT(players.first_name, ' ', players.last_name)) LIKE ?", [$like])
+                                ->orWhereRaw('LOWER(players.maternal_name) LIKE ?', [$like])
+                                ->orWhereRaw("LOWER(CONCAT(players.first_name, ' ', players.last_name, ' ', COALESCE(players.maternal_name, ''))) LIKE ?", [$like])
                                 ->orWhereRaw('LOWER(players.internal_code) LIKE ?', [$like])
                                 ->orWhere('players.ci_normalized', 'like', $normalizedCi)
                                 ->orWhereRaw('LOWER(players.notes) LIKE ?', [$like]);
@@ -59,7 +61,8 @@ class AdminDataTableController extends Controller
                                     $builder
                                         ->whereRaw('LOWER(players.first_name) LIKE ?', [$termLike])
                                         ->orWhereRaw('LOWER(players.last_name) LIKE ?', [$termLike])
-                                        ->orWhereRaw("LOWER(CONCAT(players.first_name, ' ', players.last_name)) LIKE ?", [$termLike])
+                                        ->orWhereRaw('LOWER(players.maternal_name) LIKE ?', [$termLike])
+                                        ->orWhereRaw("LOWER(CONCAT(players.first_name, ' ', players.last_name, ' ', COALESCE(players.maternal_name, ''))) LIKE ?", [$termLike])
                                         ->orWhereRaw('LOWER(players.internal_code) LIKE ?', [$termLike])
                                         ->orWhere('players.ci_normalized', 'like', $termCi)
                                         ->orWhereRaw('LOWER(players.notes) LIKE ?', [$termLike]);

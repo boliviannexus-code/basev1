@@ -114,6 +114,13 @@ class SeasonController extends Controller
         return redirect()->route('seasons.index')->with('success', 'Gestion eliminada correctamente.');
     }
 
+    public function finish(Season $season): RedirectResponse
+    {
+        $this->seasons->finish($season);
+
+        return redirect()->route('seasons.index')->with('success', 'Gestion finalizada correctamente.');
+    }
+
     private function formData(array $data = []): array
     {
         return $data + [

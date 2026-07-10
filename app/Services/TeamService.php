@@ -66,7 +66,10 @@ class TeamService
 
             $duplicate = Team::query()
                 ->where('company_id', $request->team->company_id)
-                ->where('name_normalized', Team::normalizeName($request->proposed_data['name']))
+                ->where(function ($query) use ($request): void {
+                    $query->where('name_normalized', Team::normalizeName($request->proposed_data['name']))
+                        ->orWhere('name_match_key', Team::matchKey($request->proposed_data['name']));
+                })
                 ->whereKeyNot($request->team_id)
                 ->whereNull('deleted_at')
                 ->exists();
@@ -161,8 +164,9 @@ class TeamService
             $data['is_active'] = $defaultActive;
         }
 
-        $data['name'] = str((string) $data['name'])->squish()->toString();
+        $data['name'] = Team::formatName((string) $data['name']);
         $data['name_normalized'] = Team::normalizeName($data['name']);
+        $data['name_match_key'] = Team::matchKey($data['name']);
         $data['founded_at'] = $data['founded_at'] ?? now()->toDateString();
 
         return $data;

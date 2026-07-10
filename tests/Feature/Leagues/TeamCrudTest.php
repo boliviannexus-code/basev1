@@ -23,7 +23,7 @@ class TeamCrudTest extends TestCase
             ->actingAs($user)
             ->post(route('teams.store'), [
                 'company_id' => $otherCompany->id,
-                'name' => 'Club Deportivo Central',
+                'name' => 'club deportivo central',
                 'notes' => 'Equipo principal',
                 'is_active' => '1',
             ])
@@ -31,7 +31,7 @@ class TeamCrudTest extends TestCase
 
         $this->assertDatabaseHas('teams', [
             'company_id' => $company->id,
-            'name' => 'Club Deportivo Central',
+            'name' => 'CLUB DEPORTIVO CENTRAL',
             'founded_at' => now()->toDateString(),
         ]);
     }
@@ -54,6 +54,26 @@ class TeamCrudTest extends TestCase
         $this->assertDatabaseCount('teams', 2);
     }
 
+    public function test_team_name_is_saved_uppercase(): void
+    {
+        [$company, , $user] = $this->leagueUser(['teams.create']);
+
+        $this
+            ->actingAs($user)
+            ->post(route('teams.store'), [
+                'name' => '  club   deportivo central  ',
+                'founded_at' => now()->toDateString(),
+                'is_active' => '1',
+            ])
+            ->assertRedirect(route('teams.index'));
+
+        $this->assertDatabaseHas('teams', [
+            'company_id' => $company->id,
+            'name' => 'CLUB DEPORTIVO CENTRAL',
+            'name_normalized' => Team::normalizeName('CLUB DEPORTIVO CENTRAL'),
+        ]);
+    }
+
     public function test_team_name_cannot_repeat_with_different_case_or_extra_spaces(): void
     {
         [$company, , $user] = $this->leagueUser(['teams.create']);
@@ -73,6 +93,39 @@ class TeamCrudTest extends TestCase
             ->assertSessionHasErrors('name');
     }
 
+    public function test_team_name_blocks_common_football_word_matches(): void
+    {
+        [$company, , $user] = $this->leagueUser(['teams.create']);
+        Team::factory()->create(['company_id' => $company->id, 'name' => 'MACANUDOS FC']);
+
+        $this
+            ->actingAs($user)
+            ->post(route('teams.store'), [
+                'name' => 'MACANUDOS',
+                'founded_at' => now()->toDateString(),
+                'is_active' => '1',
+            ])
+            ->assertSessionHasErrors('name');
+
+        $this->assertDatabaseCount('teams', 1);
+    }
+
+    public function test_team_edit_blocks_common_football_word_matches(): void
+    {
+        [$company, , $user] = $this->leagueUser(['teams.update']);
+        Team::factory()->create(['company_id' => $company->id, 'name' => 'MACANUDOS FC']);
+        $team = Team::factory()->create(['company_id' => $company->id, 'name' => 'LOS AMIGOS']);
+
+        $this
+            ->actingAs($user)
+            ->put(route('teams.update', $team), [
+                'name' => 'MACANUDOS',
+                'founded_at' => now()->toDateString(),
+                'is_active' => '1',
+            ])
+            ->assertSessionHasErrors('name');
+    }
+
     public function test_team_name_matches_are_scoped_to_active_league(): void
     {
         [$company, $otherCompany, $user] = $this->leagueUser(['teams.view']);
@@ -83,8 +136,8 @@ class TeamCrudTest extends TestCase
             ->actingAs($user)
             ->getJson(route('teams.matches', ['name' => 'Academia']))
             ->assertOk()
-            ->assertSee('Academia La Paz')
-            ->assertDontSee('Academia Ajena');
+            ->assertSee('ACADEMIA LA PAZ')
+            ->assertDontSee('ACADEMIA AJENA');
     }
 
     public function test_team_edit_by_league_user_requires_superadmin_approval(): void
@@ -108,7 +161,7 @@ class TeamCrudTest extends TestCase
 
         $this->assertDatabaseHas('teams', [
             'id' => $team->id,
-            'name' => 'Original FC',
+            'name' => 'ORIGINAL FC',
             'founded_at' => '2020-01-01',
         ]);
         $this->assertDatabaseHas('team_update_requests', [
@@ -116,6 +169,8 @@ class TeamCrudTest extends TestCase
             'requested_by' => $user->id,
             'status' => TeamUpdateRequest::STATUS_PENDING,
         ]);
+
+        $this->assertSame('NUEVO FC', TeamUpdateRequest::query()->firstOrFail()->proposed_data['name']);
     }
 
     public function test_superadmin_can_approve_team_edit_request(): void
@@ -147,7 +202,7 @@ class TeamCrudTest extends TestCase
 
         $this->assertDatabaseHas('teams', [
             'id' => $team->id,
-            'name' => 'Nuevo FC',
+            'name' => 'NUEVO FC',
             'founded_at' => '2021-02-03',
         ]);
         $this->assertDatabaseHas('team_update_requests', [
@@ -179,7 +234,7 @@ class TeamCrudTest extends TestCase
 
         $this->assertDatabaseHas('teams', [
             'id' => $team->id,
-            'name' => 'Original FC',
+            'name' => 'ORIGINAL FC',
         ]);
         $this->assertDatabaseHas('team_update_requests', [
             'team_id' => $team->id,
