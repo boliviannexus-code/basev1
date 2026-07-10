@@ -10,8 +10,10 @@ use App\Models\ExtraChargeCategory;
 use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\Presentation;
+use App\Models\Sale;
 use App\Services\CashRegisterService;
 use App\Support\PaymentMethodDefaults;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -113,6 +115,97 @@ class PosController extends Controller
         ]);
 
         return redirect()->route('pos.index')->with('success', 'Egreso registrado correctamente.');
+    }
+
+    public function storeIncome(Request $request): RedirectResponse
+    {
+        ExtraChargeCategory::ensureDefaultsForCompany((int) $request->user()->company_id);
+
+        $data = $request->validateWithBag('cashIncome', [
+            'extra_charge_category_id' => ['required', 'integer', 'exists:extra_charge_categories,id'],
+            'payment_method_id' => ['required', 'integer', 'exists:payment_methods,id'],
+            'responsible_name' => ['nullable', 'string', 'max:255'],
+            'detail' => ['required', 'string', 'max:255'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'reference' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $companyId = (int) $request->user()->company_id;
+        $category = $this->expenseCategories($companyId)
+            ->firstWhere('id', (int) $data['extra_charge_category_id']);
+
+        if (! $category) {
+            throw ValidationException::withMessages([
+                'extra_charge_category_id' => 'La categoria seleccionada no esta disponible.',
+            ])->errorBag('cashIncome');
+        }
+
+        $paymentMethod = PaymentMethod::query()
+            ->where('company_id', $companyId)
+            ->where('is_active', true)
+            ->find((int) $data['payment_method_id']);
+
+        if (! $paymentMethod) {
+            throw ValidationException::withMessages([
+                'payment_method_id' => 'El metodo de pago seleccionado no esta disponible.',
+            ])->errorBag('cashIncome');
+        }
+
+        $cashRegister = $this->cashRegisters->currentForUser($request->user());
+
+        if (! $cashRegister) {
+            throw ValidationException::withMessages([
+                'amount' => 'Debes iniciar caja antes de registrar ingresos.',
+            ])->errorBag('cashIncome');
+        }
+
+        $amount = round((float) $data['amount'], 2);
+
+        DB::transaction(function () use ($request, $cashRegister, $category, $paymentMethod, $data, $amount): void {
+            $receiptNumber = $this->cashRegisters->nextReceiptNumber($request->user(), 'EXT');
+
+            $sale = Sale::query()->create([
+                'branch_id' => $cashRegister->branch_id,
+                'warehouse_id' => null,
+                'user_id' => $request->user()->id,
+                'cash_register_id' => $cashRegister->id,
+                'point_of_sale_id' => $cashRegister->point_of_sale_id,
+                'customer_id' => null,
+                'receipt_number' => $receiptNumber,
+                'sequence_number' => 0,
+                'sale_date' => now(),
+                'subtotal' => $amount,
+                'discount' => 0,
+                'tax' => 0,
+                'total' => $amount,
+                'cash_received' => mb_strtolower($paymentMethod->name) === 'efectivo' ? $amount : null,
+                'cash_change' => mb_strtolower($paymentMethod->name) === 'efectivo' ? 0 : null,
+                'status' => 'completed',
+            ]);
+
+            $sale->details()->create([
+                'extra_charge_category_id' => $category->id,
+                'product_name' => $category->name,
+                'presentation_name' => 'Cargo extra',
+                'package_quantity' => 1,
+                'units_per_package' => 1,
+                'quantity' => 1,
+                'unit_price' => $amount,
+                'discount' => 0,
+                'subtotal' => $amount,
+            ]);
+
+            $sale->payments()->create([
+                'payment_method_id' => $paymentMethod->id,
+                'payment_method_name' => $paymentMethod->name,
+                'amount' => $amount,
+                'received_amount' => mb_strtolower($paymentMethod->name) === 'efectivo' ? $amount : null,
+                'change_amount' => mb_strtolower($paymentMethod->name) === 'efectivo' ? 0 : null,
+                'reference' => $data['reference'] ?? null,
+            ]);
+        });
+
+        return redirect()->route('pos.index')->with('success', 'Ingreso registrado correctamente.');
     }
 
     public function storeSale(Request $request): RedirectResponse

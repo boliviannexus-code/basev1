@@ -132,6 +132,10 @@ Route::middleware('auth')->group(function (): void {
         ->whereNumber('stay')
         ->middleware(['company_user', 'permission:occupancy.manage|space-cash.access'])
         ->name('stays.payments.store');
+    Route::post('stays/{stay}/discounts', [StayController::class, 'storeDiscount'])
+        ->whereNumber('stay')
+        ->middleware(['company_user', 'permission:occupancy.manage'])
+        ->name('stays.discounts.store');
     Route::get('stays/{stay}/room-change/create', [StayRoomChangeController::class, 'create'])
         ->whereNumber('stay')
         ->middleware(['company_user', 'permission:occupancy.manage'])
@@ -239,6 +243,7 @@ Route::middleware('auth')->group(function (): void {
             Route::post('open', [PosController::class, 'open'])->name('open');
             Route::post('close', [PosController::class, 'close'])->name('close');
             Route::post('sales', [PosController::class, 'storeSale'])->name('sales.store');
+            Route::post('incomes', [PosController::class, 'storeIncome'])->name('incomes.store');
             Route::post('expenses', [PosController::class, 'storeExpense'])->name('expenses.store');
         });
     Route::prefix('space-cash')
@@ -248,6 +253,7 @@ Route::middleware('auth')->group(function (): void {
             Route::get('/', [SpaceCashController::class, 'index'])->name('index');
             Route::post('open', [SpaceCashController::class, 'open'])->name('open');
             Route::post('close', [SpaceCashController::class, 'close'])->name('close');
+            Route::post('incomes', [SpaceCashController::class, 'storeIncome'])->name('incomes.store');
             Route::post('expenses', [SpaceCashController::class, 'storeExpense'])->name('expenses.store');
             Route::get('history', [SpaceCashController::class, 'history'])->middleware('permission:space-cash.view|occupancy.manage')->name('history');
             Route::get('{spaceCashRegister}', [SpaceCashController::class, 'show'])->whereNumber('spaceCashRegister')->middleware('permission:space-cash.view|occupancy.manage')->name('show');

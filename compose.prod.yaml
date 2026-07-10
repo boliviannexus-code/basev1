@@ -1,31 +1,109 @@
 services:
   app:
-    image: nidov1
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "${APP_PORT:-8080}:80"
+    image: ${DOCKER_IMAGE:-nido-app:latest}
+    restart: unless-stopped
     env_file:
-      - .env.production
+      - .env.docker
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      DB_HOST: pgsql
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}
+    ports:
+      - "${APP_PORT:-8081}:80"
+    volumes:
+      - nido-storage:/var/www/html/storage
     depends_on:
-      - pgsql
+      pgsql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
-      - nidov1
+      - nido
+
+  queue:
+    image: ${DOCKER_IMAGE:-nido-app:latest}
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      DB_HOST: pgsql
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    command: php artisan queue:work --sleep=3 --tries=3 --timeout=120
+    volumes:
+      - nido-storage:/var/www/html/storage
+    depends_on:
+      app:
+        condition: service_started
+    networks:
+      - nido
+
+  scheduler:
+    image: ${DOCKER_IMAGE:-nido-app:latest}
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      DB_HOST: pgsql
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    command: sh -c "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"
+    volumes:
+      - nido-storage:/var/www/html/storage
+    depends_on:
+      app:
+        condition: service_started
+    networks:
+      - nido
 
   pgsql:
     image: postgres:17
+    restart: unless-stopped
     environment:
       POSTGRES_DB: nido_db
       POSTGRES_USER: nido_user
       POSTGRES_PASSWORD: DaniloMoreno4
     volumes:
-      - pgsql_data:/var/lib/postgresql/data
+      - nido-pgsql:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nido_user -d nido_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
-      - nidov1
+      - nido
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - nido-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nido
 
 networks:
-  nidov1:
+  nido:
+    driver: bridge
 
 volumes:
-  pgsql_data:
+  nido-storage:
+  nido-pgsql:
+  nido-redis:

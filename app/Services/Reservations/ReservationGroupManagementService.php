@@ -39,6 +39,14 @@ class ReservationGroupManagementService
                 ]);
             }
 
+            $group->update([
+                'reservation_channel_id' => $data['reservation_channel_id'] ?? null,
+                'guest_name' => $data['guest_name'],
+                'guest_email' => $data['guest_email'] ?? null,
+                'guest_phone' => $data['guest_phone'] ?? null,
+                'guest_document' => $data['guest_document'] ?? null,
+            ]);
+
             foreach ($data['reservations'] ?? [] as $reservationId => $reservationData) {
                 $reservation = $group->reservations->firstWhere('id', (int) $reservationId);
 
@@ -224,17 +232,24 @@ class ReservationGroupManagementService
             'reservationGroup.accountStatement',
         ]);
 
-        $checkIn = CarbonImmutable::parse($reservation->check_in);
-        $newCheckOut = CarbonImmutable::parse($data['check_out']);
+        $newCheckIn = CarbonImmutable::parse($data['check_in'])->startOfDay();
+        $requestedNights = max((int) ($data['nights'] ?? 0), 1);
+        $newCheckOut = $newCheckIn->addDays($requestedNights);
 
-        if ($newCheckOut->lte($checkIn)) {
+        if ($newCheckIn->lt(today())) {
+            throw ValidationException::withMessages([
+                "reservations.{$reservation->id}.check_in" => 'La fecha de ingreso no puede ser anterior a hoy.',
+            ]);
+        }
+
+        if ($newCheckOut->lte($newCheckIn)) {
             throw ValidationException::withMessages([
                 "reservations.{$reservation->id}.check_out" => 'La fecha de salida debe ser posterior a la fecha de ingreso.',
             ]);
         }
 
-        $oldNights = $this->nightDates($checkIn, CarbonImmutable::parse($reservation->check_out));
-        $newNights = $this->nightDates($checkIn, $newCheckOut);
+        $oldNights = $this->nightDates(CarbonImmutable::parse($reservation->check_in), CarbonImmutable::parse($reservation->check_out));
+        $newNights = $this->nightDates($newCheckIn, $newCheckOut);
         $toAdd = array_values(array_diff($newNights, $oldNights));
         $toCancel = array_values(array_diff($oldNights, $newNights));
         $price = round((float) $data['price_per_night'], 2);
@@ -262,6 +277,12 @@ class ReservationGroupManagementService
         $total = round($subtotal + $extrasTotal, 2);
 
         $reservation->update([
+            'reservation_channel_id' => $reservation->reservationGroup->reservation_channel_id,
+            'guest_name' => $reservation->reservationGroup->guest_name,
+            'guest_email' => $reservation->reservationGroup->guest_email,
+            'guest_phone' => $reservation->reservationGroup->guest_phone,
+            'guest_document' => $reservation->reservationGroup->guest_document,
+            'check_in' => $newCheckIn->toDateString(),
             'check_out' => $newCheckOut->toDateString(),
             'nights' => count($newNights),
             'price_per_person' => $price,

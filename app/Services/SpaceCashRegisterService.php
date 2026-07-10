@@ -102,6 +102,8 @@ class SpaceCashRegisterService
     {
         $cashRegister->loadMissing([
             'expenses.category',
+            'incomes.category',
+            'incomes.paymentMethod',
             'lodgingPayments.paymentMethod',
             'lodgingPayments.stay.holderGuest',
             'reservationPayments.paymentMethod',
@@ -112,9 +114,13 @@ class SpaceCashRegisterService
 
         $lodgingPayments = $cashRegister->lodgingPayments->where('status', 'active');
         $reservationPayments = $cashRegister->reservationPayments->where('status', 'active');
+        $incomes = $cashRegister->incomes;
         $expenses = $cashRegister->expenses;
         $cashMethod = fn (string $name): bool => mb_strtolower($name) === 'efectivo';
 
+        $directCashTotal = (float) $incomes
+            ->filter(fn ($income): bool => $cashMethod((string) $income->paymentMethod?->name))
+            ->sum('amount');
         $lodgingCashTotal = (float) $lodgingPayments
             ->filter(fn ($payment): bool => $cashMethod((string) $payment->paymentMethod?->name))
             ->sum('amount_bob');
@@ -122,31 +128,38 @@ class SpaceCashRegisterService
             ->filter(fn ($payment): bool => $cashMethod((string) $payment->paymentMethod?->name))
             ->sum('amount_bob');
         $expensesTotal = (float) $expenses->sum('amount');
+        $directTotal = (float) $incomes->sum('amount');
         $lodgingTotal = (float) $lodgingPayments->sum('amount_bob');
         $reservationTotal = (float) $reservationPayments->sum('amount_bob');
-        $incomeTotal = $lodgingTotal + $reservationTotal;
+        $incomeTotal = $directTotal + $lodgingTotal + $reservationTotal;
 
         return [
             'opening' => (float) $cashRegister->opening_amount,
+            'direct_total' => $directTotal,
             'lodging_total' => $lodgingTotal,
             'reservation_total' => $reservationTotal,
             'income_total' => $incomeTotal,
             'expenses' => $expensesTotal,
-            'available' => (float) $cashRegister->opening_amount + $lodgingCashTotal + $reservationCashTotal - $expensesTotal,
-            'payments' => $this->paymentRows($lodgingPayments->concat($reservationPayments)),
+            'available' => (float) $cashRegister->opening_amount + $directCashTotal + $lodgingCashTotal + $reservationCashTotal - $expensesTotal,
+            'payments' => $this->paymentRows($lodgingPayments->concat($reservationPayments), $incomes),
+            'direct_incomes' => $incomes->sortByDesc('received_at')->values(),
             'lodging_payments' => $lodgingPayments->sortByDesc('created_at')->values(),
             'reservation_payments' => $reservationPayments->sortByDesc('created_at')->values(),
             'expense_details' => $expenses->sortByDesc('spent_at')->values(),
         ];
     }
 
-    private function paymentRows(Collection $lodgingPayments): array
+    private function paymentRows(Collection $lodgingPayments, Collection $incomes): array
     {
         return $lodgingPayments
             ->map(fn ($payment): array => [
                 'name' => $payment->paymentMethod?->name ?: 'Pago',
                 'total' => (float) $payment->amount_bob,
             ])
+            ->merge($incomes->map(fn ($income): array => [
+                'name' => $income->paymentMethod?->name ?: 'Pago',
+                'total' => (float) $income->amount,
+            ]))
             ->groupBy('name')
             ->map(fn (Collection $rows, string $name): array => [
                 'name' => $name,

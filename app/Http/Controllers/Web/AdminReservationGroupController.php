@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Reservations\UpdateReservationGroupRequest;
+use App\Models\ReservationChannel;
 use App\Models\ReservationGroup;
 use App\Services\Reservations\ReservationGroupManagementService;
 use Illuminate\Contracts\View\View;
@@ -36,6 +37,12 @@ class AdminReservationGroupController extends Controller
                 'reservations.bedUnitItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
                 'accountStatement.items.extraChargeCategory',
             ]),
+            'reservationChannels' => ReservationChannel::query()
+                ->where('company_id', $group->company_id)
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'occupancyUrl' => $this->occupancyUrlForGroup($group),
         ]);
     }

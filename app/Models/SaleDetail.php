@@ -11,6 +11,7 @@ class SaleDetail extends Model
         'sale_id',
         'product_id',
         'presentation_id',
+        'extra_charge_category_id',
         'product_name',
         'presentation_name',
         'package_quantity',
@@ -24,5 +25,10 @@ class SaleDetail extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    public function extraChargeCategory(): BelongsTo
+    {
+        return $this->belongsTo(ExtraChargeCategory::class);
     }
 }

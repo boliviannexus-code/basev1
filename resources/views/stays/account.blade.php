@@ -253,6 +253,45 @@
                         <span class="fw-semibold">Saldo</span>
                         <strong class="fs-2">{{ $money($statement->balance) }}</strong>
                     </div>
+
+                    @if (auth()->user()?->hasRole('super_admin'))
+                        <form class="border-top mt-3 pt-3" method="POST" action="{{ route('stays.discounts.store', $stay) }}" autocomplete="off" novalidate>
+                            @csrf
+                            <div class="row g-2">
+                                <div class="col-7">
+                                    <label class="form-label" for="discount_amount">Descuento fijo</label>
+                                    <input
+                                        class="form-control text-end @error('amount', 'stayDiscount') is-invalid @enderror"
+                                        id="discount_amount"
+                                        name="amount"
+                                        type="number"
+                                        min="0.01"
+                                        max="{{ number_format(max((float) $statement->subtotal - (float) $statement->discount_total, 0), 2, '.', '') }}"
+                                        step="0.01"
+                                        value="{{ old('amount') }}"
+                                        required
+                                    >
+                                    @error('amount', 'stayDiscount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-5 d-flex align-items-end">
+                                    <button class="btn btn-outline-warning w-100" type="submit">
+                                        <i class="ti ti-discount-2 me-1"></i>Aplicar
+                                    </button>
+                                </div>
+                                <div class="col-12">
+                                    <input
+                                        class="form-control form-control-sm @error('description', 'stayDiscount') is-invalid @enderror"
+                                        name="description"
+                                        type="text"
+                                        maxlength="255"
+                                        value="{{ old('description') }}"
+                                        placeholder="Motivo del descuento"
+                                    >
+                                    @error('description', 'stayDiscount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                </div>
+                            </div>
+                        </form>
+                    @endif
                 </div>
             </x-ui.card>
 

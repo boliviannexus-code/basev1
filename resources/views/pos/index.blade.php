@@ -243,6 +243,10 @@
                                     <i class="ti ti-lock"></i>
                                     Cerrar caja
                                 </button>
+                                <button class="btn btn-outline-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#cashIncomeModal">
+                                    <i class="ti ti-cash-plus"></i>
+                                    Ingreso
+                                </button>
                                 <button class="btn btn-outline-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#cashExpenseModal">
                                     <i class="ti ti-cash-banknote-off"></i>
                                     Egreso
@@ -411,6 +415,102 @@
                 </div>
             </template>
         </form>
+
+        <div class="modal modal-blur fade" id="cashIncomeModal" tabindex="-1" aria-labelledby="cashIncomeModalTitle" aria-hidden="true" @if ($errors->cashIncome->any()) data-show-cash-income-modal @endif>
+            <div class="modal-dialog modal-dialog-centered">
+                <form class="modal-content" method="POST" action="{{ route('pos.incomes.store') }}" autocomplete="off" novalidate>
+                    @csrf
+
+                    <div class="modal-header">
+                        <h2 class="modal-title" id="cashIncomeModalTitle">Registrar ingreso</h2>
+                        <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label" for="income_category">Categoria</label>
+                            <select
+                                class="form-select @error('extra_charge_category_id', 'cashIncome') is-invalid @enderror"
+                                id="income_category"
+                                name="extra_charge_category_id"
+                                required
+                            >
+                                <option value="">Seleccionar categoria</option>
+                                @foreach ($expenseCategories as $category)
+                                    <option value="{{ $category->id }}" @selected((int) old('extra_charge_category_id') === (int) $category->id)>{{ $category->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('extra_charge_category_id', 'cashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="income_payment_method">Metodo de pago</label>
+                            <select
+                                class="form-select @error('payment_method_id', 'cashIncome') is-invalid @enderror"
+                                id="income_payment_method"
+                                name="payment_method_id"
+                                required
+                            >
+                                <option value="">Seleccionar metodo</option>
+                                @foreach ($paymentMethods as $paymentMethod)
+                                    <option value="{{ $paymentMethod->id }}" @selected((int) old('payment_method_id') === (int) $paymentMethod->id)>{{ $paymentMethod->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('payment_method_id', 'cashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="income_detail">Detalle</label>
+                            <textarea
+                                class="form-control @error('detail', 'cashIncome') is-invalid @enderror"
+                                id="income_detail"
+                                name="detail"
+                                rows="3"
+                                maxlength="255"
+                                required
+                            >{{ old('detail') }}</textarea>
+                            @error('detail', 'cashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="income_reference">Referencia</label>
+                            <input
+                                class="form-control @error('reference', 'cashIncome') is-invalid @enderror"
+                                id="income_reference"
+                                name="reference"
+                                type="text"
+                                value="{{ old('reference') }}"
+                                maxlength="255"
+                            >
+                            @error('reference', 'cashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div>
+                            <label class="form-label" for="income_amount">Monto</label>
+                            <input
+                                class="form-control text-end @error('amount', 'cashIncome') is-invalid @enderror"
+                                id="income_amount"
+                                name="amount"
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value="{{ old('amount') }}"
+                                required
+                            >
+                            @error('amount', 'cashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button class="btn btn-link link-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
+                        <button class="btn btn-success" type="submit">
+                            <i class="ti ti-check"></i>
+                            Registrar ingreso
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <div class="modal modal-blur fade" id="cashExpenseModal" tabindex="-1" aria-labelledby="cashExpenseModalTitle" aria-hidden="true" @if ($errors->cashExpense->any()) data-show-cash-expense-modal @endif>
             <div class="modal-dialog modal-dialog-centered">

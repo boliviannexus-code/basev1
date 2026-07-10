@@ -16,7 +16,14 @@ class PaymentMethodController extends Controller
     {
         PaymentMethodDefaults::ensureForCompany(auth()->user()?->company_id);
 
-        return view('payment-methods.index');
+        return view('payment-methods.index', [
+            'paymentMethod' => new PaymentMethod(['is_active' => true]),
+            'paymentMethods' => PaymentMethod::query()
+                ->where('company_id', auth()->user()?->company_id)
+                ->orderByDesc('is_active')
+                ->orderBy('name')
+                ->paginate(15),
+        ]);
     }
 
     public function create(): View

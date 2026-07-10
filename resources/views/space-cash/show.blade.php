@@ -17,6 +17,7 @@
 
     <div class="row g-3 mb-3">
         <div class="col-sm-6 col-xl"><x-ui.stat-card label="Base inicial" :value="money_format_decimal($cashSummary['opening'] ?? 0)" icon="ti ti-cash" /></div>
+        <div class="col-sm-6 col-xl"><x-ui.stat-card label="Ingresos directos" :value="money_format_decimal($cashSummary['direct_total'] ?? 0)" icon="ti ti-cash-plus" tone="success" /></div>
         <div class="col-sm-6 col-xl"><x-ui.stat-card label="Cobros estancia" :value="money_format_decimal($cashSummary['lodging_total'] ?? 0)" icon="ti ti-home-dollar" tone="success" /></div>
         <div class="col-sm-6 col-xl"><x-ui.stat-card label="Cobros reserva" :value="money_format_decimal($cashSummary['reservation_total'] ?? 0)" icon="ti ti-calendar-dollar" tone="success" /></div>
         <div class="col-sm-6 col-xl"><x-ui.stat-card label="Egresos" :value="money_format_decimal($cashSummary['expenses'] ?? 0)" icon="ti ti-cash-banknote-off" /></div>
@@ -35,7 +36,27 @@
         </div>
     </div>
 
-    <x-ui.table-card title="Cobros de estancias">
+    <x-ui.table-card title="Ingresos directos">
+        <table class="table table-hover align-middle mb-0">
+            <thead><tr><th>Comprobante</th><th>Categoria</th><th>Detalle</th><th>Metodo</th><th>Referencia</th><th class="text-end">BOB caja</th></tr></thead>
+            <tbody>
+                @forelse (($cashSummary['direct_incomes'] ?? []) as $income)
+                    <tr>
+                        <td class="fw-semibold">{{ $income->receipt_number }}</td>
+                        <td>{{ $income->category?->name ?? '-' }}</td>
+                        <td>{{ $income->detail }}</td>
+                        <td>{{ $income->paymentMethod?->name ?? '-' }}</td>
+                        <td>{{ $income->reference ?: '-' }}</td>
+                        <td class="text-end fw-semibold">{{ money_format_decimal($income->amount) }}</td>
+                    </tr>
+                @empty
+                    <tr><td class="text-center text-body-secondary py-4" colspan="6">Sin ingresos directos.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </x-ui.table-card>
+
+    <x-ui.table-card title="Cobros de estancias" class="mt-3">
         <table class="table table-hover align-middle mb-0">
             <thead><tr><th>Comprobante</th><th>Estancia</th><th>Metodo</th><th>Referencia</th><th class="text-end">Monto</th><th class="text-end">BOB caja</th></tr></thead>
             <tbody>

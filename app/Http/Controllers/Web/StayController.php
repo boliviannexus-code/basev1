@@ -10,6 +10,7 @@ use App\Services\CheckIn\AccountStatementService;
 use App\Services\CheckIn\CheckInUpdateService;
 use App\Services\SpaceCashRegisterService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class StayController extends Controller
@@ -63,6 +64,24 @@ class StayController extends Controller
         $this->updates->updateHolder($stay, (int) $request->validated('holder_guest_id'));
 
         return back()->with('success', 'Titular de estancia actualizado correctamente.');
+    }
+
+    public function storeDiscount(Request $request, Stay $stay): RedirectResponse
+    {
+        $this->ensureOwnership($stay);
+        abort_unless($request->user()?->hasRole('super_admin'), 403);
+
+        $data = $request->validateWithBag('stayDiscount', [
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'description' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $description = trim((string) ($data['description'] ?? ''));
+        $description = $description !== '' ? $description : 'Descuento fijo hospedaje';
+
+        $this->accountStatements->recordFixedDiscount($stay, (float) $data['amount'], $description);
+
+        return back()->with('success', 'Descuento aplicado correctamente.');
     }
 
     private function ensureOwnership(Stay $stay): void

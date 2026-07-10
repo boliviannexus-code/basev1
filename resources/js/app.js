@@ -2622,6 +2622,16 @@ function initCashExpenseModal() {
     bootstrap.Modal.getOrCreateInstance(modal).show();
 }
 
+function initCashIncomeModal() {
+    const modal = document.querySelector('[data-show-cash-income-modal]');
+
+    if (!modal) {
+        return;
+    }
+
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+}
+
 function initCashCloseModal() {
     const modal = document.querySelector('[data-show-cash-close-modal]');
 
@@ -5236,6 +5246,63 @@ function initReservationMoveForms(scope = document) {
     });
 }
 
+function initReservationGroupForms(scope = document) {
+    scope.querySelectorAll('[data-reservation-group-form]').forEach((form) => {
+        if (form.dataset.reservationGroupInitialized === '1') {
+            return;
+        }
+
+        const addDays = (dateValue, days) => {
+            const [year, month, day] = String(dateValue).split('-').map(Number);
+
+            if (!year || !month || !day) {
+                return '';
+            }
+
+            const date = new Date(Date.UTC(year, month - 1, day));
+            date.setUTCDate(date.getUTCDate() + days);
+
+            return date.toISOString().slice(0, 10);
+        };
+
+        form.querySelectorAll('[data-reservation-date-row]').forEach((row) => {
+            const checkIn = row.querySelector('[data-reservation-check-in]');
+            const checkOut = row.querySelector('[data-reservation-check-out]');
+            const nightsInput = row.querySelector('[data-reservation-nights]');
+
+            const currentNights = () => Math.max(parseInt(nightsInput?.value || '1', 10), 1);
+
+            const syncCheckOut = () => {
+                if (!checkIn?.value || !checkOut) {
+                    return;
+                }
+
+                const nights = currentNights();
+                const nextCheckOut = addDays(checkIn.value, nights);
+                const minCheckOut = addDays(checkIn.value, 1);
+
+                if (nightsInput && String(nightsInput.value) !== String(nights)) {
+                    nightsInput.value = String(nights);
+                }
+
+                if (minCheckOut) {
+                    checkOut.min = minCheckOut;
+                }
+
+                if (nextCheckOut) {
+                    checkOut.value = nextCheckOut;
+                }
+            };
+
+            checkIn?.addEventListener('change', syncCheckOut);
+            nightsInput?.addEventListener('input', syncCheckOut);
+            nightsInput?.addEventListener('change', syncCheckOut);
+        });
+
+        form.dataset.reservationGroupInitialized = '1';
+    });
+}
+
 showInitialAlerts();
 disableBusinessFormAutocomplete();
 initHumanTextCapitalization();
@@ -5249,6 +5316,7 @@ initStockAdjustmentForms();
 initUserDropdowns();
 initSidebarToggle();
 initCashExpenseModal();
+initCashIncomeModal();
 initCashCloseModal();
 initAdminDataTables();
 initCharacterCounters();
@@ -5270,11 +5338,13 @@ initExtraChargeForms();
 initStayPaymentForms();
 initRoomChangeForms();
 initReservationMoveForms();
+initReservationGroupForms();
 
 document.addEventListener('click', (event) => {
     const modalTrigger = event.target.closest('[data-modal-url]');
     const roomServicesCopyAll = event.target.closest('[data-room-services-copy-all]');
     const sharedRoomEditToggle = event.target.closest('[data-shared-room-edit-toggle]');
+    const paymentMethodEditToggle = event.target.closest('[data-payment-method-edit-toggle]');
     const reservationChannelEditToggle = event.target.closest('[data-reservation-channel-edit-toggle]');
     const extraChargeCategoryEditToggle = event.target.closest('[data-extra-charge-category-edit-toggle]');
     const packageIconOption = event.target.closest('[data-package-icon-option]');
@@ -5292,6 +5362,18 @@ document.addEventListener('click', (event) => {
         event.preventDefault();
         const roomId = sharedRoomEditToggle.dataset.sharedRoomEditToggle;
         const panel = document.querySelector(`[data-shared-room-edit-panel="${roomId}"]`);
+
+        if (panel) {
+            panel.classList.toggle('d-none');
+        }
+
+        return;
+    }
+
+    if (paymentMethodEditToggle) {
+        event.preventDefault();
+        const methodId = paymentMethodEditToggle.dataset.paymentMethodEditToggle;
+        const panel = document.querySelector(`[data-payment-method-edit-panel="${methodId}"]`);
 
         if (panel) {
             panel.classList.toggle('d-none');

@@ -294,6 +294,40 @@ class AccountStatementService
         return $item;
     }
 
+    public function recordFixedDiscount(Stay $stay, float $amount, string $description, ?string $currency = null): AccountStatementItem
+    {
+        $statement = $stay->accountStatement ?: $this->createForStay($stay);
+        $statement = $this->recalculate($statement);
+        $currency ??= $statement->currency ?: $stay->currency;
+        $amount = round($amount, 2);
+        $availableForDiscount = round((float) $statement->subtotal - (float) $statement->discount_total, 2);
+
+        if ($amount <= 0 || $amount > $availableForDiscount) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'amount' => 'El descuento debe ser mayor a cero y no puede superar el subtotal pendiente de descuento.',
+            ])->errorBag('stayDiscount');
+        }
+
+        $item = AccountStatementItem::query()->create([
+            'company_id' => $stay->company_id,
+            'account_statement_id' => $statement->id,
+            'stay_id' => $stay->id,
+            'date' => now()->toDateString(),
+            'type' => 'discount',
+            'description' => trim($description) ?: 'Descuento fijo hospedaje',
+            'quantity' => 1,
+            'unit_price' => -$amount,
+            'total' => -$amount,
+            'currency' => $currency,
+            'source' => 'manual',
+            'status' => 'active',
+        ]);
+
+        $this->recalculate($statement);
+
+        return $item;
+    }
+
     public function recordAdjustment(Stay $stay, float $amount, string $description, ?string $currency = null): AccountStatementItem
     {
         $statement = $stay->accountStatement ?: $this->createForStay($stay);

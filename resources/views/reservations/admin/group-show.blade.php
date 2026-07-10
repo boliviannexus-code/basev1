@@ -123,9 +123,78 @@
             </x-slot:actions>
         @endif
 
-        <form id="reservation-resources-form" action="{{ route('admin.reservation-groups.update', $group) }}" method="post">
+        <form id="reservation-resources-form" action="{{ route('admin.reservation-groups.update', $group) }}" method="post" data-reservation-group-form>
             @csrf
             @method('patch')
+            <div class="card-body border-bottom">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label" for="reservation_channel_id">Canal de reserva</label>
+                        <select
+                            class="form-select @error('reservation_channel_id') is-invalid @enderror"
+                            id="reservation_channel_id"
+                            name="reservation_channel_id"
+                            @disabled($group->status === 'cancelled' || $group->status === 'checked_in')
+                        >
+                            <option value="">Sin canal</option>
+                            @foreach ($reservationChannels as $channel)
+                                <option value="{{ $channel->id }}" @selected((string) old('reservation_channel_id', $group->reservation_channel_id) === (string) $channel->id)>{{ $channel->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('reservation_channel_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label" for="guest_name">Huesped titular</label>
+                        <input
+                            class="form-control @error('guest_name') is-invalid @enderror"
+                            id="guest_name"
+                            name="guest_name"
+                            value="{{ old('guest_name', $group->guest_name) }}"
+                            maxlength="255"
+                            required
+                            @disabled($group->status === 'cancelled' || $group->status === 'checked_in')
+                        >
+                        @error('guest_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="guest_email">Correo</label>
+                        <input
+                            class="form-control @error('guest_email') is-invalid @enderror"
+                            id="guest_email"
+                            name="guest_email"
+                            type="email"
+                            value="{{ old('guest_email', $group->guest_email) }}"
+                            maxlength="255"
+                            @disabled($group->status === 'cancelled' || $group->status === 'checked_in')
+                        >
+                        @error('guest_email')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="guest_phone">Telefono</label>
+                        <input
+                            class="form-control @error('guest_phone') is-invalid @enderror"
+                            id="guest_phone"
+                            name="guest_phone"
+                            value="{{ old('guest_phone', $group->guest_phone) }}"
+                            maxlength="255"
+                            @disabled($group->status === 'cancelled' || $group->status === 'checked_in')
+                        >
+                        @error('guest_phone')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="guest_document">Documento</label>
+                        <input
+                            class="form-control @error('guest_document') is-invalid @enderror"
+                            id="guest_document"
+                            name="guest_document"
+                            value="{{ old('guest_document', $group->guest_document) }}"
+                            maxlength="255"
+                            @disabled($group->status === 'cancelled' || $group->status === 'checked_in')
+                        >
+                        @error('guest_document')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                </div>
+            </div>
             <table class="table table-vcenter">
                 <thead>
                     <tr>
@@ -146,19 +215,42 @@
                                 && $group->status !== 'checked_in'
                                 && $reservation->status !== 'cancelled';
                         @endphp
-                        <tr>
+                        <tr data-reservation-date-row>
                             <td>
                                 <div class="fw-semibold">{{ $resourceLabel($reservation) }}</div>
                                 <div class="text-muted small">{{ $reservation->code }}</div>
                             </td>
-                            <td>{{ $reservation->check_in->toDateString() }}</td>
+                            <td style="min-width: 11rem;">
+                                <input
+                                    class="form-control form-control-sm"
+                                    type="date"
+                                    name="reservations[{{ $reservation->id }}][check_in]"
+                                    value="{{ old("reservations.{$reservation->id}.check_in", $reservation->check_in->toDateString()) }}"
+                                    min="{{ today()->toDateString() }}"
+                                    data-reservation-check-in
+                                    @disabled(! $canEditReservation)
+                                >
+                            </td>
                             <td style="min-width: 11rem;">
                                 <input
                                     class="form-control form-control-sm"
                                     type="date"
                                     name="reservations[{{ $reservation->id }}][check_out]"
                                     value="{{ old("reservations.{$reservation->id}.check_out", $reservation->check_out->toDateString()) }}"
-                                    min="{{ $reservation->check_in->copy()->addDay()->toDateString() }}"
+                                    min="{{ today()->addDay()->toDateString() }}"
+                                    data-reservation-check-out
+                                    @disabled(! $canEditReservation)
+                                >
+                            </td>
+                            <td class="text-end" style="min-width: 7rem;">
+                                <input
+                                    class="form-control form-control-sm text-end"
+                                    type="number"
+                                    name="reservations[{{ $reservation->id }}][nights]"
+                                    value="{{ old("reservations.{$reservation->id}.nights", $reservation->nights) }}"
+                                    min="1"
+                                    step="1"
+                                    data-reservation-nights
                                     @disabled(! $canEditReservation)
                                 >
                             </td>
@@ -176,7 +268,6 @@
                                     <span class="input-group-text">{{ $reservation->currency }}</span>
                                 </div>
                             </td>
-                            <td class="text-end">{{ $reservation->nights }}</td>
                             <td class="text-end fw-semibold">{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</td>
                             <td><span class="badge bg-{{ in_array($reservation->status, ['confirmed', 'checked_in'], true) ? 'success' : ($reservation->status === 'cancelled' ? 'secondary' : 'warning') }}-lt">{{ str($reservation->status)->replace('_', ' ') }}</span></td>
                         </tr>
