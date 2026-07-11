@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\CompanyContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -9,7 +10,11 @@ class UpdateCompanyRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('companies.update') ?? false;
+        $company = $this->route('company');
+
+        return ($this->user()?->can('companies.update') ?? false)
+            && $company
+            && CompanyContext::belongsToUser($company->id, $this->user());
     }
 
     public function rules(): array

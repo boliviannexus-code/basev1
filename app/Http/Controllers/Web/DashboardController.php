@@ -19,16 +19,23 @@ class DashboardController extends Controller
         Gate::authorize('dashboard.view');
 
         $company = CompanyContext::activeCompany();
+        $companyId = CompanyContext::id();
 
         return view('dashboard.index', [
             'dashboardCompany' => $company,
-            'totalUsers' => User::query()->count(),
-            'activeUsers' => User::query()->where('is_active', true)->count(),
+            'totalUsers' => User::query()
+                ->when($companyId, fn ($query, int $companyId) => $query->where('company_id', $companyId))
+                ->count(),
+            'activeUsers' => User::query()
+                ->when($companyId, fn ($query, int $companyId) => $query->where('company_id', $companyId))
+                ->where('is_active', true)
+                ->count(),
             'totalRoles' => Role::query()->count(),
             'totalPermissions' => Permission::query()->count(),
-            'totalCompanies' => Company::query()->count(),
+            'totalCompanies' => CompanyContext::scope(Company::query(), column: 'id')->count(),
             'recentAudits' => Audit::query()
                 ->with('user')
+                ->when($companyId, fn ($query, int $companyId) => $query->where('company_id', $companyId))
                 ->latest()
                 ->limit(8)
                 ->get(),

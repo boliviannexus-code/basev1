@@ -1,6 +1,6 @@
 @php
     $organizationOpen = request()->routeIs('companies.*', 'seasons.*', 'divisions.*', 'courts.*', 'teams.*', 'players.*', 'categories.*');
-    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'fixtures.*', 'matchdays.*', 'match-reports.*', 'standings.*', 'accreditations.*', 'player-habilitations.*', 'player-transfers.*');
+    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'fixtures.*', 'matchdays.*', 'match-reports.*', 'meetings.*', 'standings.*', 'accreditations.*', 'player-habilitations.*', 'player-transfers.*');
     $settingsOpen = request()->routeIs('league-settings.*');
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'biometric.*');
 
@@ -16,6 +16,7 @@
         || auth()->user()?->can('fixtures.view')
         || auth()->user()?->can('matchdays.view')
         || auth()->user()?->can('match-reports.view')
+        || auth()->user()?->can('meetings.view')
         || auth()->user()?->can('standings.view')
         || auth()->user()?->can('accreditations.view')
         || auth()->user()?->can('player-habilitations.view')
@@ -188,6 +189,14 @@
                                         <a class="nav-link" href="{{ route('match-reports.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-clipboard-check"></i></span>
                                             <span class="nav-link-title">Registro de partidos</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('meetings.view')
+                                    <li class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('meetings.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-users-group"></i></span>
+                                            <span class="nav-link-title">Asistencia reuniones</span>
                                         </a>
                                     </li>
                                 @endcan

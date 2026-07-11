@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Company;
 use App\Models\Player;
+use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -12,7 +13,7 @@ class CompanyService
 {
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
-        return Company::query()
+        return CompanyContext::scope(Company::query(), column: 'id')
             ->withCount('users')
             ->latest()
             ->paginate($perPage);

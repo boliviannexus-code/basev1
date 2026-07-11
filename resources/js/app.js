@@ -131,6 +131,8 @@ function openAjaxModal(trigger) {
             initDefragmentForms(ajaxModalBody);
             initTransferForms(ajaxModalBody);
             initStockAdjustmentForms(ajaxModalBody);
+            initPermissionManagers(ajaxModalBody);
+            initMeetingAttendance(ajaxModalBody);
             initFingerprintForms(ajaxModalBody);
             initPlayerBiometricRegistration(ajaxModalBody);
         })
@@ -4389,6 +4391,167 @@ async function submitScheduleTimeForm(form) {
     }
 }
 
+function refreshPermissionManager(manager) {
+    const boxes = [...manager.querySelectorAll('[data-permission-checkbox]')];
+    const checked = boxes.filter((box) => box.checked).length;
+    const selectedCount = manager.querySelector('[data-permission-selected-count]');
+
+    if (selectedCount) {
+        selectedCount.textContent = checked;
+    }
+
+    manager.querySelectorAll('[data-permission-group]').forEach((group) => {
+        const groupBoxes = [...group.querySelectorAll('[data-permission-checkbox]')];
+        const groupChecked = groupBoxes.filter((box) => box.checked).length;
+        const counter = group.querySelector('[data-permission-group-count]');
+
+        if (counter) {
+            counter.textContent = `${groupChecked}/${groupBoxes.length}`;
+        }
+    });
+
+    boxes.forEach((box) => {
+        const option = box.closest('.permission-option');
+        option?.classList.toggle('bg-primary-lt', box.checked);
+        option?.classList.toggle('border-primary', box.checked);
+        option?.classList.toggle('bg-white', !box.checked);
+    });
+}
+
+function initPermissionManagers(scope = document) {
+    scope.querySelectorAll('[data-permission-manager]').forEach((manager) => {
+        if (manager.dataset.permissionManagerInitialized === '1') {
+            return;
+        }
+
+        manager.dataset.permissionManagerInitialized = '1';
+
+        manager.addEventListener('change', (event) => {
+            if (event.target.matches('[data-permission-checkbox]')) {
+                refreshPermissionManager(manager);
+            }
+        });
+
+        manager.querySelector('[data-permission-search]')?.addEventListener('input', (event) => {
+            const term = event.target.value.trim().toLowerCase();
+
+            manager.querySelectorAll('[data-permission-item]').forEach((item) => {
+                item.classList.toggle('d-none', term !== '' && !item.dataset.permissionLabel.includes(term));
+            });
+
+            manager.querySelectorAll('[data-permission-group]').forEach((group) => {
+                const hasVisible = [...group.querySelectorAll('[data-permission-item]')]
+                    .some((item) => !item.classList.contains('d-none'));
+                group.classList.toggle('d-none', !hasVisible);
+            });
+        });
+
+        manager.querySelector('[data-permission-clear]')?.addEventListener('click', () => {
+            manager.querySelectorAll('[data-permission-checkbox]').forEach((box) => {
+                box.checked = false;
+            });
+            refreshPermissionManager(manager);
+        });
+
+        manager.querySelectorAll('[data-permission-group-check]').forEach((button) => {
+            button.addEventListener('click', () => {
+                button.closest('[data-permission-group]')?.querySelectorAll('[data-permission-checkbox]').forEach((box) => {
+                    box.checked = true;
+                });
+                refreshPermissionManager(manager);
+            });
+        });
+
+        manager.querySelectorAll('[data-permission-group-uncheck]').forEach((button) => {
+            button.addEventListener('click', () => {
+                button.closest('[data-permission-group]')?.querySelectorAll('[data-permission-checkbox]').forEach((box) => {
+                    box.checked = false;
+                });
+                refreshPermissionManager(manager);
+            });
+        });
+
+        refreshPermissionManager(manager);
+    });
+}
+
+function initMeetingAttendance(scope = document) {
+    const search = scope.querySelector('[data-meeting-attendance-search]');
+
+    if (search && search.dataset.meetingSearchInitialized !== '1') {
+        search.dataset.meetingSearchInitialized = '1';
+        search.addEventListener('input', () => {
+            const term = search.value.trim().toLowerCase();
+            const container = search.closest('.card') ?? document;
+
+            container.querySelectorAll('[data-meeting-attendance-row]').forEach((row) => {
+                row.classList.toggle('d-none', term !== '' && !row.dataset.teamName.includes(term));
+            });
+        });
+    }
+
+    scope.querySelectorAll('[data-meeting-attendance-toggle]').forEach((input) => {
+        if (input.dataset.meetingToggleInitialized === '1') {
+            return;
+        }
+
+        input.dataset.meetingToggleInitialized = '1';
+        input.addEventListener('change', async () => {
+            const original = !input.checked;
+            const row = input.closest('[data-meeting-attendance-row]');
+            const label = row?.querySelector('[data-meeting-attendance-label]');
+            const time = row?.querySelector('[data-meeting-attendance-time]');
+
+            input.disabled = true;
+
+            try {
+                const response = await fetch(input.dataset.url, {
+                    method: 'POST',
+                    body: new URLSearchParams({
+                        _method: 'PATCH',
+                        present: input.checked ? '1' : '0',
+                    }),
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const payload = await response.json();
+
+                if (!response.ok || payload.success === false) {
+                    throw new Error(payload.message ?? 'No se pudo registrar la asistencia.');
+                }
+
+                const present = Boolean(payload.data?.present);
+                input.checked = present;
+
+                if (label) {
+                    label.textContent = present ? 'Presente' : 'Ausente';
+                    label.classList.toggle('text-success', present);
+                    label.classList.toggle('text-body-secondary', !present);
+                }
+
+                if (time) {
+                    time.textContent = present
+                        ? (payload.data?.attended_at ?? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+                        : '-';
+                }
+
+                document.querySelector('[data-meeting-present-count]')?.replaceChildren(String(payload.data?.present_count ?? 0));
+                document.querySelector('[data-meeting-absent-count]')?.replaceChildren(String(payload.data?.absent_count ?? 0));
+                document.querySelector('[data-meeting-total-count]')?.replaceChildren(String(payload.data?.total_count ?? 0));
+                toast.fire({ icon: 'success', title: payload.message ?? 'Asistencia actualizada.' });
+            } catch (error) {
+                input.checked = original;
+                Swal.fire({ icon: 'error', title: 'Asistencia', text: error.message });
+            } finally {
+                input.disabled = false;
+            }
+        });
+    });
+}
+
 showInitialAlerts();
 disableBusinessFormAutocomplete();
 initTomSelects();
@@ -4410,6 +4573,8 @@ initPosSaleForm();
 initDefragmentForms();
 initTransferForms();
 initStockAdjustmentForms();
+initPermissionManagers();
+initMeetingAttendance();
 initUserDropdowns();
 initSidebarToggle();
 initCashExpenseModal();
@@ -4471,6 +4636,7 @@ document.addEventListener('submit', (event) => {
     const matchFinishForm = event.target.closest('[data-confirm-match-finish]');
     const reopenMatchForm = event.target.closest('[data-confirm-reopen-match]');
     const resolveSeedsForm = event.target.closest('[data-confirm-resolve-seeds]');
+    const meetingFinishForm = event.target.closest('[data-confirm-meeting-finish]');
     const voidPurchaseForm = event.target.closest('[data-confirm-void-purchase]');
     const voidSaleForm = event.target.closest('[data-confirm-void-sale]');
 
@@ -4528,6 +4694,26 @@ document.addEventListener('submit', (event) => {
             if (result.isConfirmed) {
                 matchFinishForm.dataset.confirmed = '1';
                 matchFinishForm.submit();
+            }
+        });
+
+        return;
+    }
+
+    if (meetingFinishForm && meetingFinishForm.dataset.confirmed !== '1') {
+        event.preventDefault();
+        Swal.fire({
+            icon: 'question',
+            title: 'Finalizar reunion',
+            text: 'Se cerrara la asistencia y se abrira el reporte para imprimir.',
+            showCancelButton: true,
+            confirmButtonText: 'Si, finalizar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#16a34a',
+        }).then((result) => {
+            if (result.isConfirmed) {
+                meetingFinishForm.dataset.confirmed = '1';
+                meetingFinishForm.submit();
             }
         });
 

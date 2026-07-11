@@ -87,6 +87,11 @@ class Company extends Model implements Auditable
         return $this->hasMany(TournamentTeamPlayer::class);
     }
 
+    public function meetings(): HasMany
+    {
+        return $this->hasMany(Meeting::class);
+    }
+
     public function playerTransferSetting(): HasOne
     {
         return $this->hasOne(PlayerTransferSetting::class);

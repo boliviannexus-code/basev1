@@ -15,6 +15,7 @@ use App\Http\Controllers\Web\FixtureSetupController;
 use App\Http\Controllers\Web\LeagueSettingController;
 use App\Http\Controllers\Web\MatchdayController;
 use App\Http\Controllers\Web\MatchReportController;
+use App\Http\Controllers\Web\MeetingController;
 use App\Http\Controllers\Web\PermissionController;
 use App\Http\Controllers\Web\PlayerBiometricRegistrationController;
 use App\Http\Controllers\Web\PlayerController;
@@ -180,6 +181,14 @@ Route::middleware('auth')->group(function (): void {
         Route::get('{matchReport}/pdf', [MatchReportController::class, 'pdf'])->middleware('permission:match-reports.view')->name('reports.pdf');
         Route::post('{matchReport}/players', [MatchReportController::class, 'addPlayer'])->middleware('permission:match-reports.update')->name('players.store');
         Route::patch('players/{player}/stats', [MatchReportController::class, 'updatePlayerStats'])->middleware('permission:match-reports.update')->name('players.stats');
+    });
+    Route::prefix('meetings')->name('meetings.')->group(function (): void {
+        Route::get('/', [MeetingController::class, 'index'])->middleware('permission:meetings.view')->name('index');
+        Route::post('/', [MeetingController::class, 'store'])->middleware('permission:meetings.create')->name('store');
+        Route::get('{meeting}', [MeetingController::class, 'show'])->middleware('permission:meetings.view')->name('show');
+        Route::patch('{meeting}/attendances/{attendance}', [MeetingController::class, 'updateAttendance'])->middleware('permission:meetings.update')->name('attendances.update');
+        Route::patch('{meeting}/finish', [MeetingController::class, 'finish'])->middleware('permission:meetings.update')->name('finish');
+        Route::get('{meeting}/pdf', [MeetingController::class, 'pdf'])->middleware('permission:meetings.view')->name('pdf');
     });
     Route::get('standings', [StandingsController::class, 'index'])->middleware('permission:standings.view')->name('standings.index');
     Route::get('standings/pdf', [StandingsController::class, 'pdf'])->middleware('permission:standings.view')->name('standings.pdf');

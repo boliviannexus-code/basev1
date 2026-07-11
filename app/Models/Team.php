@@ -72,6 +72,11 @@ class Team extends Model implements Auditable
         return $this->hasMany(TournamentTeamPlayer::class);
     }
 
+    public function meetingAttendances(): HasMany
+    {
+        return $this->hasMany(MeetingAttendance::class);
+    }
+
     public function tournaments(): BelongsToMany
     {
         return $this->belongsToMany(Tournament::class, 'tournament_registrations')

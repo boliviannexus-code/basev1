@@ -7,6 +7,7 @@ use App\Http\Requests\StoreCompanyRequest;
 use App\Http\Requests\UpdateCompanyRequest;
 use App\Models\Company;
 use App\Services\CompanyService;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,6 +31,7 @@ class CompanyController extends Controller
     public function create(Request $request): View
     {
         abort_unless($request->user()?->can('companies.create'), 403);
+        abort_unless(CompanyContext::isGlobalAdmin($request->user()), 403);
 
         if ($request->ajax()) {
             return view('companies.partials.create-form');
@@ -56,6 +58,7 @@ class CompanyController extends Controller
     public function show(Request $request, Company $company): View
     {
         abort_unless($request->user()?->can('companies.view'), 403);
+        abort_unless(CompanyContext::belongsToUser($company->id, $request->user()), 403);
 
         $company->loadCount('users');
 
@@ -69,6 +72,7 @@ class CompanyController extends Controller
     public function edit(Request $request, Company $company): View
     {
         abort_unless($request->user()?->can('companies.update'), 403);
+        abort_unless(CompanyContext::belongsToUser($company->id, $request->user()), 403);
 
         if ($request->ajax()) {
             return view('companies.partials.edit-form', compact('company'));
@@ -95,6 +99,7 @@ class CompanyController extends Controller
     public function destroy(Company $company): RedirectResponse
     {
         abort_unless(auth()->user()?->can('companies.delete'), 403);
+        abort_unless(CompanyContext::isGlobalAdmin(auth()->user()), 403);
 
         $this->companies->delete($company);
 
