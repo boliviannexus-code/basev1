@@ -27,9 +27,9 @@ class ReservationGroupManagementService
         return DB::transaction(function () use ($group, $data): ReservationGroup {
             $group = $this->fresh($group);
 
-            if ($group->status === 'cancelled') {
+            if (in_array($group->status, ['cancelled', 'no_show'], true)) {
                 throw ValidationException::withMessages([
-                    'status' => 'No se puede modificar una reserva cancelada.',
+                    'status' => 'No se puede modificar una reserva cerrada.',
                 ]);
             }
 
@@ -131,14 +131,44 @@ class ReservationGroupManagementService
         });
     }
 
+    public function noShow(ReservationGroup $group, ?string $reason = null): ReservationGroup
+    {
+        return DB::transaction(function () use ($group, $reason): ReservationGroup {
+            $group = $this->fresh($group);
+
+            if ($group->status === 'checked_in' && ! $this->hasActiveBlocks($group)) {
+                throw ValidationException::withMessages([
+                    'status' => 'El check-in de esta reserva ya fue registrado.',
+                ]);
+            }
+
+            $group->update([
+                'status' => 'no_show',
+                'notes' => $this->appendSystemNote($group->notes, $reason ?: 'Reserva marcada como no show.'),
+            ]);
+
+            foreach ($group->reservations as $reservation) {
+                $reservation->update([
+                    'status' => 'no_show',
+                    'guest_notes' => $this->appendSystemNote($reservation->guest_notes, $reason ?: 'Reserva marcada como no show.'),
+                ]);
+
+                $this->releaseBlocks($reservation);
+            }
+
+            return $group->refresh();
+        });
+    }
+
+
     public function startCheckIn(ReservationGroup $group): ReservationGroup
     {
         return DB::transaction(function () use ($group): ReservationGroup {
             $group = $this->fresh($group);
 
-            if ($group->status === 'cancelled') {
+            if (in_array($group->status, ['cancelled', 'no_show'], true)) {
                 throw ValidationException::withMessages([
-                    'status' => 'No se puede hacer check-in de una reserva cancelada.',
+                    'status' => 'No se puede hacer check-in de una reserva cerrada.',
                 ]);
             }
 
@@ -218,9 +248,9 @@ class ReservationGroupManagementService
 
     private function updateReservation(Reservation $reservation, array $data): Reservation
     {
-        if ($reservation->status === 'cancelled') {
+        if (in_array($reservation->status, ['cancelled', 'no_show'], true)) {
             throw ValidationException::withMessages([
-                "reservations.{$reservation->id}" => 'No se puede modificar una reserva cancelada.',
+                "reservations.{$reservation->id}" => 'No se puede modificar una reserva cerrada.',
             ]);
         }
 
@@ -314,7 +344,7 @@ class ReservationGroupManagementService
         $statement = $group->accountStatement
             ? $this->accountStatements->recalculate($group->accountStatement)
             : null;
-        $reservations = $group->reservations->where('status', '!=', 'cancelled');
+        $reservations = $group->reservations->whereNotIn('status', ['cancelled', 'no_show']);
         $checkIn = $reservations->min(fn (Reservation $reservation) => $reservation->check_in?->toDateString());
         $checkOut = $reservations->max(fn (Reservation $reservation) => $reservation->check_out?->toDateString());
         $nights = $checkIn && $checkOut
@@ -338,7 +368,7 @@ class ReservationGroupManagementService
 
         if ($statement) {
             $group->reservations()
-                ->where('status', '!=', 'cancelled')
+                ->whereNotIn('status', ['cancelled', 'no_show'])
                 ->update([
                     'payment_status' => $statement->status === 'paid'
                         ? 'validated'

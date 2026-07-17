@@ -87,6 +87,22 @@ class AdminReservationGroupController extends Controller
             ->with('success', 'Reserva cancelada y disponibilidad liberada.');
     }
 
+    public function noShow(Request $request, ReservationGroup $group): RedirectResponse
+    {
+        Gate::authorize('reservations.manage');
+        $this->ensureOwnership($group);
+
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $this->groups->noShow($group, $data['reason'] ?? null);
+
+        return redirect()
+            ->to($this->occupancyUrlForGroup($group))
+            ->with('success', 'Reserva marcada como no show y disponibilidad liberada.');
+    }
+
     public function checkIn(ReservationGroup $group): RedirectResponse
     {
         abort_unless(auth()->user()?->can('reservations.manage') || auth()->user()?->can('occupancy.manage'), 403);

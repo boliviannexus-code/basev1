@@ -86,6 +86,22 @@ class ReservationManagementService
         });
     }
 
+    public function noShow(Reservation $reservation, ?string $reason = null): Reservation
+    {
+        return DB::transaction(function () use ($reservation, $reason): Reservation {
+            $reservation = $this->fresh($reservation);
+
+            $reservation->update([
+                'status' => 'no_show',
+                'guest_notes' => $this->appendSystemNote($reservation->guest_notes, $reason ?: 'Reserva marcada como no show.'),
+            ]);
+
+            $this->releaseBlock($reservation);
+
+            return $reservation->refresh();
+        });
+    }
+
     public function expire(Reservation $reservation): Reservation
     {
         return DB::transaction(function () use ($reservation): Reservation {

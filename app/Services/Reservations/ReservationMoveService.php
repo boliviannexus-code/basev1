@@ -490,7 +490,7 @@ class ReservationMoveService
         }
 
         $group->refresh()->load(['reservations', 'accountStatement.items']);
-        $reservations = $group->reservations->where('status', '!=', 'cancelled');
+        $reservations = $group->reservations->whereNotIn('status', ['cancelled', 'no_show']);
         $checkIn = $reservations->min(fn (Reservation $reservation) => $reservation->check_in?->toDateString());
         $checkOut = $reservations->max(fn (Reservation $reservation) => $reservation->check_out?->toDateString());
         $statement = $group->accountStatement ? $this->accounts->recalculate($group->accountStatement) : null;

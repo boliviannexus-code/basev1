@@ -135,6 +135,7 @@ class DashboardController extends Controller
             'checked_in' => 'En check-in',
             'cancelled' => 'Canceladas',
             'expired' => 'Vencidas',
+            'no_show' => 'No show',
         ];
 
         $groupCounts = ReservationGroup::query()

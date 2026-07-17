@@ -58,6 +58,9 @@ class RolePermissionSeeder extends Seeder
             'pos.access',
             'sales.view',
             'sales.void',
+            'reports.view',
+            'reports.print',
+            'business-intelligence.view',
             'payment-methods.view',
             'payment-methods.create',
             'payment-methods.update',
@@ -108,6 +111,9 @@ class RolePermissionSeeder extends Seeder
             'pos.access',
             'sales.view',
             'sales.void',
+            'reports.view',
+            'reports.print',
+            'business-intelligence.view',
             'payment-methods.view',
             'payment-methods.create',
             'payment-methods.update',
@@ -130,6 +136,8 @@ class RolePermissionSeeder extends Seeder
             'availability.view',
             'occupancy.view',
             'reservations.view',
+            'reports.view',
+            'business-intelligence.view',
         ]);
 
         app()[PermissionRegistrar::class]->forgetCachedPermissions();

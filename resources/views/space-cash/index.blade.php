@@ -84,17 +84,18 @@
             <div class="col-lg-7">
                 <x-ui.table-card title="Cobros de estancias">
                     <table class="table table-sm table-hover align-middle mb-0">
-                        <thead><tr><th>Comprobante</th><th>Estancia</th><th>Metodo</th><th class="text-end">Total BOB</th></tr></thead>
+                        <thead><tr><th>Comprobante</th><th>Fecha</th><th>Estancia</th><th>Metodo</th><th class="text-end">Total BOB</th></tr></thead>
                         <tbody>
                             @forelse (($cashSummary['lodging_payments'] ?? []) as $payment)
                                 <tr>
                                     <td class="fw-semibold">{{ $payment->receipt_number }}</td>
+                                    <td>{{ $payment->created_at?->format('Y-m-d H:i') }}</td>
                                     <td>{{ $payment->stay?->holderGuest?->full_name ?? 'Estancia' }}</td>
                                     <td>{{ $payment->paymentMethod?->name ?? '-' }}</td>
                                     <td class="text-end fw-semibold">{{ money_format_decimal($payment->amount_bob) }}</td>
                                 </tr>
                             @empty
-                                <tr><td class="text-center text-body-secondary" colspan="4">Sin cobros de estancias.</td></tr>
+                                <tr><td class="text-center text-body-secondary" colspan="5">Sin cobros de estancias.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -104,18 +105,19 @@
 
         <x-ui.table-card title="Cobros de reservas" class="mt-3">
             <table class="table table-sm table-hover align-middle mb-0">
-                <thead><tr><th>Comprobante</th><th>Reserva</th><th>Metodo</th><th>Referencia</th><th class="text-end">Total BOB</th></tr></thead>
+                <thead><tr><th>Comprobante</th><th>Fecha</th><th>Reserva</th><th>Metodo</th><th>Referencia</th><th class="text-end">Total BOB</th></tr></thead>
                 <tbody>
                     @forelse (($cashSummary['reservation_payments'] ?? []) as $payment)
                         <tr>
                             <td class="fw-semibold">{{ $payment->receipt_number }}</td>
+                            <td>{{ $payment->created_at?->format('Y-m-d H:i') }}</td>
                             <td>{{ $payment->reservationGroup?->code ?? 'Reserva' }}</td>
                             <td>{{ $payment->paymentMethod?->name ?? '-' }}</td>
                             <td>{{ $payment->reference ?: '-' }}</td>
                             <td class="text-end fw-semibold">{{ money_format_decimal($payment->amount_bob) }}</td>
                         </tr>
                     @empty
-                        <tr><td class="text-center text-body-secondary" colspan="5">Sin cobros de reservas.</td></tr>
+                        <tr><td class="text-center text-body-secondary" colspan="6">Sin cobros de reservas.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -123,19 +125,21 @@
 
         <x-ui.table-card title="Ingresos directos" class="mt-3">
             <table class="table table-sm table-hover align-middle mb-0">
-                <thead><tr><th>Comprobante</th><th>Categoria</th><th>Detalle</th><th>Metodo</th><th>Referencia</th><th class="text-end">Total BOB</th></tr></thead>
+                <thead><tr><th>Comprobante</th><th>Fecha</th><th>Categoria</th><th class="text-end">Cantidad</th><th>Detalle</th><th>Metodo</th><th>Referencia</th><th class="text-end">Total BOB</th></tr></thead>
                 <tbody>
                     @forelse (($cashSummary['direct_incomes'] ?? []) as $income)
                         <tr>
                             <td class="fw-semibold">{{ $income->receipt_number }}</td>
+                            <td>{{ $income->received_at?->format('Y-m-d H:i') }}</td>
                             <td>{{ $income->category?->name ?? '-' }}</td>
+                            <td class="text-end">{{ number_format((float) ($income->quantity ?? 1), 2) }}</td>
                             <td>{{ $income->detail }}</td>
                             <td>{{ $income->paymentMethod?->name ?? '-' }}</td>
                             <td>{{ $income->reference ?: '-' }}</td>
                             <td class="text-end fw-semibold">{{ money_format_decimal($income->amount) }}</td>
                         </tr>
                     @empty
-                        <tr><td class="text-center text-body-secondary" colspan="6">Sin ingresos directos.</td></tr>
+                        <tr><td class="text-center text-body-secondary" colspan="8">Sin ingresos directos.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -153,10 +157,10 @@
                         <div class="space-cash-entry-grid">
                             <div class="space-cash-field">
                                 <label class="form-label" for="space_cash_income_category">Categoria</label>
-                                <select class="form-select @error('extra_charge_category_id', 'spaceCashIncome') is-invalid @enderror" id="space_cash_income_category" name="extra_charge_category_id" required>
+                                <select class="form-select @error('extra_charge_category_id', 'spaceCashIncome') is-invalid @enderror" id="space_cash_income_category" name="extra_charge_category_id" data-remote-category-select data-url="{{ route('extra-charge-categories.autocomplete') }}" data-placeholder="Buscar categoria" required>
                                     <option value="">Seleccionar categoria</option>
                                     @foreach ($expenseCategories as $category)
-                                        <option value="{{ $category->id }}" @selected((int) old('extra_charge_category_id') === (int) $category->id)>{{ $category->name }}</option>
+                                        <option value="{{ $category->id }}" data-default-unit-price="{{ $category->default_unit_price }}" @selected((int) old('extra_charge_category_id') === (int) $category->id)>{{ $category->name }}</option>
                                     @endforeach
                                 </select>
                                 @error('extra_charge_category_id', 'spaceCashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -177,6 +181,11 @@
                                 @error('responsible_name', 'spaceCashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="space-cash-field">
+                                <label class="form-label" for="space_cash_income_quantity">Cantidad</label>
+                                <input class="form-control text-end @error('quantity', 'spaceCashIncome') is-invalid @enderror" id="space_cash_income_quantity" name="quantity" type="number" min="0.5" step="0.5" value="{{ old('quantity', '1') }}" required>
+                                @error('quantity', 'spaceCashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="space-cash-field">
                                 <label class="form-label" for="space_cash_income_amount">Monto</label>
                                 <input class="form-control text-end @error('amount', 'spaceCashIncome') is-invalid @enderror" id="space_cash_income_amount" name="amount" type="number" min="0.01" step="0.01" value="{{ old('amount') }}" required>
                                 @error('amount', 'spaceCashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -188,7 +197,7 @@
                             </div>
                             <div class="space-cash-field space-cash-field-wide">
                                 <label class="form-label" for="space_cash_income_detail">Detalle</label>
-                                <textarea class="form-control @error('detail', 'spaceCashIncome') is-invalid @enderror" id="space_cash_income_detail" name="detail" rows="2" required>{{ old('detail') }}</textarea>
+                                <textarea class="form-control @error('detail', 'spaceCashIncome') is-invalid @enderror" id="space_cash_income_detail" name="detail" rows="2">{{ old('detail') }}</textarea>
                                 @error('detail', 'spaceCashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                         </div>
@@ -214,18 +223,33 @@
                         <div class="space-cash-entry-grid">
                             <div class="space-cash-field">
                                 <label class="form-label" for="space_cash_expense_category">Categoria</label>
-                                <select class="form-select @error('extra_charge_category_id', 'spaceCashExpense') is-invalid @enderror" id="space_cash_expense_category" name="extra_charge_category_id" required>
+                                <select class="form-select @error('extra_charge_category_id', 'spaceCashExpense') is-invalid @enderror" id="space_cash_expense_category" name="extra_charge_category_id" data-remote-category-select data-url="{{ route('extra-charge-categories.autocomplete') }}" data-placeholder="Buscar categoria" required>
                                     <option value="">Seleccionar categoria</option>
                                     @foreach ($expenseCategories as $category)
-                                        <option value="{{ $category->id }}" @selected((int) old('extra_charge_category_id') === (int) $category->id)>{{ $category->name }}</option>
+                                        <option value="{{ $category->id }}" data-default-unit-price="{{ $category->default_unit_price }}" @selected((int) old('extra_charge_category_id') === (int) $category->id)>{{ $category->name }}</option>
                                     @endforeach
                                 </select>
                                 @error('extra_charge_category_id', 'spaceCashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="space-cash-field">
+                                <label class="form-label" for="space_cash_expense_payment_method">Metodo de pago</label>
+                                <select class="form-select @error('payment_method_id', 'spaceCashExpense') is-invalid @enderror" id="space_cash_expense_payment_method" name="payment_method_id" required>
+                                    <option value="">Seleccionar metodo</option>
+                                    @foreach ($paymentMethods as $paymentMethod)
+                                        <option value="{{ $paymentMethod->id }}" @selected((int) old('payment_method_id') === (int) $paymentMethod->id)>{{ $paymentMethod->name }}</option>
+                                    @endforeach
+                                </select>
+                                @error('payment_method_id', 'spaceCashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="space-cash-field">
                                 <label class="form-label" for="space_cash_expense_responsible_name">Encargado</label>
                                 <input class="form-control @error('responsible_name', 'spaceCashExpense') is-invalid @enderror" id="space_cash_expense_responsible_name" name="responsible_name" value="{{ old('responsible_name', auth()->user()?->name) }}" required>
                                 @error('responsible_name', 'spaceCashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="space-cash-field">
+                                <label class="form-label" for="space_cash_expense_quantity">Cantidad</label>
+                                <input class="form-control text-end @error('quantity', 'spaceCashExpense') is-invalid @enderror" id="space_cash_expense_quantity" name="quantity" type="number" min="0.5" step="0.5" value="{{ old('quantity', '1') }}" required>
+                                @error('quantity', 'spaceCashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                             <div class="space-cash-field">
                                 <label class="form-label" for="space_cash_expense_amount">Monto</label>
@@ -234,7 +258,7 @@
                             </div>
                             <div class="space-cash-field space-cash-field-wide">
                                 <label class="form-label" for="space_cash_expense_detail">Detalle</label>
-                                <textarea class="form-control @error('detail', 'spaceCashExpense') is-invalid @enderror" id="space_cash_expense_detail" name="detail" rows="2" required>{{ old('detail') }}</textarea>
+                                <textarea class="form-control @error('detail', 'spaceCashExpense') is-invalid @enderror" id="space_cash_expense_detail" name="detail" rows="2">{{ old('detail') }}</textarea>
                                 @error('detail', 'spaceCashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                         </div>

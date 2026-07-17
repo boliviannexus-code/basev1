@@ -14,6 +14,7 @@
             'rejected' => 'Rechazada',
             'cancelled' => 'Cancelada',
             'expired' => 'Vencida',
+            'no_show' => 'No show',
         ];
         $statusTones = [
             'pending_payment' => 'warning',
@@ -23,6 +24,7 @@
             'rejected' => 'danger',
             'cancelled' => 'secondary',
             'expired' => 'secondary',
+            'no_show' => 'danger',
         ];
         $activeExtraCharges = $reservation->extraCharges->where('status', 'active');
         $cancelledExtraCharges = $reservation->extraCharges->where('status', 'cancelled');
@@ -32,9 +34,11 @@
             ->filter()
             ->unique('id')
             ->contains(fn ($block) => $block->status === 'active' && ! $block->trashed());
-        $canAddReservationCharge = ! in_array($reservation->status, ['cancelled', 'rejected', 'expired'], true)
+        $canAddReservationCharge = ! in_array($reservation->status, ['cancelled', 'rejected', 'expired', 'no_show'], true)
             && ($reservation->status !== 'checked_in' || $hasActiveReservationBlocks);
-        $canCancelReservation = ! in_array($reservation->status, ['cancelled', 'rejected', 'expired'], true)
+        $canCancelReservation = ! in_array($reservation->status, ['cancelled', 'rejected', 'expired', 'no_show'], true)
+            && ($reservation->status !== 'checked_in' || $hasActiveReservationBlocks);
+        $canMarkNoShow = in_array($reservation->status, ['pending_payment', 'payment_under_review', 'confirmed', 'checked_in'], true)
             && ($reservation->status !== 'checked_in' || $hasActiveReservationBlocks);
     @endphp
 
@@ -213,6 +217,16 @@
                         <input class="form-control" name="reason" placeholder="Motivo opcional de cancelacion">
                         <button class="btn btn-outline-secondary" type="submit">
                             <i class="ti ti-calendar-x me-1"></i>Cancelar reserva
+                        </button>
+                    </form>
+                @endif
+                @if ($canMarkNoShow)
+                    <form action="{{ route('admin.reservations.no-show', $reservation->id) }}" method="post">
+                        @csrf
+                        @method('patch')
+                        <input class="form-control" name="reason" placeholder="Motivo opcional de no show">
+                        <button class="btn btn-outline-danger" type="submit">
+                            <i class="ti ti-user-x me-1"></i>No show
                         </button>
                     </form>
                 @endif

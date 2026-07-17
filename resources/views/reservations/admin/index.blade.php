@@ -14,6 +14,7 @@
             'rejected' => 'Rechazadas',
             'cancelled' => 'Canceladas',
             'expired' => 'Vencidas',
+            'no_show' => 'No show',
         ];
         $statusTones = [
             'pending_payment' => 'warning',
@@ -23,6 +24,7 @@
             'rejected' => 'danger',
             'cancelled' => 'secondary',
             'expired' => 'secondary',
+            'no_show' => 'danger',
         ];
     @endphp
 

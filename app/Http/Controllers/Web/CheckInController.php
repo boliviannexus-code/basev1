@@ -276,8 +276,8 @@ class CheckInController extends Controller
             ->whereKey($groupId)
             ->firstOrFail();
 
-        if ($group->status === 'cancelled') {
-            abort(403, 'No se puede iniciar check-in de una reserva cancelada.');
+        if (in_array($group->status, ['cancelled', 'no_show'], true)) {
+            abort(403, 'No se puede iniciar check-in de una reserva cerrada.');
         }
 
         if ($group->status === 'checked_in' && ! $this->hasActiveReservationBlocks($group)) {
@@ -352,7 +352,7 @@ class CheckInController extends Controller
     {
         $remainingPeople = max((int) $group->guests, 1);
         $reservations = $group->reservations
-            ->where('status', '!=', 'cancelled')
+            ->whereNotIn('status', ['cancelled', 'no_show'])
             ->values();
 
         return $reservations

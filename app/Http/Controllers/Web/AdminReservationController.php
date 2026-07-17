@@ -126,13 +126,31 @@ class AdminReservationController extends Controller
         ]);
 
         $reservation = $this->reservation($reservation);
-        abort_unless(! in_array($reservation->status, ['cancelled', 'rejected', 'expired'], true), 403);
+        abort_unless(! in_array($reservation->status, ['cancelled', 'rejected', 'expired', 'no_show'], true), 403);
 
         $this->reservationManagement->cancel($reservation, $data['reason'] ?? null);
 
         return redirect()
             ->to($this->occupancyUrlForReservation($reservation))
             ->with('success', 'Reserva cancelada y disponibilidad liberada.');
+    }
+
+    public function noShow(Request $request, int $reservation): RedirectResponse
+    {
+        Gate::authorize('reservations.manage');
+
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $reservation = $this->reservation($reservation);
+        abort_unless(! in_array($reservation->status, ['cancelled', 'rejected', 'expired', 'no_show'], true), 403);
+
+        $this->reservationManagement->noShow($reservation, $data['reason'] ?? null);
+
+        return redirect()
+            ->to($this->occupancyUrlForReservation($reservation))
+            ->with('success', 'Reserva marcada como no show y disponibilidad liberada.');
     }
 
     private function reservation(int $reservation): Reservation

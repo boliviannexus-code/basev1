@@ -64,8 +64,10 @@ class SpaceCashController extends Controller
 
         $data = $request->validateWithBag('spaceCashExpense', [
             'extra_charge_category_id' => ['required', 'integer', 'exists:extra_charge_categories,id'],
+            'payment_method_id' => ['required', 'integer', 'exists:payment_methods,id'],
             'responsible_name' => ['required', 'string', 'max:255'],
-            'detail' => ['required', 'string', 'max:255'],
+            'detail' => ['nullable', 'string', 'max:255'],
+            'quantity' => ['required', 'numeric', 'min:0.5', 'multiple_of:0.5'],
             'amount' => ['required', 'numeric', 'min:0.01'],
         ]);
         $category = $this->expenseCategories((int) $request->user()->company_id)
@@ -74,6 +76,15 @@ class SpaceCashController extends Controller
         if (! $category) {
             throw ValidationException::withMessages([
                 'extra_charge_category_id' => 'La categoria seleccionada no esta disponible.',
+            ])->errorBag('spaceCashExpense');
+        }
+
+        $paymentMethod = $this->paymentMethods((int) $request->user()->company_id)
+            ->firstWhere('id', (int) $data['payment_method_id']);
+
+        if (! $paymentMethod) {
+            throw ValidationException::withMessages([
+                'payment_method_id' => 'El metodo de pago seleccionado no esta disponible.',
             ])->errorBag('spaceCashExpense');
         }
 
@@ -87,7 +98,7 @@ class SpaceCashController extends Controller
 
         $available = (float) $this->cashRegisters->cashSummary($cashRegister)['available'];
 
-        if ((float) $data['amount'] > $available) {
+        if (mb_strtolower($paymentMethod->name) === 'efectivo' && (float) $data['amount'] > $available) {
             throw ValidationException::withMessages([
                 'amount' => 'El egreso no puede superar el efectivo disponible.',
             ])->errorBag('spaceCashExpense');
@@ -98,8 +109,10 @@ class SpaceCashController extends Controller
             'space_cash_register_id' => $cashRegister->id,
             'user_id' => $request->user()->id,
             'extra_charge_category_id' => $category->id,
+            'payment_method_id' => $paymentMethod->id,
             'responsible_name' => $data['responsible_name'],
-            'detail' => $data['detail'],
+            'detail' => $data['detail'] ?? $category->name,
+            'quantity' => round((float) $data['quantity'], 2),
             'amount' => $data['amount'],
             'spent_at' => now(),
         ]);
@@ -116,7 +129,8 @@ class SpaceCashController extends Controller
             'extra_charge_category_id' => ['required', 'integer', 'exists:extra_charge_categories,id'],
             'payment_method_id' => ['required', 'integer', 'exists:payment_methods,id'],
             'responsible_name' => ['nullable', 'string', 'max:255'],
-            'detail' => ['required', 'string', 'max:255'],
+            'detail' => ['nullable', 'string', 'max:255'],
+            'quantity' => ['required', 'numeric', 'min:0.5', 'multiple_of:0.5'],
             'reference' => ['nullable', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0.01'],
         ]);
@@ -157,7 +171,8 @@ class SpaceCashController extends Controller
                 'payment_method_id' => $paymentMethod->id,
                 'receipt_number' => $this->cashRegisters->nextReceiptNumber($request->user()),
                 'responsible_name' => $data['responsible_name'] ?? null,
-                'detail' => $data['detail'],
+                'detail' => $data['detail'] ?? $category->name,
+                'quantity' => round((float) $data['quantity'], 2),
                 'reference' => $data['reference'] ?? null,
                 'amount' => round((float) $data['amount'], 2),
                 'received_at' => now(),

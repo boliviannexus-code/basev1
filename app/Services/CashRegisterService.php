@@ -105,6 +105,7 @@ class CashRegisterService
         $cashRegister->loadMissing([
             'sales.payments',
             'expenses.category',
+            'expenses.paymentMethod',
             'lodgingPayments.paymentMethod',
             'lodgingPayments.stay.holderGuest',
             'company',
@@ -123,6 +124,9 @@ class CashRegisterService
         $lodgingCashTotal = (float) $lodgingPayments
             ->filter(fn ($payment): bool => $cashMethod((string) $payment->paymentMethod?->name))
             ->sum('amount_bob');
+        $cashExpensesTotal = (float) $expenses
+            ->filter(fn ($expense): bool => $cashMethod((string) ($expense->paymentMethod?->name ?? 'Efectivo')))
+            ->sum('amount');
         $expensesTotal = (float) $expenses->sum('amount');
         $salesTotal = (float) $activeSales->sum('total');
         $lodgingTotal = (float) $lodgingPayments->sum('amount_bob');
@@ -134,8 +138,15 @@ class CashRegisterService
             'lodging_total' => $lodgingTotal,
             'income_total' => $salesTotal + $lodgingTotal,
             'expenses' => $expensesTotal,
-            'available' => (float) $cashRegister->opening_amount + $cashSalesTotal + $lodgingCashTotal - $expensesTotal,
+            'available' => (float) $cashRegister->opening_amount + $cashSalesTotal + $lodgingCashTotal - $cashExpensesTotal,
             'payments' => $this->paymentRows($salePayments, $lodgingPayments),
+            'expense_payments' => $this->expenseRows($expenses),
+            'method_balances' => $this->methodBalances(
+                (float) $cashRegister->opening_amount,
+                $salePayments,
+                $lodgingPayments,
+                $expenses,
+            ),
             'sales' => $activeSales->sortByDesc('sale_date')->values(),
             'lodging_payments' => $lodgingPayments->sortByDesc('created_at')->values(),
             'expense_details' => $expenses->sortByDesc('spent_at')->values(),
@@ -159,6 +170,47 @@ class CashRegisterService
                 'payments_count' => $rows->count(),
                 'total' => $rows->sum('total'),
             ])
+            ->values()
+            ->all();
+    }
+
+    private function expenseRows(Collection $expenses): array
+    {
+        return $expenses
+            ->map(fn ($expense): array => [
+                'name' => $expense->paymentMethod?->name ?: 'Efectivo',
+                'total' => (float) $expense->amount,
+            ])
+            ->groupBy('name')
+            ->map(fn (Collection $rows, string $name): array => [
+                'name' => $name,
+                'payments_count' => $rows->count(),
+                'total' => $rows->sum('total'),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function methodBalances(float $openingAmount, Collection $salePayments, Collection $lodgingPayments, Collection $expenses): array
+    {
+        $incomeRows = collect($this->paymentRows($salePayments, $lodgingPayments))->keyBy('name');
+        $expenseRows = collect($this->expenseRows($expenses))->keyBy('name');
+        $names = $incomeRows->keys()->merge($expenseRows->keys())->push('Efectivo')->unique()->sort()->values();
+
+        return $names
+            ->map(function (string $name) use ($openingAmount, $incomeRows, $expenseRows): array {
+                $opening = mb_strtolower($name) === 'efectivo' ? $openingAmount : 0.0;
+                $income = (float) ($incomeRows->get($name)['total'] ?? 0);
+                $expense = (float) ($expenseRows->get($name)['total'] ?? 0);
+
+                return [
+                    'name' => $name,
+                    'opening' => $opening,
+                    'income' => $income,
+                    'expense' => $expense,
+                    'balance' => $opening + $income - $expense,
+                ];
+            })
             ->values()
             ->all();
     }

@@ -11,6 +11,7 @@ use App\Http\Controllers\Web\AccommodationPackages\PackageServiceController;
 use App\Http\Controllers\Web\AuditController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\AvailabilityController;
+use App\Http\Controllers\Web\BusinessIntelligenceController;
 use App\Http\Controllers\Web\CheckInController;
 use App\Http\Controllers\Web\CompanyController;
 use App\Http\Controllers\Web\CompanyPublicProfileController;
@@ -32,6 +33,7 @@ use App\Http\Controllers\Web\ReservationChannelController;
 use App\Http\Controllers\Web\ReservationMoveController;
 use App\Http\Controllers\Web\ReservationPaymentController;
 use App\Http\Controllers\Web\ReservationSettingsController;
+use App\Http\Controllers\Web\ReportController;
 use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\SalesController;
 use App\Http\Controllers\Web\Spaces\SharedSpaceRegistrationStepperController;
@@ -71,6 +73,18 @@ Route::middleware('auth')->group(function (): void {
     Route::post('reservas/{reservation}/comprobante', [PublicReservationController::class, 'submitPaymentProof'])->whereNumber('reservation')->name('public.reservations.payment-proof');
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('business-intelligence', [BusinessIntelligenceController::class, 'index'])
+        ->middleware(['company_user', 'permission:business-intelligence.view'])
+        ->name('business-intelligence.index');
+    Route::prefix('reports')
+        ->name('reports.')
+        ->middleware(['company_user'])
+        ->group(function (): void {
+            Route::get('/', [ReportController::class, 'index'])->middleware('permission:reports.view')->name('index');
+            Route::get('print', [ReportController::class, 'print'])->middleware('permission:reports.print')->name('print');
+            Route::get('occupancy', [ReportController::class, 'occupancy'])->middleware('permission:reports.view')->name('occupancy.index');
+            Route::get('occupancy/print', [ReportController::class, 'occupancyPrint'])->middleware('permission:reports.print')->name('occupancy.print');
+        });
     Route::get('audits', [AuditController::class, 'index'])->middleware('permission:audits.view')->name('audits.index');
     Route::get('audits/{audit}', [AuditController::class, 'show'])->middleware('permission:audits.view')->name('audits.show');
     Route::prefix('company/public-profile')
@@ -175,6 +189,7 @@ Route::middleware('auth')->group(function (): void {
             Route::patch('{reservation}/approve', [AdminReservationController::class, 'approve'])->whereNumber('reservation')->middleware('permission:reservations.manage')->name('approve');
             Route::patch('{reservation}/reject', [AdminReservationController::class, 'reject'])->whereNumber('reservation')->middleware('permission:reservations.manage')->name('reject');
             Route::patch('{reservation}/cancel', [AdminReservationController::class, 'cancel'])->whereNumber('reservation')->middleware('permission:reservations.manage')->name('cancel');
+            Route::patch('{reservation}/no-show', [AdminReservationController::class, 'noShow'])->whereNumber('reservation')->middleware('permission:reservations.manage')->name('no-show');
         });
     Route::prefix('admin/reservation-groups')
         ->name('admin.reservation-groups.')
@@ -187,11 +202,15 @@ Route::middleware('auth')->group(function (): void {
             Route::post('{group}/check-in', [AdminReservationGroupController::class, 'checkIn'])->whereNumber('group')->middleware('permission:reservations.manage|occupancy.manage')->name('check-in');
             Route::patch('{group}/confirm', [AdminReservationGroupController::class, 'confirm'])->whereNumber('group')->middleware('permission:reservations.manage')->name('confirm');
             Route::patch('{group}/cancel', [AdminReservationGroupController::class, 'cancel'])->whereNumber('group')->middleware('permission:reservations.manage')->name('cancel');
+            Route::patch('{group}/no-show', [AdminReservationGroupController::class, 'noShow'])->whereNumber('group')->middleware('permission:reservations.manage')->name('no-show');
         });
     Route::patch('reservation-extra-charges/{charge}/cancel', [ExtraChargeController::class, 'cancelReservationCharge'])
         ->whereNumber('charge')
         ->middleware(['company_user', 'permission:reservations.manage|occupancy.manage'])
         ->name('reservation-extra-charges.cancel');
+    Route::get('extra-charge-categories/autocomplete', [ExtraChargeCategoryController::class, 'autocomplete'])
+        ->middleware(['company_user', 'permission:extra-charge-categories.manage|pos.access|space-cash.access|occupancy.manage'])
+        ->name('extra-charge-categories.autocomplete');
     Route::prefix('extra-charge-categories')
         ->name('extra-charge-categories.')
         ->middleware(['company_user', 'permission:extra-charge-categories.manage'])

@@ -19,6 +19,7 @@ class SpaceCashIncome extends Model
         'receipt_number',
         'responsible_name',
         'detail',
+        'quantity',
         'reference',
         'amount',
         'received_at',
@@ -28,6 +29,7 @@ class SpaceCashIncome extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'quantity' => 'decimal:2',
             'received_at' => 'datetime',
         ];
     }
@@ -40,6 +42,11 @@ class SpaceCashIncome extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(ExtraChargeCategory::class, 'extra_charge_category_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     public function paymentMethod(): BelongsTo

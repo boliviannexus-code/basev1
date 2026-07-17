@@ -73,8 +73,10 @@ class PosController extends Controller
 
         $data = $request->validateWithBag('cashExpense', [
             'extra_charge_category_id' => ['required', 'integer', 'exists:extra_charge_categories,id'],
+            'payment_method_id' => ['required', 'integer', 'exists:payment_methods,id'],
             'responsible_name' => ['required', 'string', 'max:255'],
-            'detail' => ['required', 'string', 'max:255'],
+            'detail' => ['nullable', 'string', 'max:255'],
+            'quantity' => ['required', 'numeric', 'min:0.5', 'multiple_of:0.5'],
             'amount' => ['required', 'numeric', 'min:0.01'],
         ]);
         $category = $this->expenseCategories((int) $request->user()->company_id)
@@ -83,6 +85,17 @@ class PosController extends Controller
         if (! $category) {
             throw ValidationException::withMessages([
                 'extra_charge_category_id' => 'La categoria seleccionada no esta disponible.',
+            ])->errorBag('cashExpense');
+        }
+
+        $paymentMethod = PaymentMethod::query()
+            ->where('company_id', (int) $request->user()->company_id)
+            ->where('is_active', true)
+            ->find((int) $data['payment_method_id']);
+
+        if (! $paymentMethod) {
+            throw ValidationException::withMessages([
+                'payment_method_id' => 'El metodo de pago seleccionado no esta disponible.',
             ])->errorBag('cashExpense');
         }
 
@@ -96,7 +109,7 @@ class PosController extends Controller
 
         $available = (float) $this->cashRegisters->cashSummary($cashRegister)['available'];
 
-        if ((float) $data['amount'] > $available) {
+        if (mb_strtolower($paymentMethod->name) === 'efectivo' && (float) $data['amount'] > $available) {
             throw ValidationException::withMessages([
                 'amount' => 'El egreso no puede superar el efectivo disponible.',
             ])->errorBag('cashExpense');
@@ -108,8 +121,10 @@ class PosController extends Controller
             'point_of_sale_id' => null,
             'user_id' => $request->user()->id,
             'extra_charge_category_id' => $category->id,
+            'payment_method_id' => $paymentMethod->id,
             'responsible_name' => $data['responsible_name'],
-            'detail' => $data['detail'],
+            'detail' => $data['detail'] ?? $category->name,
+            'quantity' => round((float) $data['quantity'], 2),
             'amount' => $data['amount'],
             'spent_at' => now(),
         ]);
@@ -125,7 +140,8 @@ class PosController extends Controller
             'extra_charge_category_id' => ['required', 'integer', 'exists:extra_charge_categories,id'],
             'payment_method_id' => ['required', 'integer', 'exists:payment_methods,id'],
             'responsible_name' => ['nullable', 'string', 'max:255'],
-            'detail' => ['required', 'string', 'max:255'],
+            'detail' => ['nullable', 'string', 'max:255'],
+            'quantity' => ['required', 'numeric', 'min:0.5', 'multiple_of:0.5'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'reference' => ['nullable', 'string', 'max:255'],
         ]);
@@ -160,8 +176,10 @@ class PosController extends Controller
         }
 
         $amount = round((float) $data['amount'], 2);
+        $quantity = round((float) $data['quantity'], 2);
+        $unitPrice = round($amount / $quantity, 2);
 
-        DB::transaction(function () use ($request, $cashRegister, $category, $paymentMethod, $data, $amount): void {
+        DB::transaction(function () use ($request, $cashRegister, $category, $paymentMethod, $data, $amount, $quantity, $unitPrice): void {
             $receiptNumber = $this->cashRegisters->nextReceiptNumber($request->user(), 'EXT');
 
             $sale = Sale::query()->create([
@@ -187,10 +205,10 @@ class PosController extends Controller
                 'extra_charge_category_id' => $category->id,
                 'product_name' => $category->name,
                 'presentation_name' => 'Cargo extra',
-                'package_quantity' => 1,
+                'package_quantity' => $quantity,
                 'units_per_package' => 1,
-                'quantity' => 1,
-                'unit_price' => $amount,
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
                 'discount' => 0,
                 'subtotal' => $amount,
             ]);

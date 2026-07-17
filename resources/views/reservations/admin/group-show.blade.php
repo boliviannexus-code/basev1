@@ -12,6 +12,7 @@
             'confirmed' => 'Confirmada',
             'checked_in' => 'En check-in',
             'cancelled' => 'Cancelada',
+            'no_show' => 'No show',
         ];
         $statusTones = [
             'pending_payment' => 'warning',
@@ -19,6 +20,7 @@
             'confirmed' => 'success',
             'checked_in' => 'primary',
             'cancelled' => 'secondary',
+            'no_show' => 'danger',
         ];
         $resourceLabel = function ($reservation): string {
             if ($reservation->bedUnitItems->isNotEmpty()) {
@@ -103,11 +105,13 @@
                 ->isNotEmpty();
             $checkInAlreadyRegistered = $group->status === 'checked_in' && ! $hasActiveReservationBlocks;
             $canStartCheckIn = $group->check_in->isSameDay(today()) && ! $checkInAlreadyRegistered;
-            $canCancelReservation = ! in_array($group->status, ['cancelled'], true)
+            $canCancelReservation = ! in_array($group->status, ['cancelled', 'no_show'], true)
+                && ($group->status !== 'checked_in' || $hasActiveReservationBlocks);
+            $canMarkNoShow = in_array($group->status, ['pending_payment', 'payment_under_review', 'confirmed', 'checked_in'], true)
                 && ($group->status !== 'checked_in' || $hasActiveReservationBlocks);
         @endphp
 
-        @if ((auth()->user()?->can('reservations.manage') || auth()->user()?->can('occupancy.manage')) && $group->status !== 'cancelled')
+        @if ((auth()->user()?->can('reservations.manage') || auth()->user()?->can('occupancy.manage')) && ! in_array($group->status, ['cancelled', 'no_show'], true))
             <x-slot:actions>
                 <form action="{{ route('admin.reservation-groups.check-in', $group) }}" method="post" class="d-inline">
                     @csrf
@@ -134,7 +138,7 @@
                             class="form-select @error('reservation_channel_id') is-invalid @enderror"
                             id="reservation_channel_id"
                             name="reservation_channel_id"
-                            @disabled($group->status === 'cancelled' || $group->status === 'checked_in')
+                            @disabled(in_array($group->status, ['cancelled', 'no_show', 'checked_in'], true))
                         >
                             <option value="">Sin canal</option>
                             @foreach ($reservationChannels as $channel)
@@ -152,7 +156,7 @@
                             value="{{ old('guest_name', $group->guest_name) }}"
                             maxlength="255"
                             required
-                            @disabled($group->status === 'cancelled' || $group->status === 'checked_in')
+                            @disabled(in_array($group->status, ['cancelled', 'no_show', 'checked_in'], true))
                         >
                         @error('guest_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
@@ -165,7 +169,7 @@
                             type="email"
                             value="{{ old('guest_email', $group->guest_email) }}"
                             maxlength="255"
-                            @disabled($group->status === 'cancelled' || $group->status === 'checked_in')
+                            @disabled(in_array($group->status, ['cancelled', 'no_show', 'checked_in'], true))
                         >
                         @error('guest_email')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
@@ -177,7 +181,7 @@
                             name="guest_phone"
                             value="{{ old('guest_phone', $group->guest_phone) }}"
                             maxlength="255"
-                            @disabled($group->status === 'cancelled' || $group->status === 'checked_in')
+                            @disabled(in_array($group->status, ['cancelled', 'no_show', 'checked_in'], true))
                         >
                         @error('guest_phone')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
@@ -189,7 +193,7 @@
                             name="guest_document"
                             value="{{ old('guest_document', $group->guest_document) }}"
                             maxlength="255"
-                            @disabled($group->status === 'cancelled' || $group->status === 'checked_in')
+                            @disabled(in_array($group->status, ['cancelled', 'no_show', 'checked_in'], true))
                         >
                         @error('guest_document')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
@@ -212,8 +216,9 @@
                         @php
                             $canEditReservation = (auth()->user()?->can('reservations.manage') || auth()->user()?->can('occupancy.manage'))
                                 && $group->status !== 'cancelled'
+                                && $group->status !== 'no_show'
                                 && $group->status !== 'checked_in'
-                                && $reservation->status !== 'cancelled';
+                                && ! in_array($reservation->status, ['cancelled', 'no_show'], true);
                         @endphp
                         <tr data-reservation-date-row>
                             <td>
@@ -269,7 +274,7 @@
                                 </div>
                             </td>
                             <td class="text-end fw-semibold">{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</td>
-                            <td><span class="badge bg-{{ in_array($reservation->status, ['confirmed', 'checked_in'], true) ? 'success' : ($reservation->status === 'cancelled' ? 'secondary' : 'warning') }}-lt">{{ str($reservation->status)->replace('_', ' ') }}</span></td>
+                            <td><span class="badge bg-{{ in_array($reservation->status, ['confirmed', 'checked_in'], true) ? 'success' : ($reservation->status === 'no_show' ? 'danger' : ($reservation->status === 'cancelled' ? 'secondary' : 'warning')) }}-lt">{{ $statusLabels[$reservation->status] ?? str($reservation->status)->replace('_', ' ') }}</span></td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -280,7 +285,7 @@
     @if ($group->accountStatement)
         <x-ui.table-card title="Estado de cuenta" class="mt-3">
             <x-slot:actions>
-                @if ((float) $group->accountStatement->balance > 0 && ! in_array($group->status, ['cancelled', 'checked_in'], true))
+                @if ((float) $group->accountStatement->balance > 0 && ! in_array($group->status, ['cancelled', 'no_show', 'checked_in'], true))
                     <a
                         class="btn btn-success btn-sm"
                         href="{{ route('admin.reservation-groups.payments.create', $group) }}"
@@ -356,6 +361,16 @@
                         <input class="form-control" name="reason" placeholder="Motivo opcional de cancelacion">
                         <button class="btn btn-outline-secondary" type="submit">
                             <i class="ti ti-calendar-x me-1"></i>Cancelar reserva
+                        </button>
+                    </form>
+                @endif
+                @if ($canMarkNoShow)
+                    <form action="{{ route('admin.reservation-groups.no-show', $group) }}" method="post">
+                        @csrf
+                        @method('patch')
+                        <input class="form-control" name="reason" placeholder="Motivo opcional de no show">
+                        <button class="btn btn-outline-danger" type="submit">
+                            <i class="ti ti-user-x me-1"></i>No show
                         </button>
                     </form>
                 @endif

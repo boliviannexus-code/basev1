@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ExtraChargeCategory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -30,6 +31,28 @@ class ExtraChargeCategoryController extends Controller
                 'is_active' => true,
                 'sort_order' => 0,
             ]),
+        ]);
+    }
+
+    public function autocomplete(Request $request): JsonResponse
+    {
+        $term = trim((string) $request->query('q', ''));
+
+        $categories = ExtraChargeCategory::query()
+            ->where('company_id', $this->companyId())
+            ->where('is_active', true)
+            ->when($term !== '', fn ($query) => $query->where('name', 'like', "%{$term}%"))
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->limit(20)
+            ->get(['id', 'name', 'default_unit_price']);
+
+        return response()->json([
+            'results' => $categories->map(fn (ExtraChargeCategory $category): array => [
+                'value' => (string) $category->id,
+                'text' => $category->name,
+                'default_unit_price' => (float) $category->default_unit_price,
+            ])->values(),
         ]);
     }
 

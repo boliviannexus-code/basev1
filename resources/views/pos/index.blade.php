@@ -433,11 +433,14 @@
                                 class="form-select @error('extra_charge_category_id', 'cashIncome') is-invalid @enderror"
                                 id="income_category"
                                 name="extra_charge_category_id"
+                                data-remote-category-select
+                                data-url="{{ route('extra-charge-categories.autocomplete') }}"
+                                data-placeholder="Buscar categoria"
                                 required
                             >
                                 <option value="">Seleccionar categoria</option>
                                 @foreach ($expenseCategories as $category)
-                                    <option value="{{ $category->id }}" @selected((int) old('extra_charge_category_id') === (int) $category->id)>{{ $category->name }}</option>
+                                    <option value="{{ $category->id }}" data-default-unit-price="{{ $category->default_unit_price }}" @selected((int) old('extra_charge_category_id') === (int) $category->id)>{{ $category->name }}</option>
                                 @endforeach
                             </select>
                             @error('extra_charge_category_id', 'cashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -467,7 +470,6 @@
                                 name="detail"
                                 rows="3"
                                 maxlength="255"
-                                required
                             >{{ old('detail') }}</textarea>
                             @error('detail', 'cashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
@@ -483,6 +485,21 @@
                                 maxlength="255"
                             >
                             @error('reference', 'cashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="income_quantity">Cantidad</label>
+                            <input
+                                class="form-control text-end @error('quantity', 'cashIncome') is-invalid @enderror"
+                                id="income_quantity"
+                                name="quantity"
+                                type="number"
+                                min="0.5"
+                                step="0.5"
+                                value="{{ old('quantity', '1') }}"
+                                required
+                            >
+                            @error('quantity', 'cashIncome')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         <div>
@@ -547,14 +564,33 @@
                                 class="form-select @error('extra_charge_category_id', 'cashExpense') is-invalid @enderror"
                                 id="expense_category"
                                 name="extra_charge_category_id"
+                                data-remote-category-select
+                                data-url="{{ route('extra-charge-categories.autocomplete') }}"
+                                data-placeholder="Buscar categoria"
                                 required
                             >
                                 <option value="">Seleccionar categoria</option>
                                 @foreach ($expenseCategories as $category)
-                                    <option value="{{ $category->id }}" @selected((int) old('extra_charge_category_id') === (int) $category->id)>{{ $category->name }}</option>
+                                    <option value="{{ $category->id }}" data-default-unit-price="{{ $category->default_unit_price }}" @selected((int) old('extra_charge_category_id') === (int) $category->id)>{{ $category->name }}</option>
                                 @endforeach
                             </select>
                             @error('extra_charge_category_id', 'cashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="expense_payment_method">Metodo de pago</label>
+                            <select
+                                class="form-select @error('payment_method_id', 'cashExpense') is-invalid @enderror"
+                                id="expense_payment_method"
+                                name="payment_method_id"
+                                required
+                            >
+                                <option value="">Seleccionar metodo</option>
+                                @foreach ($paymentMethods as $paymentMethod)
+                                    <option value="{{ $paymentMethod->id }}" @selected((int) old('payment_method_id') === (int) $paymentMethod->id)>{{ $paymentMethod->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('payment_method_id', 'cashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         <div class="mb-3">
@@ -565,9 +601,23 @@
                                 name="detail"
                                 rows="3"
                                 maxlength="1000"
-                                required
                             >{{ old('detail') }}</textarea>
                             @error('detail', 'cashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="expense_quantity">Cantidad</label>
+                            <input
+                                class="form-control text-end @error('quantity', 'cashExpense') is-invalid @enderror"
+                                id="expense_quantity"
+                                name="quantity"
+                                type="number"
+                                min="0.5"
+                                step="0.5"
+                                value="{{ old('quantity', '1') }}"
+                                required
+                            >
+                            @error('quantity', 'cashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         <div>
@@ -731,7 +781,7 @@
                                                 <thead>
                                                     <tr>
                                                         <th>Comprobante</th>
-                                                        <th>Hora</th>
+                                                        <th>Fecha</th>
                                                         <th>Pagos</th>
                                                         <th class="text-end">Total</th>
                                                     </tr>
@@ -740,7 +790,7 @@
                                                     @forelse (($cashSummary['sales'] ?? []) as $sale)
                                                         <tr>
                                                             <td class="fw-semibold">{{ $sale->receipt_number }}</td>
-                                                            <td>{{ $sale->sale_date?->format('H:i') }}</td>
+                                                            <td>{{ $sale->sale_date?->format('Y-m-d H:i') }}</td>
                                                             <td>
                                                                 @foreach ($sale->payments as $payment)
                                                                     <span class="badge bg-blue-lt me-1">{{ $payment->payment_method_name }} {{ money_format_decimal($payment->amount) }}</span>
@@ -772,9 +822,10 @@
                                             <table class="table table-sm table-vcenter mb-0">
                                                 <thead>
                                                     <tr>
-                                                        <th>Hora</th>
+                                                        <th>Fecha</th>
                                                         <th>Encargado</th>
                                                         <th>Categoria</th>
+                                                        <th>Metodo</th>
                                                         <th>Detalle</th>
                                                         <th class="text-end">Monto</th>
                                                     </tr>
@@ -782,19 +833,68 @@
                                                 <tbody>
                                                     @forelse (($cashSummary['expense_details'] ?? []) as $expense)
                                                         <tr>
-                                                            <td>{{ $expense->spent_at?->format('H:i') }}</td>
+                                                            <td>{{ $expense->spent_at?->format('Y-m-d H:i') }}</td>
                                                             <td>{{ $expense->responsible_name }}</td>
                                                             <td>{{ $expense->category?->name ?: '-' }}</td>
+                                                            <td>{{ $expense->paymentMethod?->name ?: 'Efectivo' }}</td>
                                                             <td>{{ $expense->detail }}</td>
                                                             <td class="text-end fw-semibold">{{ money_format_decimal($expense->amount) }}</td>
                                                         </tr>
                                                     @empty
                                                         <tr>
-                                                            <td class="text-center text-body-secondary" colspan="5">Sin egresos registrados.</td>
+                                                            <td class="text-center text-body-secondary" colspan="6">Sin egresos registrados.</td>
                                                         </tr>
                                                     @endforelse
                                                 </tbody>
                                             </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="cashCloseExpenseSummaryHeading">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cashCloseExpenseSummary" aria-expanded="false" aria-controls="cashCloseExpenseSummary">
+                                        Reporte de egresos y saldos por metodo
+                                    </button>
+                                </h2>
+                                <div class="accordion-collapse collapse" id="cashCloseExpenseSummary" aria-labelledby="cashCloseExpenseSummaryHeading" data-bs-parent="#cashCloseDetails">
+                                    <div class="accordion-body">
+                                        <div class="row g-3">
+                                            <div class="col-lg-5">
+                                                <table class="table table-sm table-vcenter mb-0">
+                                                    <thead><tr><th>Metodo</th><th class="text-end">Egresos</th><th class="text-end">Total</th></tr></thead>
+                                                    <tbody>
+                                                        @forelse (($cashSummary['expense_payments'] ?? []) as $expensePayment)
+                                                            <tr>
+                                                                <td>{{ $expensePayment['name'] }}</td>
+                                                                <td class="text-end">{{ $expensePayment['payments_count'] }}</td>
+                                                                <td class="text-end fw-semibold">{{ money_format_decimal($expensePayment['total']) }}</td>
+                                                            </tr>
+                                                        @empty
+                                                            <tr><td class="text-center text-body-secondary" colspan="3">Sin egresos registrados.</td></tr>
+                                                        @endforelse
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <div class="col-lg-7">
+                                                <table class="table table-sm table-vcenter mb-0">
+                                                    <thead><tr><th>Metodo</th><th class="text-end">Inicial</th><th class="text-end">Ingresos</th><th class="text-end">Egresos</th><th class="text-end">Saldo</th></tr></thead>
+                                                    <tbody>
+                                                        @forelse (($cashSummary['method_balances'] ?? []) as $balance)
+                                                            <tr>
+                                                                <td>{{ $balance['name'] }}</td>
+                                                                <td class="text-end">{{ money_format_decimal($balance['opening']) }}</td>
+                                                                <td class="text-end">{{ money_format_decimal($balance['income']) }}</td>
+                                                                <td class="text-end">{{ money_format_decimal($balance['expense']) }}</td>
+                                                                <td class="text-end fw-semibold">{{ money_format_decimal($balance['balance']) }}</td>
+                                                            </tr>
+                                                        @empty
+                                                            <tr><td class="text-center text-body-secondary" colspan="5">Sin movimientos.</td></tr>
+                                                        @endforelse
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

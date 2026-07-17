@@ -46,6 +46,11 @@ class SpaceCashReservationPayment extends Model
         return $this->belongsTo(ReservationGroup::class);
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function paymentMethod(): BelongsTo
     {
         return $this->belongsTo(PaymentMethod::class);

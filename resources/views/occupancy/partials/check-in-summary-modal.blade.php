@@ -23,6 +23,7 @@
         'checked_in' => 'En curso',
         'checked_out' => 'Finalizado',
         'cancelled' => 'Cancelado',
+        'no_show' => 'No show',
     ];
 @endphp
 

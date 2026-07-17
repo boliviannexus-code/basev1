@@ -4,6 +4,8 @@
     $globalAdminOpen = request()->routeIs('admin.accommodation-catalogs.*', 'admin.spaces.*');
     $spacesOpen = request()->routeIs('spaces.*', 'availability.*', 'occupancy.*', 'admin.reservations.*', 'accommodation-packages.*', 'package-services.*');
     $cashOpen = request()->routeIs('space-cash.*');
+    $reportsOpen = request()->routeIs('reports.*');
+    $businessIntelligenceOpen = request()->routeIs('business-intelligence.*');
     $configurationOpen = request()->routeIs('countries.*', 'extra-charge-categories.*', 'exchange-rates.*', 'reservation-channels.*', 'reservation-settings.*', 'payment-methods.*');
 
     $canPublicProfile = auth()->user()?->company_id !== null
@@ -19,6 +21,10 @@
         && (auth()->user()?->can('space-cash.access')
             || auth()->user()?->can('occupancy.manage')
             || auth()->user()?->can('space-cash.view'));
+    $canReports = auth()->user()?->company_id !== null
+        && auth()->user()?->can('reports.view');
+    $canBusinessIntelligence = auth()->user()?->company_id !== null
+        && auth()->user()?->can('business-intelligence.view');
     $canConfiguration = auth()->user()?->company_id !== null
         && (auth()->user()?->can('countries.manage')
             || auth()->user()?->can('extra-charge-categories.manage')
@@ -172,6 +178,41 @@
                                         </a>
                                     </li>
                                 @endif
+                            </ul>
+                        </div>
+                    </li>
+                @endif
+
+                @if ($canBusinessIntelligence)
+                    <li class="nav-item {{ $businessIntelligenceOpen ? 'active' : '' }}">
+                        <a class="nav-link" href="{{ route('business-intelligence.index') }}">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-chart-infographic"></i></span>
+                            <span class="nav-link-title">Business Intelligence</span>
+                        </a>
+                    </li>
+                @endif
+
+                @if ($canReports)
+                    <li class="nav-item app-menu-section {{ $reportsOpen ? 'active' : '' }}">
+                        <button class="nav-link app-menu-toggle {{ $reportsOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-reports" aria-expanded="{{ $reportsOpen ? 'true' : 'false' }}" aria-controls="menu-reports">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-chart-bar"></i></span>
+                            <span class="nav-link-title">Reportes</span>
+                            <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
+                        </button>
+                        <div class="collapse {{ $reportsOpen ? 'show' : '' }}" id="menu-reports">
+                            <ul class="nav app-submenu">
+                                <li class="nav-item {{ request()->routeIs('reports.index', 'reports.print') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('reports.index') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-report-money"></i></span>
+                                        <span class="nav-link-title">Economico</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('reports.occupancy.*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('reports.occupancy.index') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-calendar-stats"></i></span>
+                                        <span class="nav-link-title">Ocupabilidad</span>
+                                    </a>
+                                </li>
                             </ul>
                         </div>
                     </li>

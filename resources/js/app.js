@@ -72,6 +72,8 @@ function openAjaxModal(trigger) {
             ajaxModalBody.innerHTML = html;
             disableBusinessFormAutocomplete(ajaxModalBody);
             initTomSelects(ajaxModalBody);
+            initRemoteCategorySelects(ajaxModalBody);
+            initCategoryAmountSync(ajaxModalBody);
             syncPointSaleWarehouse(ajaxModalBody);
             initDefragmentForms(ajaxModalBody);
             initTransferForms(ajaxModalBody);
@@ -214,6 +216,9 @@ async function refreshContainer(url) {
     if (fresh) {
         current.replaceWith(fresh);
         initTomSelects(fresh);
+        initRemoteCategorySelects(fresh);
+        initCategoryAmountSync(fresh);
+        initReportFilters(fresh);
         initAdminDataTables();
         initCharacterCounters(fresh);
         initSpaceLocationMaps(fresh);
@@ -1323,6 +1328,178 @@ function initTomSelects(scope = document) {
                 },
             },
         });
+    });
+}
+
+function initRemoteCategorySelects(scope = document) {
+    scope.querySelectorAll('select[data-remote-category-select]').forEach((select) => {
+        if (select.tomselect) {
+            return;
+        }
+
+        const url = select.dataset.url;
+
+        if (!url) {
+            return;
+        }
+
+        new TomSelect(select, {
+            allowEmptyOption: true,
+            create: false,
+            dropdownParent: 'body',
+            maxItems: 1,
+            placeholder: select.dataset.placeholder ?? 'Buscar categoria',
+            valueField: 'value',
+            labelField: 'text',
+            searchField: 'text',
+            preload: true,
+            load(query, callback) {
+                const searchUrl = new URL(url, window.location.origin);
+                searchUrl.searchParams.set('q', query);
+
+                fetch(searchUrl, {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                })
+                    .then((response) => {
+                        if (!response.ok) {
+                            throw new Error('No se pudieron cargar las categorias.');
+                        }
+
+                        return response.json();
+                    })
+                    .then((payload) => callback(payload.results ?? []))
+                    .catch(() => callback());
+            },
+            onItemAdd() {
+                syncRemoteCategoryAmount(select);
+            },
+            onChange() {
+                syncRemoteCategoryAmount(select);
+            },
+            plugins: ['clear_button'],
+            render: {
+                no_results() {
+                    return '<div class="no-results">Sin resultados</div>';
+                },
+            },
+        });
+    });
+}
+
+function syncRemoteCategoryAmount(select) {
+    const form = select.closest('form');
+    const selected = select.tomselect?.options?.[select.value];
+    const selectedOption = select.selectedOptions?.[0];
+    const unitPrice = Number(selected?.default_unit_price ?? 0);
+    const fallbackUnitPrice = Number(selectedOption?.dataset.defaultUnitPrice ?? 0);
+    const quantityInput = form?.querySelector('[name="quantity"]');
+    const amountInput = form?.querySelector('[name="amount"]');
+
+    if (!form || !amountInput || (!unitPrice && !fallbackUnitPrice)) {
+        return;
+    }
+
+    const quantity = Math.max(0.5, Number(quantityInput?.value || 1));
+    amountInput.value = ((unitPrice || fallbackUnitPrice) * quantity).toFixed(2);
+    amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+    amountInput.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function initCategoryAmountSync(scope = document) {
+    scope.querySelectorAll('form').forEach((form) => {
+        if (form.dataset.categoryAmountSyncInitialized === '1') {
+            return;
+        }
+
+        const select = form.querySelector('select[data-remote-category-select]');
+        const quantityInput = form.querySelector('[name="quantity"]');
+
+        if (!select || !quantityInput) {
+            return;
+        }
+
+        quantityInput.addEventListener('input', () => syncRemoteCategoryAmount(select));
+        quantityInput.addEventListener('change', () => syncRemoteCategoryAmount(select));
+        form.dataset.categoryAmountSyncInitialized = '1';
+    });
+}
+
+function reportUrlFromForm(form) {
+    const url = new URL(form.action, window.location.origin);
+    const formData = new FormData(form);
+
+    formData.forEach((value, key) => {
+        if (String(value) !== '') {
+            url.searchParams.set(key, value);
+        }
+    });
+
+    return url;
+}
+
+function updateReportPrintLink(url) {
+    const printLink = document.querySelector('[data-report-print-link]');
+
+    if (!printLink) {
+        return;
+    }
+
+    const printUrl = new URL(printLink.href, window.location.origin);
+    printUrl.search = url.search;
+    printLink.href = printUrl.toString();
+}
+
+async function refreshReport(form) {
+    const target = document.querySelector('[data-report-results]');
+
+    if (!target) {
+        form.submit();
+
+        return;
+    }
+
+    const url = reportUrlFromForm(form);
+    target.classList.add('opacity-50');
+
+    try {
+        const html = await fetchHtml(url.toString());
+        const freshDocument = new DOMParser().parseFromString(html, 'text/html');
+        const freshTarget = freshDocument.querySelector('[data-report-results]');
+
+        if (!freshTarget) {
+            throw new Error('No se pudo actualizar el reporte.');
+        }
+
+        target.replaceWith(freshTarget);
+        window.history.replaceState({}, '', url.toString());
+        updateReportPrintLink(url);
+    } catch (error) {
+        Swal.fire({ icon: 'error', title: 'Reportes', text: error.message });
+    } finally {
+        document.querySelector('[data-report-results]')?.classList.remove('opacity-50');
+    }
+}
+
+function scheduleReportRefresh(form) {
+    window.clearTimeout(Number(form.dataset.reportRefreshTimeout || 0));
+    form.dataset.reportRefreshTimeout = String(window.setTimeout(() => refreshReport(form), 250));
+}
+
+function initReportFilters(scope = document) {
+    scope.querySelectorAll('[data-report-filter-form]').forEach((form) => {
+        if (form.dataset.reportFilterInitialized === '1') {
+            return;
+        }
+
+        form.addEventListener('change', () => scheduleReportRefresh(form));
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            refreshReport(form);
+        });
+        form.dataset.reportFilterInitialized = '1';
     });
 }
 
@@ -5307,6 +5484,9 @@ showInitialAlerts();
 disableBusinessFormAutocomplete();
 initHumanTextCapitalization();
 initTomSelects();
+initRemoteCategorySelects();
+initCategoryAmountSync();
+initReportFilters();
 initPurchaseForm();
 syncPointSaleWarehouse();
 initPosSaleForm();
@@ -5444,6 +5624,28 @@ document.addEventListener('click', (event) => {
     if (packageServiceRemove) {
         event.preventDefault();
         removePackageServiceFromCart(packageServiceRemove);
+    }
+
+    const reportTypeLink = event.target.closest('[data-report-type-link]');
+
+    if (reportTypeLink) {
+        const form = document.querySelector('[data-report-filter-form]');
+        const type = new URL(reportTypeLink.href, window.location.origin).searchParams.get('type');
+
+        if (!form || !type) {
+            return;
+        }
+
+        event.preventDefault();
+        const typeField = form.querySelector('[name="type"]');
+
+        if (typeField?.tomselect) {
+            typeField.tomselect.setValue(type, true);
+        } else if (typeField) {
+            typeField.value = type;
+        }
+
+        refreshReport(form);
     }
 });
 

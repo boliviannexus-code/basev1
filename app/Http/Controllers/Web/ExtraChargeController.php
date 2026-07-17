@@ -140,7 +140,7 @@ class ExtraChargeController extends Controller
 
     private function ensureReservationCanReceiveCharges(Reservation $reservation): void
     {
-        abort_if(in_array($reservation->status, ['cancelled', 'rejected', 'expired'], true), 403);
+        abort_if(in_array($reservation->status, ['cancelled', 'rejected', 'expired', 'no_show'], true), 403);
 
         if ($reservation->status === 'checked_in') {
             abort_unless($this->reservationHasActiveBlocks($reservation), 403);

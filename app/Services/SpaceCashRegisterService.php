@@ -102,6 +102,7 @@ class SpaceCashRegisterService
     {
         $cashRegister->loadMissing([
             'expenses.category',
+            'expenses.paymentMethod',
             'incomes.category',
             'incomes.paymentMethod',
             'lodgingPayments.paymentMethod',
@@ -127,6 +128,9 @@ class SpaceCashRegisterService
         $reservationCashTotal = (float) $reservationPayments
             ->filter(fn ($payment): bool => $cashMethod((string) $payment->paymentMethod?->name))
             ->sum('amount_bob');
+        $cashExpensesTotal = (float) $expenses
+            ->filter(fn ($expense): bool => $cashMethod((string) ($expense->paymentMethod?->name ?? 'Efectivo')))
+            ->sum('amount');
         $expensesTotal = (float) $expenses->sum('amount');
         $directTotal = (float) $incomes->sum('amount');
         $lodgingTotal = (float) $lodgingPayments->sum('amount_bob');
@@ -140,8 +144,15 @@ class SpaceCashRegisterService
             'reservation_total' => $reservationTotal,
             'income_total' => $incomeTotal,
             'expenses' => $expensesTotal,
-            'available' => (float) $cashRegister->opening_amount + $directCashTotal + $lodgingCashTotal + $reservationCashTotal - $expensesTotal,
+            'available' => (float) $cashRegister->opening_amount + $directCashTotal + $lodgingCashTotal + $reservationCashTotal - $cashExpensesTotal,
             'payments' => $this->paymentRows($lodgingPayments->concat($reservationPayments), $incomes),
+            'expense_payments' => $this->expenseRows($expenses),
+            'method_balances' => $this->methodBalances(
+                (float) $cashRegister->opening_amount,
+                $lodgingPayments->concat($reservationPayments),
+                $incomes,
+                $expenses,
+            ),
             'direct_incomes' => $incomes->sortByDesc('received_at')->values(),
             'lodging_payments' => $lodgingPayments->sortByDesc('created_at')->values(),
             'reservation_payments' => $reservationPayments->sortByDesc('created_at')->values(),
@@ -166,6 +177,47 @@ class SpaceCashRegisterService
                 'payments_count' => $rows->count(),
                 'total' => $rows->sum('total'),
             ])
+            ->values()
+            ->all();
+    }
+
+    private function expenseRows(Collection $expenses): array
+    {
+        return $expenses
+            ->map(fn ($expense): array => [
+                'name' => $expense->paymentMethod?->name ?: 'Efectivo',
+                'total' => (float) $expense->amount,
+            ])
+            ->groupBy('name')
+            ->map(fn (Collection $rows, string $name): array => [
+                'name' => $name,
+                'payments_count' => $rows->count(),
+                'total' => $rows->sum('total'),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function methodBalances(float $openingAmount, Collection $lodgingPayments, Collection $incomes, Collection $expenses): array
+    {
+        $incomeRows = collect($this->paymentRows($lodgingPayments, $incomes))->keyBy('name');
+        $expenseRows = collect($this->expenseRows($expenses))->keyBy('name');
+        $names = $incomeRows->keys()->merge($expenseRows->keys())->push('Efectivo')->unique()->sort()->values();
+
+        return $names
+            ->map(function (string $name) use ($openingAmount, $incomeRows, $expenseRows): array {
+                $opening = mb_strtolower($name) === 'efectivo' ? $openingAmount : 0.0;
+                $income = (float) ($incomeRows->get($name)['total'] ?? 0);
+                $expense = (float) ($expenseRows->get($name)['total'] ?? 0);
+
+                return [
+                    'name' => $name,
+                    'opening' => $opening,
+                    'income' => $income,
+                    'expense' => $expense,
+                    'balance' => $opening + $income - $expense,
+                ];
+            })
             ->values()
             ->all();
     }

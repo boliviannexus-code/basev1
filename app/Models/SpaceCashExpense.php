@@ -15,8 +15,10 @@ class SpaceCashExpense extends Model
         'space_cash_register_id',
         'user_id',
         'extra_charge_category_id',
+        'payment_method_id',
         'responsible_name',
         'detail',
+        'quantity',
         'amount',
         'spent_at',
     ];
@@ -25,6 +27,7 @@ class SpaceCashExpense extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'quantity' => 'decimal:2',
             'spent_at' => 'datetime',
         ];
     }
@@ -34,8 +37,18 @@ class SpaceCashExpense extends Model
         return $this->belongsTo(SpaceCashRegister::class, 'space_cash_register_id');
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(ExtraChargeCategory::class, 'extra_charge_category_id');
+    }
+
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
     }
 }

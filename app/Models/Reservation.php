@@ -24,6 +24,7 @@ class Reservation extends Model
         'rejected',
         'cancelled',
         'expired',
+        'no_show',
     ];
 
     public const BLOCKING_STATUSES = [
@@ -204,6 +205,11 @@ class Reservation extends Model
     {
         return in_array($this->status, ['pending_payment', 'payment_under_review'], true)
             && in_array($this->payment_status, ['pending', 'submitted', 'rejected'], true);
+    }
+
+    public function isClosedWithoutStay(): bool
+    {
+        return in_array($this->status, ['cancelled', 'rejected', 'expired', 'no_show'], true);
     }
 
     public function shouldBlockAvailability(): bool
