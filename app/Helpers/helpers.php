@@ -29,6 +29,8 @@ if (! function_exists('role_label')) {
             'super_admin' => 'Super administrador',
             'manager' => 'Gerente',
             'viewer' => 'Visualizador',
+            'comite_penas' => 'Comite de penas',
+            'comite_penas_superior' => 'Comite de penas superior',
         ];
 
         return $labels[$name] ?? str($name)->replace(['-', '_'], ' ')->headline()->toString();
@@ -47,11 +49,25 @@ if (! function_exists('permission_module_label')) {
             'companies' => 'Ligas deportivas',
             'seasons' => 'Gestiones',
             'divisions' => 'Divisiones',
+            'courts' => 'Canchas',
             'teams' => 'Equipos',
             'players' => 'Jugadores',
+            'player-imports' => 'Importar jugadores',
             'tournaments' => 'Torneos',
             'tournament-registrations' => 'Inscripciones',
+            'fixtures' => 'Fixture',
+            'matchdays' => 'Jornadas',
+            'match-reports' => 'Registro de partidos',
+            'red-cards' => 'Tarjetas rojas',
+            'red-card-articles' => 'Articulos de sancion',
+            'punishments' => 'Castigos',
+            'meetings' => 'Asistencia reuniones',
+            'standings' => 'Tabla de posiciones',
+            'sports-reports' => 'Reportes deportivos',
+            'accreditations' => 'Acreditaciones',
             'player-habilitations' => 'Habilitaciones',
+            'player-transfers' => 'Pases',
+            'league-settings' => 'Configuraciones de liga',
             'categories' => 'Categorias',
             'audits' => 'Auditoria',
         ];
@@ -94,7 +110,14 @@ if (! function_exists('permission_action_label')) {
             'assign-roles' => 'Asignar roles',
             'assign-permissions' => 'Asignar permisos',
             'approve-updates' => 'Aprobar ediciones',
+            'review' => 'Revisar',
+            'settings' => 'Configurar',
+            'generate' => 'Generar',
+            'adjust' => 'Ajustar puntos',
+            'reopen' => 'Reabrir',
             'manage' => 'Administrar',
+            'request-lift' => 'Solicitar retiro',
+            'approve-lift' => 'Aprobar retiro',
         ];
 
         return $labels[$action] ?? str($action)->replace(['-', '_'], ' ')->headline()->toString();
@@ -152,6 +175,28 @@ if (! function_exists('registration_status_tone')) {
         return [
             'registered' => 'success',
             'withdrawn' => 'secondary',
+        ][$status] ?? 'secondary';
+    }
+}
+
+if (! function_exists('player_transfer_status_label')) {
+    function player_transfer_status_label(string $status): string
+    {
+        return [
+            'pending' => 'Pendiente',
+            'approved' => 'Aprobado',
+            'rejected' => 'Rechazado',
+        ][$status] ?? str($status)->replace(['-', '_'], ' ')->headline()->toString();
+    }
+}
+
+if (! function_exists('player_transfer_status_tone')) {
+    function player_transfer_status_tone(string $status): string
+    {
+        return [
+            'pending' => 'warning',
+            'approved' => 'success',
+            'rejected' => 'danger',
         ][$status] ?? 'secondary';
     }
 }

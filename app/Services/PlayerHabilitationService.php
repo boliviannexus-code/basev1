@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\LeagueSetting;
 use App\Models\Player;
+use App\Models\PlayerTransferRequest;
+use App\Models\PlayerTransferSetting;
 use App\Models\Team;
 use App\Models\TeamPlayer;
 use App\Models\Tournament;
@@ -22,7 +25,7 @@ class PlayerHabilitationService
     public function tournamentsForSelect(): Collection
     {
         return CompanyContext::scope(Tournament::query())
-            ->with(['season', 'division', 'category'])
+            ->with(['season', 'division', 'categories'])
             ->where('is_active', true)
             ->orderByDesc('id')
             ->get();
@@ -35,6 +38,17 @@ class PlayerHabilitationService
         }
 
         return CompanyContext::scope(Team::query())
+            ->with(['registrations' => function ($query) use ($tournament): void {
+                $query->with(['category'])
+                    ->where('tournament_id', $tournament->id)
+                    ->where('status', 'registered')
+                    ->whereNull('deleted_at');
+            }])
+            ->withCount(['teamPlayers as roster_players_count' => function ($query) use ($tournament): void {
+                $query->where('division_id', $tournament->division_id)
+                    ->where('status', TeamPlayer::STATUS_ACTIVE)
+                    ->whereNull('deleted_at');
+            }])
             ->whereHas('registrations', function ($query) use ($tournament): void {
                 $query->where('tournament_id', $tournament->id)
                     ->where('status', 'registered')
@@ -43,6 +57,44 @@ class PlayerHabilitationService
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
+    }
+
+    public function tournamentContext(Tournament $tournament): array
+    {
+        $this->ensureTournamentVisible($tournament);
+        $tournament->loadMissing(['season', 'division', 'categories']);
+        $teams = $this->teamsForTournament($tournament);
+        $enabledCounts = TournamentTeamPlayer::query()
+            ->where('company_id', $tournament->company_id)
+            ->where('tournament_id', $tournament->id)
+            ->where('status', TournamentTeamPlayer::STATUS_ENABLED)
+            ->whereNull('deleted_at')
+            ->select('team_id', DB::raw('COUNT(*) as total'))
+            ->groupBy('team_id')
+            ->pluck('total', 'team_id');
+
+        return [
+            'enabledCounts' => $enabledCounts,
+            'teams' => $teams,
+            'tournament' => $tournament,
+        ];
+    }
+
+    public function teamContext(Tournament $tournament, Team $team, ?string $search = null): array
+    {
+        $this->ensureSameLeague($tournament, $team);
+        abort_unless($this->registrationFor($tournament, $team), 404);
+        $tournament->loadMissing(['season', 'division', 'categories']);
+        $team->loadMissing(['company']);
+
+        return [
+            'enabledPlayers' => $this->enabledPlayers($tournament, $team),
+            'registration' => $this->registrationFor($tournament, $team),
+            'rosterPlayers' => $this->rosterPlayers($tournament, $team, $search),
+            'search' => trim((string) $search),
+            'team' => $team,
+            'tournament' => $tournament,
+        ];
     }
 
     public function context(?int $tournamentId, ?int $teamId, ?string $search = null): array
@@ -74,6 +126,7 @@ class PlayerHabilitationService
         return TournamentTeamPlayer::query()
             ->with(['player', 'teamPlayer'])
             ->where('company_id', $tournament->company_id)
+            ->whereHas('player', fn ($query) => $query->where('company_id', $tournament->company_id))
             ->where('tournament_id', $tournament->id)
             ->where('team_id', $team->id)
             ->where('status', TournamentTeamPlayer::STATUS_ENABLED)
@@ -90,6 +143,7 @@ class PlayerHabilitationService
         return TeamPlayer::query()
             ->with(['player'])
             ->where('company_id', $tournament->company_id)
+            ->whereHas('player', fn ($query) => $query->where('company_id', $tournament->company_id))
             ->where('division_id', $tournament->division_id)
             ->where('team_id', $team->id)
             ->where('status', TeamPlayer::STATUS_ACTIVE)
@@ -101,6 +155,7 @@ class PlayerHabilitationService
                     $playerQuery
                         ->whereRaw('LOWER(first_name) LIKE ?', [$like])
                         ->orWhereRaw('LOWER(last_name) LIKE ?', [$like])
+                        ->orWhereRaw('LOWER(maternal_name) LIKE ?', [$like])
                         ->orWhereRaw('LOWER(internal_code) LIKE ?', [$like])
                         ->orWhere('ci_normalized', 'like', $normalizedCi);
                 });
@@ -118,6 +173,7 @@ class PlayerHabilitationService
         }
 
         $player = Player::query()
+            ->forCompany(CompanyContext::id())
             ->where('ci_normalized', $normalizedCi)
             ->first();
 
@@ -125,10 +181,15 @@ class PlayerHabilitationService
             return ['found' => false];
         }
 
-        $tournament = Tournament::query()->whereKey($tournamentId)->first();
+        $tournament = Tournament::query()->with('division')->whereKey($tournamentId)->first();
         $selectedTeam = Team::query()->whereKey($teamId)->first();
         $currentTeamPlayer = null;
         $habilitation = null;
+        $belongsToSelectedTeam = false;
+        $belongsToOtherTeam = false;
+        $enabledInSelectedTeam = false;
+        $enabledInOtherTeam = false;
+        $pendingTransfer = null;
 
         if ($tournament && CompanyContext::belongsToUser($tournament->company_id, auth()->user())) {
             $currentTeamPlayer = TeamPlayer::query()
@@ -140,6 +201,13 @@ class PlayerHabilitationService
                 ->whereNull('deleted_at')
                 ->first();
 
+            $belongsToSelectedTeam = $currentTeamPlayer
+                && $selectedTeam
+                && (int) $selectedTeam->id === (int) $currentTeamPlayer->team_id;
+            $belongsToOtherTeam = $currentTeamPlayer
+                && $selectedTeam
+                && (int) $selectedTeam->id !== (int) $currentTeamPlayer->team_id;
+
             $habilitation = TournamentTeamPlayer::query()
                 ->with('team')
                 ->where('company_id', $tournament->company_id)
@@ -148,17 +216,87 @@ class PlayerHabilitationService
                 ->where('status', TournamentTeamPlayer::STATUS_ENABLED)
                 ->whereNull('deleted_at')
                 ->first();
+
+            $enabledInSelectedTeam = $habilitation
+                && $selectedTeam
+                && (int) $selectedTeam->id === (int) $habilitation->team_id;
+            $enabledInOtherTeam = $habilitation
+                && $selectedTeam
+                && (int) $selectedTeam->id !== (int) $habilitation->team_id;
+
+            if ($selectedTeam) {
+                $pendingTransfer = PlayerTransferRequest::query()
+                    ->where('company_id', $tournament->company_id)
+                    ->where('division_id', $tournament->division_id)
+                    ->where('player_id', $player->id)
+                    ->where('to_team_id', $selectedTeam->id)
+                    ->where('status', PlayerTransferRequest::STATUS_PENDING)
+                    ->whereNull('deleted_at')
+                    ->first();
+            }
         }
 
         $status = 'No afiliado';
         $statusTone = 'secondary';
+        $transferBlockedReason = null;
 
-        if ($habilitation) {
+        if ($enabledInOtherTeam) {
+            $status = 'Habilitado en otro equipo';
+            $statusTone = 'danger';
+            $transferBlockedReason = 'El jugador ya esta habilitado en este torneo con otro equipo.';
+        } elseif ($habilitation) {
             $status = 'Habilitado';
             $statusTone = 'success';
-        } elseif ($currentTeamPlayer) {
-            $status = 'Solo afiliado';
+        } elseif ($belongsToOtherTeam) {
+            $status = 'En otro equipo';
             $statusTone = 'warning';
+        } elseif ($currentTeamPlayer) {
+            $status = 'En plantilla';
+            $statusTone = 'warning';
+        }
+
+        $age = $player->age();
+        $ageOk = $tournament?->division
+            && $age !== null
+            && $age >= $tournament->division->min_age
+            && $age <= $tournament->division->max_age;
+        $ageBlockedReason = null;
+
+        if (! $tournament?->division) {
+            $ageBlockedReason = 'El torneo no tiene una division valida para verificar la edad.';
+        } elseif ($age === null) {
+            $ageBlockedReason = 'El jugador debe tener fecha de nacimiento registrada para validar la categoria.';
+        } elseif (! $ageOk) {
+            $ageBlockedReason = "El jugador tiene {$age} anos y no cumple el rango de la categoria ({$tournament->division->min_age} a {$tournament->division->max_age} anos).";
+        }
+
+        $canRequestTransfer = $belongsToOtherTeam && ! $habilitation;
+        $canAffiliate = ! $belongsToOtherTeam && ! $enabledInOtherTeam && $ageOk;
+        $canEnable = $belongsToSelectedTeam && ! $habilitation && $ageOk;
+        $transferRequestUrl = null;
+
+        if ($pendingTransfer) {
+            $canRequestTransfer = false;
+            $transferBlockedReason = "Ya existe una solicitud de pase pendiente ({$pendingTransfer->code}).";
+        } elseif ($canRequestTransfer && $tournament && $selectedTeam) {
+            $setting = PlayerTransferSetting::query()->where('company_id', $tournament->company_id)->first();
+            $transferFee = LeagueSetting::query()
+                ->where('company_id', $tournament->company_id)
+                ->value('transfer_fee') ?? $setting?->fee_amount;
+
+            if (blank($tournament->company?->code)) {
+                $canRequestTransfer = false;
+                $transferBlockedReason = 'La liga debe tener codigo de 3 letras antes de solicitar pases.';
+            } elseif ($transferFee === null || (float) $transferFee <= 0) {
+                $canRequestTransfer = false;
+                $transferBlockedReason = 'Configura el precio del pase antes de solicitar pases.';
+            } else {
+                $transferRequestUrl = route('player-transfers.create', [
+                    'tournament_id' => $tournament->id,
+                    'to_team_id' => $selectedTeam->id,
+                    'player_id' => $player->id,
+                ]);
+            }
         }
 
         return [
@@ -168,6 +306,7 @@ class PlayerHabilitationService
                 'ci' => $player->ci,
                 'first_name' => $player->first_name,
                 'last_name' => $player->last_name,
+                'maternal_name' => $player->maternal_name,
                 'full_name' => $player->full_name,
                 'birth_date' => $player->birth_date?->format('Y-m-d'),
                 'internal_code' => $player->internal_code,
@@ -175,6 +314,7 @@ class PlayerHabilitationService
                 'is_active' => $player->is_active,
             ],
             'current_team' => $currentTeamPlayer ? [
+                'team_player_id' => $currentTeamPlayer->id,
                 'id' => $currentTeamPlayer->team_id,
                 'name' => $currentTeamPlayer->team?->name,
                 'division' => $currentTeamPlayer->division?->name,
@@ -189,6 +329,19 @@ class PlayerHabilitationService
             'status' => [
                 'label' => $status,
                 'tone' => $statusTone,
+            ],
+            'actions' => [
+                'can_affiliate' => $canAffiliate,
+                'can_enable' => $canEnable,
+                'can_request_transfer' => $canRequestTransfer,
+                'age_valid' => $ageOk,
+                'age_blocked_reason' => $ageBlockedReason,
+                'is_selected_team_roster' => $belongsToSelectedTeam,
+                'is_other_team_roster' => $belongsToOtherTeam,
+                'enabled_in_selected_team' => $enabledInSelectedTeam,
+                'enabled_in_other_team' => $enabledInOtherTeam,
+                'transfer_blocked_reason' => $transferBlockedReason,
+                'transfer_request_url' => $transferRequestUrl,
             ],
         ];
     }
@@ -223,16 +376,26 @@ class PlayerHabilitationService
         $this->ensurePlayerAge($teamPlayer->player, $tournament);
 
         $existing = TournamentTeamPlayer::query()
+            ->with('team')
             ->where('tournament_id', $tournament->id)
-            ->where('team_id', $teamPlayer->team_id)
             ->where('player_id', $teamPlayer->player_id)
             ->where('status', TournamentTeamPlayer::STATUS_ENABLED)
             ->whereNull('deleted_at')
             ->first();
 
         if ($existing) {
+            if ((int) $existing->team_id !== (int) $teamPlayer->team_id) {
+                $teamName = $existing->team?->name ?? 'otro equipo';
+
+                throw ValidationException::withMessages([
+                    'team_player_id' => "El jugador ya esta habilitado en este torneo con {$teamName}.",
+                ]);
+            }
+
             return filled($existing->qr_code_path) ? $existing : $this->qrCodes->generateForHabilitation($existing);
         }
+
+        $this->ensureEnabledPlayerLimit($tournament, $registration);
 
         $habilitation = DB::transaction(fn () => TournamentTeamPlayer::query()->create([
             'company_id' => $tournament->company_id,
@@ -243,6 +406,7 @@ class PlayerHabilitationService
             'team_player_id' => $teamPlayer->id,
             'status' => TournamentTeamPlayer::STATUS_ENABLED,
             'enabled_at' => now(),
+            'enabled_by' => auth()->id(),
             'notes' => $data['notes'] ?? null,
         ]));
 
@@ -261,6 +425,31 @@ class PlayerHabilitationService
         return $habilitation;
     }
 
+    private function ensureEnabledPlayerLimit(Tournament $tournament, TournamentRegistration $registration): void
+    {
+        $limit = (int) (LeagueSetting::query()
+            ->where('company_id', $tournament->company_id)
+            ->value('max_enabled_players_per_team_category') ?? 0);
+
+        if ($limit <= 0) {
+            return;
+        }
+
+        $enabledCount = TournamentTeamPlayer::query()
+            ->where('company_id', $tournament->company_id)
+            ->where('tournament_id', $tournament->id)
+            ->where('tournament_registration_id', $registration->id)
+            ->where('status', TournamentTeamPlayer::STATUS_ENABLED)
+            ->whereNull('deleted_at')
+            ->count();
+
+        if ($enabledCount >= $limit) {
+            throw ValidationException::withMessages([
+                'team_player_id' => "Este equipo ya alcanzo el limite de {$limit} habilitado(s) para esta categoria.",
+            ]);
+        }
+    }
+
     public function registrationFor(Tournament $tournament, Team $team): ?TournamentRegistration
     {
         $this->ensureSameLeague($tournament, $team);
@@ -277,9 +466,15 @@ class PlayerHabilitationService
 
     private function ensureSameLeague(Tournament $tournament, Team $team): void
     {
-        abort_unless(CompanyContext::belongsToUser($tournament->company_id, auth()->user()), 403);
+        $this->ensureTournamentVisible($tournament);
         abort_unless(CompanyContext::belongsToUser($team->company_id, auth()->user()), 403);
         abort_unless((int) $tournament->company_id === (int) $team->company_id, 403);
+    }
+
+    private function ensureTournamentVisible(Tournament $tournament): void
+    {
+        abort_unless(CompanyContext::belongsToUser($tournament->company_id, auth()->user()), 403);
+        abort_unless($tournament->is_active, 404);
     }
 
     private function ensurePlayerAge(Player $player, Tournament $tournament): void

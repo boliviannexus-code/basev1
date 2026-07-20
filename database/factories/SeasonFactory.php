@@ -13,11 +13,13 @@ class SeasonFactory extends Factory
 {
     public function definition(): array
     {
+        $year = (int) fake()->unique()->year();
+
         return [
             'company_id' => Company::factory(),
-            'name' => 'Gestion '.$this->faker->unique()->year(),
-            'year' => (int) $this->faker->year(),
-            'status' => 'planned',
+            'name' => 'Gestion '.$year,
+            'year' => $year,
+            'status' => 'active',
             'is_active' => true,
         ];
     }

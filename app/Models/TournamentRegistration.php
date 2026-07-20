@@ -16,14 +16,38 @@ class TournamentRegistration extends Model implements Auditable
     /** @use HasFactory<TournamentRegistrationFactory> */
     use AuditsCompanyChanges, HasFactory, SoftDeletes;
 
+    public const SERIES = [
+        'unica' => 'Unica',
+        'serie_a' => 'Serie A',
+        'serie_b' => 'Serie B',
+        'serie_c' => 'Serie C',
+        'serie_d' => 'Serie D',
+    ];
+
     protected $fillable = [
         'company_id',
         'tournament_id',
         'division_id',
+        'category_id',
         'team_id',
+        'team_number',
+        'series',
         'status',
+        'created_by',
         'notes',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'team_number' => 'integer',
+        ];
+    }
+
+    public function seriesLabel(): string
+    {
+        return self::SERIES[$this->series] ?? self::SERIES['unica'];
+    }
 
     public function company(): BelongsTo
     {
@@ -40,13 +64,28 @@ class TournamentRegistration extends Model implements Auditable
         return $this->belongsTo(Division::class);
     }
 
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(DivisionCategory::class, 'category_id');
+    }
+
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
     }
 
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
     public function tournamentTeamPlayers(): HasMany
     {
         return $this->hasMany(TournamentTeamPlayer::class);
+    }
+
+    public function accreditations(): HasMany
+    {
+        return $this->hasMany(TeamAccreditation::class);
     }
 }

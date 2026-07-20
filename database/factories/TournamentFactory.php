@@ -13,6 +13,15 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class TournamentFactory extends Factory
 {
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Tournament $tournament): void {
+            if ($tournament->category_id) {
+                $tournament->categories()->syncWithoutDetaching([$tournament->category_id]);
+            }
+        });
+    }
+
     public function definition(): array
     {
         return [

@@ -56,6 +56,18 @@ class SeasonService
         return (bool) $season->delete();
     }
 
+    public function finish(Season $season): Season
+    {
+        $this->ensureVisible($season);
+
+        $season->forceFill([
+            'status' => 'closed',
+            'is_active' => false,
+        ])->save();
+
+        return $season->refresh();
+    }
+
     public function ensureVisible(Season $season): void
     {
         abort_unless(CompanyContext::belongsToUser($season->company_id, auth()->user()), 403);
@@ -80,13 +92,8 @@ class SeasonService
 
     private function normalize(array $data, ?bool $defaultActive = null): array
     {
-        if (array_key_exists('is_active', $data)) {
-            $data['is_active'] = (bool) $data['is_active'];
-        } elseif ($defaultActive !== null) {
-            $data['is_active'] = $defaultActive;
-        }
-
-        $data['status'] = $data['status'] ?? 'planned';
+        $data['status'] = $data['status'] ?? 'active';
+        $data['is_active'] = $data['status'] === 'active';
 
         return $data;
     }

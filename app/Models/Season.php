@@ -40,4 +40,9 @@ class Season extends Model implements Auditable
     {
         return $this->hasMany(Tournament::class);
     }
+
+    public function matchdays(): HasMany
+    {
+        return $this->hasMany(Matchday::class);
+    }
 }

@@ -42,6 +42,16 @@ class StoreTeamRequest extends FormRequest
                     ->exists()) {
                     $validator->errors()->add('name', 'Ya existe un equipo con ese nombre en la misma liga deportiva.');
                 }
+
+                $similarTeam = $companyId ? Team::query()
+                    ->where('company_id', $companyId)
+                    ->where('name_match_key', Team::matchKey($name))
+                    ->whereNull('deleted_at')
+                    ->first(['name']) : null;
+
+                if ($similarTeam) {
+                    $validator->errors()->add('name', 'Ya existe un equipo con una coincidencia fuerte: '.$similarTeam->name.'.');
+                }
             },
         ];
     }
@@ -49,7 +59,7 @@ class StoreTeamRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
-            'name' => is_string($this->input('name')) ? str($this->input('name'))->squish()->toString() : $this->input('name'),
+            'name' => is_string($this->input('name')) ? Team::formatName($this->input('name')) : $this->input('name'),
             'founded_at' => $this->input('founded_at') ?: now()->toDateString(),
         ]);
     }

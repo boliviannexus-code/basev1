@@ -19,6 +19,7 @@ class PlayerFactory extends Factory
             'ci_normalized' => Player::normalizeCi($ci),
             'first_name' => fake()->firstName(),
             'last_name' => fake()->lastName(),
+            'maternal_name' => fake()->lastName(),
             'internal_code' => fake()->optional()->bothify('PLY-####'),
             'birth_date' => fake()->dateTimeBetween('-35 years', '-12 years')->format('Y-m-d'),
             'notes' => fake()->optional()->sentence(),

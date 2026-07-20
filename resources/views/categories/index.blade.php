@@ -17,7 +17,6 @@
                 <tr>
                     <th>Categoria</th>
                     <th>Division</th>
-                    <th>Liga deportiva</th>
                     <th>Estado</th>
                     <th class="text-end">Acciones</th>
                 </tr>
@@ -31,9 +30,9 @@
                         </td>
                         <td>
                             <div>{{ $category->division?->name ?? '-' }}</div>
-                            <div class="text-body-secondary small">{{ $category->division?->min_age }} a {{ $category->division?->max_age }} años</div>
+                            {{-- <div class="text-body-secondary small">{{ $category->division?->min_age }} a {{ $category->division?->max_age }} años</div> --}}
                         </td>
-                        <td>{{ $category->company?->name ?? '-' }}</td>
+                        {{-- <td>{{ $category->company?->name ?? '-' }}</td> --}}
                         <td><span class="badge text-bg-{{ $category->is_active ? 'success' : 'secondary' }}">{{ $category->is_active ? 'Activo' : 'Inactivo' }}</span></td>
                         <td class="text-end">
                             <a class="btn btn-outline-secondary btn-sm" href="{{ route('categories.show', $category) }}" data-modal-url="{{ route('categories.show', $category) }}" data-modal-title="Detalle de categoria">Ver</a>

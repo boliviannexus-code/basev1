@@ -86,7 +86,7 @@ class PlayerPhotoService
     {
         if (blank($player->internal_code)) {
             $player->forceFill([
-                'internal_code' => Player::internalCodeForId((int) $player->id),
+                'internal_code' => Player::internalCodeFor($player),
             ])->saveQuietly();
 
             $player->refresh();

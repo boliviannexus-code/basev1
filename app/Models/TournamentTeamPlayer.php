@@ -28,6 +28,7 @@ class TournamentTeamPlayer extends Model implements Auditable
         'team_player_id',
         'status',
         'enabled_at',
+        'enabled_by',
         'qr_code_path',
         'qr_code_size',
         'notes',
@@ -68,5 +69,10 @@ class TournamentTeamPlayer extends Model implements Auditable
     public function teamPlayer(): BelongsTo
     {
         return $this->belongsTo(TeamPlayer::class);
+    }
+
+    public function enabledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'enabled_by');
     }
 }

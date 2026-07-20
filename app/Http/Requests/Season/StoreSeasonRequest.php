@@ -19,10 +19,16 @@ class StoreSeasonRequest extends FormRequest
 
         return [
             'company_id' => [CompanyContext::id($this->user()) === null ? 'required' : 'nullable', 'exists:companies,id'],
-            'name' => ['required', 'string', 'max:255', Rule::unique('seasons')->where('company_id', $companyId)->whereNull('deleted_at')],
-            'year' => ['nullable', 'integer', 'between:1900,2100'],
-            'status' => ['required', Rule::in(['planned', 'active', 'closed'])],
-            'is_active' => ['sometimes', 'boolean'],
+            'name' => ['required', 'string', 'max:255'],
+            'year' => [
+                'required',
+                'integer',
+                'between:1900,2100',
+                Rule::unique('seasons', 'year')
+                    ->where('company_id', $companyId)
+                    ->whereNull('deleted_at'),
+            ],
+            'status' => ['sometimes', Rule::in(['active', 'closed'])],
         ];
     }
 }

@@ -5,6 +5,7 @@ namespace Tests\Feature\Leagues;
 use App\Models\Company;
 use App\Models\Division;
 use App\Models\DivisionCategory;
+use App\Models\LeagueSetting;
 use App\Models\Player;
 use App\Models\Season;
 use App\Models\Team;
@@ -21,6 +22,44 @@ use Tests\TestCase;
 class PlayerHabilitationTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_habilitations_flow_starts_from_active_tournaments_and_registered_teams(): void
+    {
+        [$company, , $user] = $this->leagueUser(['player-habilitations.view']);
+        $team = Team::factory()->create(['company_id' => $company->id, 'name' => 'Club Central']);
+        $tournament = $this->tournamentFor($company);
+        $this->registerTeam($company, $tournament, $team);
+
+        $this
+            ->actingAs($user)
+            ->get(route('player-habilitations.index'))
+            ->assertOk()
+            ->assertSee($tournament->name)
+            ->assertSee(route('player-habilitations.teams', $tournament), false);
+
+        $this
+            ->actingAs($user)
+            ->get(route('player-habilitations.teams', $tournament))
+            ->assertOk()
+            ->assertSee('CLUB CENTRAL')
+            ->assertSee(route('player-habilitations.show', ['tournament' => $tournament, 'team' => $team]), false);
+    }
+
+    public function test_habilitation_team_page_shows_roster_and_enabled_players(): void
+    {
+        [$company, , $user] = $this->leagueUser(['player-habilitations.view']);
+        $team = Team::factory()->create(['company_id' => $company->id, 'name' => 'Club Central']);
+        $tournament = $this->tournamentFor($company);
+        $this->registerTeam($company, $tournament, $team);
+
+        $this
+            ->actingAs($user)
+            ->get(route('player-habilitations.show', ['tournament' => $tournament, 'team' => $team]))
+            ->assertOk()
+            ->assertSee('Plantilla del club')
+            ->assertSee('Habilitados al torneo')
+            ->assertSee('CLUB CENTRAL');
+    }
 
     public function test_player_ci_is_unique_by_normalized_value(): void
     {
@@ -63,7 +102,11 @@ class PlayerHabilitationTest extends TestCase
         $team = Team::factory()->create(['company_id' => $company->id]);
         $tournament = $this->tournamentFor($company);
         $this->registerTeam($company, $tournament, $team);
-        $player = Player::factory()->create(['ci' => '777ABC', 'ci_normalized' => Player::normalizeCi('777ABC')]);
+        $player = Player::factory()->create([
+            'ci' => '777ABC',
+            'ci_normalized' => Player::normalizeCi('777ABC'),
+            'birth_date' => now()->subYears(18)->toDateString(),
+        ]);
 
         $this
             ->actingAs($user)
@@ -72,9 +115,9 @@ class PlayerHabilitationTest extends TestCase
                 'team_id' => $team->id,
                 'ci' => '777-abc',
             ])
-            ->assertRedirect(route('player-habilitations.index', [
-                'tournament_id' => $tournament->id,
-                'team_id' => $team->id,
+            ->assertRedirect(route('player-habilitations.show', [
+                'tournament' => $tournament,
+                'team' => $team,
             ]));
 
         $this->assertDatabaseCount('players', 1);
@@ -84,6 +127,13 @@ class PlayerHabilitationTest extends TestCase
             'team_id' => $team->id,
             'player_id' => $player->id,
             'status' => TeamPlayer::STATUS_ACTIVE,
+        ]);
+        $this->assertDatabaseHas('tournament_team_players', [
+            'company_id' => $company->id,
+            'tournament_id' => $tournament->id,
+            'team_id' => $team->id,
+            'player_id' => $player->id,
+            'status' => TournamentTeamPlayer::STATUS_ENABLED,
         ]);
     }
 
@@ -159,7 +209,86 @@ class PlayerHabilitationTest extends TestCase
             ->assertJsonPath('found', true)
             ->assertJsonPath('current_team.name', $team->name)
             ->assertJsonPath('habilitation', null)
-            ->assertJsonPath('status.label', 'Solo afiliado');
+            ->assertJsonPath('status.label', 'En plantilla')
+            ->assertJsonPath('actions.can_affiliate', true)
+            ->assertJsonPath('actions.can_request_transfer', false);
+    }
+
+    public function test_existing_player_lookup_allows_transfer_request_when_player_belongs_to_other_team(): void
+    {
+        [$company, , $user] = $this->leagueUser(['player-habilitations.create']);
+        $division = Division::factory()->create(['company_id' => $company->id, 'min_age' => 15, 'max_age' => 25]);
+        $firstTeam = Team::factory()->create(['company_id' => $company->id, 'name' => 'Equipo Alfa']);
+        $secondTeam = Team::factory()->create(['company_id' => $company->id, 'name' => 'Equipo Beta']);
+        $tournament = $this->tournamentFor($company, $division);
+        $this->registerTeam($company, $tournament, $secondTeam);
+        $player = Player::factory()->create(['birth_date' => now()->subYears(18)->toDateString()]);
+
+        TeamPlayer::factory()->create([
+            'company_id' => $company->id,
+            'division_id' => $division->id,
+            'team_id' => $firstTeam->id,
+            'player_id' => $player->id,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->getJson(route('player-habilitations.player-lookup', [
+                'tournament_id' => $tournament->id,
+                'team_id' => $secondTeam->id,
+                'ci' => $player->ci,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('found', true)
+            ->assertJsonPath('current_team.name', 'EQUIPO ALFA')
+            ->assertJsonPath('current_team.is_selected_team', false)
+            ->assertJsonPath('status.label', 'En otro equipo')
+            ->assertJsonPath('actions.can_affiliate', false)
+            ->assertJsonPath('actions.can_request_transfer', true)
+            ->assertJsonPath('actions.is_other_team_roster', true);
+    }
+
+    public function test_existing_player_lookup_blocks_transfer_request_when_player_is_enabled_in_same_tournament(): void
+    {
+        [$company, , $user] = $this->leagueUser(['player-habilitations.create']);
+        $division = Division::factory()->create(['company_id' => $company->id, 'min_age' => 15, 'max_age' => 25]);
+        $firstTeam = Team::factory()->create(['company_id' => $company->id, 'name' => 'Equipo Alfa']);
+        $secondTeam = Team::factory()->create(['company_id' => $company->id, 'name' => 'Equipo Beta']);
+        $tournament = $this->tournamentFor($company, $division);
+        $registration = $this->registerTeam($company, $tournament, $firstTeam);
+        $this->registerTeam($company, $tournament, $secondTeam);
+        $player = Player::factory()->create(['birth_date' => now()->subYears(18)->toDateString()]);
+        $teamPlayer = TeamPlayer::factory()->create([
+            'company_id' => $company->id,
+            'division_id' => $division->id,
+            'team_id' => $firstTeam->id,
+            'player_id' => $player->id,
+        ]);
+
+        TournamentTeamPlayer::factory()->create([
+            'company_id' => $company->id,
+            'tournament_id' => $tournament->id,
+            'tournament_registration_id' => $registration->id,
+            'team_id' => $firstTeam->id,
+            'player_id' => $player->id,
+            'team_player_id' => $teamPlayer->id,
+            'status' => TournamentTeamPlayer::STATUS_ENABLED,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->getJson(route('player-habilitations.player-lookup', [
+                'tournament_id' => $tournament->id,
+                'team_id' => $secondTeam->id,
+                'ci' => $player->ci,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('found', true)
+            ->assertJsonPath('status.label', 'Habilitado en otro equipo')
+            ->assertJsonPath('actions.can_affiliate', false)
+            ->assertJsonPath('actions.can_request_transfer', false)
+            ->assertJsonPath('actions.enabled_in_other_team', true)
+            ->assertJsonPath('actions.transfer_blocked_reason', 'El jugador ya esta habilitado en este torneo con otro equipo.');
     }
 
     public function test_player_cannot_be_affiliated_to_two_teams_in_same_league_division(): void
@@ -170,7 +299,7 @@ class PlayerHabilitationTest extends TestCase
         $secondTeam = Team::factory()->create(['company_id' => $company->id]);
         $tournament = $this->tournamentFor($company, $division);
         $this->registerTeam($company, $tournament, $secondTeam);
-        $player = Player::factory()->create();
+        $player = Player::factory()->create(['birth_date' => now()->subYears(18)->toDateString()]);
 
         TeamPlayer::factory()->create([
             'company_id' => $company->id,
@@ -198,7 +327,7 @@ class PlayerHabilitationTest extends TestCase
         $secondTeam = Team::factory()->create(['company_id' => $company->id]);
         $tournament = $this->tournamentFor($company, $secondDivision);
         $this->registerTeam($company, $tournament, $secondTeam);
-        $player = Player::factory()->create();
+        $player = Player::factory()->create(['birth_date' => now()->subYears(18)->toDateString()]);
 
         TeamPlayer::factory()->create([
             'company_id' => $company->id,
@@ -220,6 +349,12 @@ class PlayerHabilitationTest extends TestCase
             'division_id' => $secondDivision->id,
             'team_id' => $secondTeam->id,
             'player_id' => $player->id,
+        ]);
+        $this->assertDatabaseHas('tournament_team_players', [
+            'tournament_id' => $tournament->id,
+            'team_id' => $secondTeam->id,
+            'player_id' => $player->id,
+            'status' => TournamentTeamPlayer::STATUS_ENABLED,
         ]);
     }
 
@@ -261,6 +396,84 @@ class PlayerHabilitationTest extends TestCase
                 'team_player_id' => $teamPlayer->id,
             ])
             ->assertSessionHasErrors('player_id');
+    }
+
+    public function test_player_cannot_be_enabled_twice_in_same_tournament_with_different_teams(): void
+    {
+        [$company, , $user] = $this->leagueUser(['player-habilitations.create']);
+        $division = Division::factory()->create(['company_id' => $company->id, 'min_age' => 15, 'max_age' => 25]);
+        $firstTeam = Team::factory()->create(['company_id' => $company->id, 'name' => 'Equipo Alfa']);
+        $secondTeam = Team::factory()->create(['company_id' => $company->id, 'name' => 'Equipo Beta']);
+        $tournament = $this->tournamentFor($company, $division);
+        $firstRegistration = $this->registerTeam($company, $tournament, $firstTeam);
+        $this->registerTeam($company, $tournament, $secondTeam);
+        $player = Player::factory()->create(['birth_date' => now()->subYears(18)->toDateString()]);
+        $secondTeamPlayer = TeamPlayer::factory()->create([
+            'company_id' => $company->id,
+            'division_id' => $division->id,
+            'team_id' => $secondTeam->id,
+            'player_id' => $player->id,
+        ]);
+
+        TournamentTeamPlayer::factory()->create([
+            'company_id' => $company->id,
+            'tournament_id' => $tournament->id,
+            'tournament_registration_id' => $firstRegistration->id,
+            'team_id' => $firstTeam->id,
+            'player_id' => $player->id,
+            'team_player_id' => $secondTeamPlayer->id,
+            'status' => TournamentTeamPlayer::STATUS_ENABLED,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('player-habilitations.enable'), [
+                'tournament_id' => $tournament->id,
+                'team_player_id' => $secondTeamPlayer->id,
+            ])
+            ->assertSessionHasErrors('team_player_id');
+
+        $this->assertDatabaseCount('tournament_team_players', 1);
+    }
+
+    public function test_team_enabled_players_are_limited_by_league_setting_per_category(): void
+    {
+        Storage::fake('public');
+
+        [$company, , $user] = $this->leagueUser(['player-habilitations.create']);
+        LeagueSetting::query()->create([
+            'company_id' => $company->id,
+            'max_enabled_players_per_team_category' => 1,
+        ]);
+        $division = Division::factory()->create(['company_id' => $company->id, 'min_age' => 15, 'max_age' => 25]);
+        $team = Team::factory()->create(['company_id' => $company->id]);
+        $tournament = $this->tournamentFor($company, $division);
+        $this->registerTeam($company, $tournament, $team);
+        $players = Player::factory()->count(2)->create(['birth_date' => now()->subYears(18)->toDateString()]);
+        $teamPlayers = $players->map(fn (Player $player): TeamPlayer => TeamPlayer::factory()->create([
+            'company_id' => $company->id,
+            'division_id' => $division->id,
+            'team_id' => $team->id,
+            'player_id' => $player->id,
+        ]));
+
+        $this
+            ->actingAs($user)
+            ->post(route('player-habilitations.enable'), [
+                'tournament_id' => $tournament->id,
+                'team_player_id' => $teamPlayers[0]->id,
+            ])
+            ->assertRedirect();
+
+        $this
+            ->actingAs($user)
+            ->post(route('player-habilitations.enable'), [
+                'tournament_id' => $tournament->id,
+                'team_player_id' => $teamPlayers[1]->id,
+            ])
+            ->assertSessionHasErrors('team_player_id');
+
+        $this->assertDatabaseCount('tournament_team_players', 1);
     }
 
     public function test_player_can_be_enabled_once_and_disabled(): void

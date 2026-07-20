@@ -16,9 +16,14 @@
         <div class="invalid-feedback" data-error-for="first_name"></div>
     </div>
     <div class="col-md-6">
-        <label class="form-label" for="player-last-name">Apellido</label>
+        <label class="form-label" for="player-last-name">Paterno</label>
         <input class="form-control" id="player-last-name" name="last_name" value="{{ old('last_name', $player->last_name ?? '') }}" required>
         <div class="invalid-feedback" data-error-for="last_name"></div>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label" for="player-maternal-name">Materno</label>
+        <input class="form-control" id="player-maternal-name" name="maternal_name" value="{{ old('maternal_name', $player->maternal_name ?? '') }}">
+        <div class="invalid-feedback" data-error-for="maternal_name"></div>
     </div>
     <div class="col-md-6">
         <label class="form-label" for="player-birth-date">Fecha de nacimiento</label>

@@ -17,12 +17,12 @@ use App\Models\TeamPlayer;
 use App\Models\Tournament;
 use App\Models\TournamentRegistration;
 use App\Models\TournamentTeamPlayer;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class MejillonesLegacyImportService
 {
@@ -80,7 +80,7 @@ class MejillonesLegacyImportService
         try {
             $this->importCatalogs($batch, $companyId);
             $this->importTeams($batch, $companyId);
-            $this->importPlayers($batch);
+            $this->importPlayers($batch, $companyId);
             $this->importTournamentRegistrations($batch, $companyId);
             $this->importHabilitations($batch, $companyId);
             $this->importTransferEvents($batch, $companyId);
@@ -312,19 +312,24 @@ class MejillonesLegacyImportService
         });
     }
 
-    private function importPlayers(LegacyImportBatch $batch): void
+    private function importPlayers(LegacyImportBatch $batch, int $companyId): void
     {
-        $this->eachLegacy('persona', function (object $row) use ($batch): void {
+        $this->eachLegacy('persona', function (object $row) use ($batch, $companyId): void {
             [$ci, $normalizedCi, $generatedCi] = $this->normalizer->ci($row->carnet, $row->idpersona);
-            $player = Player::query()->where('ci_normalized', $normalizedCi)->first();
+            $player = Player::query()
+                ->where('company_id', $companyId)
+                ->where('ci_normalized', $normalizedCi)
+                ->first();
             $created = false;
 
             if (! $player) {
                 $player = Player::query()->create([
+                    'company_id' => $companyId,
                     'ci' => $ci,
                     'ci_normalized' => $normalizedCi,
                     'first_name' => $this->normalizer->title($row->nombre, 'Sin nombre'),
-                    'last_name' => $this->normalizer->title(trim($row->paterno.' '.$row->materno), 'Sin apellido'),
+                    'last_name' => $this->normalizer->title($row->paterno, 'Sin apellido'),
+                    'maternal_name' => $this->normalizer->title($row->materno),
                     'internal_code' => $this->normalizer->text($row->cod),
                     'birth_date' => $this->normalizer->date($row->nacimiento, '1900-01-01'),
                     'notes' => $this->normalizer->notes([
@@ -380,6 +385,9 @@ class MejillonesLegacyImportService
                     'tournament_id' => $tournament->id,
                     'division_id' => $tournament->division_id,
                     'team_id' => $team->id,
+                    'category_id' => $tournament->category_id,
+                    'team_number' => $this->nextTournamentRegistrationNumber($tournament->id, $tournament->category_id, 'unica'),
+                    'series' => 'unica',
                     'status' => $this->normalizer->active($row->activo) ? 'registered' : 'inactive',
                     'notes' => $this->normalizer->notes([
                         'legacy_idequipotorneo' => $row->idequipotorneo,
@@ -549,6 +557,9 @@ class MejillonesLegacyImportService
             'tournament_id' => $tournament->id,
             'division_id' => $tournament->division_id,
             'team_id' => $team->id,
+            'category_id' => $tournament->category_id,
+            'team_number' => $this->nextTournamentRegistrationNumber($tournament->id, $tournament->category_id, 'unica'),
+            'series' => 'unica',
             'status' => 'historical',
             'notes' => $notes,
             'created_at' => $now,
@@ -557,6 +568,16 @@ class MejillonesLegacyImportService
         ]);
 
         return TournamentRegistration::query()->withTrashed()->findOrFail($id);
+    }
+
+    private function nextTournamentRegistrationNumber(int $tournamentId, ?int $categoryId, string $series): int
+    {
+        return (int) (TournamentRegistration::query()
+            ->where('tournament_id', $tournamentId)
+            ->where('category_id', $categoryId)
+            ->where('series', $series)
+            ->whereNull('deleted_at')
+            ->max('team_number') ?? 0) + 1;
     }
 
     private function target(string $sourceTable, mixed $sourceId, string $modelClass): mixed

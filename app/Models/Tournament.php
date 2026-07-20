@@ -54,6 +54,12 @@ class Tournament extends Model implements Auditable
         return $this->belongsTo(DivisionCategory::class, 'category_id');
     }
 
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(DivisionCategory::class, 'tournament_category_assignments', 'tournament_id', 'division_category_id')
+            ->withTimestamps();
+    }
+
     public function registrations(): HasMany
     {
         return $this->hasMany(TournamentRegistration::class);

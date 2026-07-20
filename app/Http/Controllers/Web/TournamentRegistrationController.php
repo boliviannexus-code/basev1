@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\TournamentRegistration\StoreTournamentRegistrationRequest;
 use App\Http\Requests\TournamentRegistration\UpdateTournamentRegistrationRequest;
+use App\Http\Requests\TournamentRegistration\UpdateTournamentRegistrationTeamNumberRequest;
+use App\Models\Tournament;
 use App\Models\TournamentRegistration;
 use App\Services\TournamentRegistrationService;
 use App\Support\CompanyContext;
@@ -35,11 +37,13 @@ class TournamentRegistrationController extends Controller
             ->values();
         $activeDivisionId = $divisions->contains('id', $divisionId) ? $divisionId : $divisions->first()?->id;
         $tournaments = $this->registrations->tournamentsForSelect(CompanyContext::id());
+        $teams = $this->registrations->teamsForRegistrationList(CompanyContext::id());
 
         return view('tournament-registrations.index', [
             'activeDivisionId' => $activeDivisionId,
             'divisions' => $divisions,
             'registrationsByTournament' => $registrationsByTournament,
+            'teams' => $teams,
             'tournaments' => $tournaments,
             'tournamentsByDivision' => $tournaments->groupBy('division_id'),
         ]);
@@ -47,7 +51,9 @@ class TournamentRegistrationController extends Controller
 
     public function create(Request $request): View
     {
-        $data = $this->formData();
+        $data = $this->formData([
+            'selectedTeam' => $this->registrations->teamForRegistration((int) $request->integer('team_id')),
+        ]);
 
         if ($request->ajax()) {
             return view('tournament-registrations.partials.create-form', $data);
@@ -86,7 +92,7 @@ class TournamentRegistrationController extends Controller
     public function show(Request $request, TournamentRegistration $tournamentRegistration): View
     {
         $this->registrations->ensureVisible($tournamentRegistration);
-        $tournamentRegistration->load(['company', 'tournament.season', 'tournament.division', 'tournament.category', 'team']);
+        $tournamentRegistration->load(['company', 'category', 'tournament.season', 'tournament.division', 'tournament.categories', 'team']);
 
         if ($request->ajax()) {
             return view('tournament-registrations.partials.show', ['registration' => $tournamentRegistration]);
@@ -98,7 +104,7 @@ class TournamentRegistrationController extends Controller
     public function edit(Request $request, TournamentRegistration $tournamentRegistration): View
     {
         $this->registrations->ensureVisible($tournamentRegistration);
-        $tournamentRegistration->load(['tournament', 'team']);
+        $tournamentRegistration->load(['category', 'tournament.categories', 'team']);
 
         $data = $this->formData(['registration' => $tournamentRegistration]);
 
@@ -124,6 +130,31 @@ class TournamentRegistrationController extends Controller
         return redirect()->route('tournament-registrations.index')->with('success', 'Inscripcion actualizada correctamente.');
     }
 
+    public function updateTeamNumber(UpdateTournamentRegistrationTeamNumberRequest $request, TournamentRegistration $tournamentRegistration): JsonResponse
+    {
+        try {
+            $registration = $this->registrations->updateTeamNumber(
+                $tournamentRegistration,
+                (int) $request->validated('team_number')
+            );
+        } catch (ValidationException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($exception->errors())->flatten()->first(),
+                'data' => $exception->errors(),
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Numero de equipo actualizado.',
+            'data' => [
+                'id' => $registration->id,
+                'team_number' => $registration->team_number,
+            ],
+        ]);
+    }
+
     public function destroy(TournamentRegistration $tournamentRegistration): RedirectResponse
     {
         $this->registrations->delete($tournamentRegistration);
@@ -143,6 +174,20 @@ class TournamentRegistrationController extends Controller
                 'value' => (string) $team->id,
                 'text' => $team->name,
             ])->values(),
+        ]);
+    }
+
+    public function tournamentCategories(Request $request, Tournament $tournament): JsonResponse
+    {
+        $teamId = $request->integer('team_id') ?: null;
+        $categories = $this->registrations->categoriesForTournament($tournament, $teamId);
+
+        return response()->json([
+            'data' => $categories->map(fn ($category): array => [
+                'value' => (string) $category->id,
+                'text' => $category->name,
+            ])->values(),
+            'already_registered' => $teamId ? $this->registrations->teamIsRegisteredInTournament($teamId, $tournament) : false,
         ]);
     }
 

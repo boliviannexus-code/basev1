@@ -3,6 +3,10 @@
     <dd class="col-sm-8">{{ $registration->team?->name ?? '-' }}</dd>
     <dt class="col-sm-4">Torneo</dt>
     <dd class="col-sm-8">{{ $registration->tournament?->name ?? '-' }}</dd>
+    <dt class="col-sm-4">Categoria</dt>
+    <dd class="col-sm-8">{{ $registration->category?->name ?? '-' }}</dd>
+    <dt class="col-sm-4">Serie</dt>
+    <dd class="col-sm-8">{{ $registration->seriesLabel() }}</dd>
     <dt class="col-sm-4">Gestion</dt>
     <dd class="col-sm-8">{{ $registration->tournament?->season?->name ?? '-' }}</dd>
     <dt class="col-sm-4">Liga deportiva</dt>

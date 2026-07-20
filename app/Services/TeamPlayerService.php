@@ -30,6 +30,14 @@ class TeamPlayerService
             throw ValidationException::withMessages(['player_id' => 'Selecciona un jugador activo.']);
         }
 
+        if ($player->company_id === null) {
+            $player->forceFill(['company_id' => $team->company_id])->save();
+        }
+
+        if ((int) $player->company_id !== (int) $team->company_id) {
+            throw ValidationException::withMessages(['player_id' => 'Selecciona un jugador de la liga activa.']);
+        }
+
         if ((int) $team->company_id !== (int) $division->company_id) {
             throw ValidationException::withMessages(['team_id' => 'El equipo y la division deben pertenecer a la misma liga.']);
         }

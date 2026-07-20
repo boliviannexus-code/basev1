@@ -46,6 +46,23 @@ class SeasonTournamentCrudTest extends TestCase
             ->assertDontSee('Gestion ajena');
     }
 
+    public function test_league_user_cannot_create_two_seasons_for_same_year(): void
+    {
+        [$company, $otherCompany, $user] = $this->leagueUser(['seasons.create']);
+
+        Season::factory()->create(['company_id' => $company->id, 'name' => 'Gestion Apertura', 'year' => 2026]);
+        Season::factory()->create(['company_id' => $otherCompany->id, 'name' => 'Gestion Ajena', 'year' => 2026]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('seasons.store'), [
+                'name' => 'Gestion Clausura',
+                'year' => 2026,
+                'status' => 'active',
+            ])
+            ->assertSessionHasErrors('year');
+    }
+
     public function test_tournament_must_use_season_from_active_league(): void
     {
         [$company, $otherCompany, $user] = $this->leagueUser(['tournaments.view', 'tournaments.create']);
@@ -98,6 +115,72 @@ class SeasonTournamentCrudTest extends TestCase
             'division_id' => $ownDivision->id,
             'category_id' => $ownCategory->id,
             'name' => 'Primera Division - Sub 17 - Gestion propia',
+        ]);
+    }
+
+    public function test_league_user_cannot_create_two_tournaments_for_same_division_in_same_season(): void
+    {
+        [$company, , $user] = $this->leagueUser(['tournaments.create']);
+        $season = Season::factory()->create(['company_id' => $company->id]);
+        $division = Division::factory()->create(['company_id' => $company->id]);
+        $category = DivisionCategory::factory()->create(['company_id' => $company->id, 'division_id' => $division->id]);
+
+        Tournament::factory()->create([
+            'company_id' => $company->id,
+            'season_id' => $season->id,
+            'division_id' => $division->id,
+            'category_id' => $category->id,
+            'name' => 'Torneo Apertura',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('tournaments.store'), [
+                'season_id' => $season->id,
+                'division_id' => $division->id,
+                'category_ids' => [$category->id],
+                'name' => 'Torneo Clausura',
+                'status' => 'planned',
+            ])
+            ->assertSessionHasErrors('division_id');
+    }
+
+    public function test_active_tournament_cannot_be_edited(): void
+    {
+        [$company, , $user] = $this->leagueUser(['tournaments.view', 'tournaments.update']);
+        $season = Season::factory()->create(['company_id' => $company->id]);
+        $division = Division::factory()->create(['company_id' => $company->id]);
+        $category = DivisionCategory::factory()->create(['company_id' => $company->id, 'division_id' => $division->id]);
+        $tournament = Tournament::factory()->create([
+            'company_id' => $company->id,
+            'season_id' => $season->id,
+            'division_id' => $division->id,
+            'category_id' => $category->id,
+            'name' => 'Torneo activo',
+            'status' => 'active',
+            'is_active' => true,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('tournaments.edit', $tournament))
+            ->assertForbidden();
+
+        $this
+            ->actingAs($user)
+            ->put(route('tournaments.update', $tournament), [
+                'season_id' => $season->id,
+                'division_id' => $division->id,
+                'category_ids' => [$category->id],
+                'name' => 'Torneo editado',
+                'status' => 'planned',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('tournaments', [
+            'id' => $tournament->id,
+            'name' => 'Torneo activo',
+            'status' => 'active',
         ]);
     }
 

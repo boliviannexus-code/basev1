@@ -4,8 +4,10 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\PlayerFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -15,10 +17,12 @@ class Player extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'company_id',
         'ci',
         'ci_normalized',
         'first_name',
         'last_name',
+        'maternal_name',
         'internal_code',
         'qr_code_path',
         'qr_code_size',
@@ -43,17 +47,25 @@ class Player extends Model
             $player->ci_normalized = self::normalizeCi($player->ci);
             $player->first_name = str((string) $player->first_name)->squish()->title()->toString();
             $player->last_name = str((string) $player->last_name)->squish()->title()->toString();
+            $player->maternal_name = filled($player->maternal_name)
+                ? str((string) $player->maternal_name)->squish()->title()->toString()
+                : null;
 
             if ($player->exists) {
-                $player->internal_code = self::internalCodeForId((int) $player->id);
+                $player->internal_code = self::internalCodeFor($player);
             }
         });
 
         static::created(function (Player $player): void {
             $player->forceFill([
-                'internal_code' => self::internalCodeForId((int) $player->id),
+                'internal_code' => self::internalCodeFor($player),
             ])->saveQuietly();
         });
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 
     public function teamPlayers(): HasMany
@@ -73,12 +85,17 @@ class Player extends Model
 
     public function getFullNameAttribute(): string
     {
-        return trim($this->first_name.' '.$this->last_name);
+        return trim($this->first_name.' '.$this->last_name.' '.$this->maternal_name);
     }
 
     public function age(?CarbonInterface $at = null): ?int
     {
         return $this->birth_date ? (int) $this->birth_date->diffInYears($at ?? now()) : null;
+    }
+
+    public function scopeForCompany(Builder $query, ?int $companyId): Builder
+    {
+        return $query->when($companyId !== null, fn (Builder $query): Builder => $query->where('players.company_id', $companyId));
     }
 
     public static function normalizeCi(string $ci): string
@@ -93,5 +110,13 @@ class Player extends Model
     public static function internalCodeForId(int $id): string
     {
         return 'Nex'.str_pad((string) $id, 6, '0', STR_PAD_LEFT);
+    }
+
+    public static function internalCodeFor(self $player): string
+    {
+        $prefix = $player->company?->code
+            ?? ($player->company_id ? $player->company()->value('code') : null);
+
+        return (filled($prefix) ? $prefix : 'Nex').str_pad((string) $player->id, 6, '0', STR_PAD_LEFT);
     }
 }

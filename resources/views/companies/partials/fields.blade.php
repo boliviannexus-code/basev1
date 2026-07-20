@@ -1,8 +1,23 @@
 <div class="row g-3">
-    <div class="col-md-12">
+    <div class="col-md-8">
         <label class="form-label" for="company-name">Nombre de la liga deportiva</label>
         <input class="form-control" id="company-name" name="name" value="{{ old('name', $company->name ?? '') }}" required>
         <div class="invalid-feedback" data-error-for="name"></div>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label" for="company-code">Codigo</label>
+        <input class="form-control text-uppercase" id="company-code" name="code" value="{{ old('code', $company->code ?? '') }}" maxlength="3" pattern="[A-Za-z]{3}" required>
+        <div class="form-hint">Solo 3 letras. Ejemplo: LPM.</div>
+        <div class="invalid-feedback" data-error-for="code"></div>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label" for="company-subdomain">Subdominio</label>
+        <div class="input-group">
+            <input class="form-control text-lowercase" id="company-subdomain" name="subdomain" value="{{ old('subdomain', $company->subdomain ?? '') }}" maxlength="63" pattern="[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?">
+            <span class="input-group-text">.{{ config('tenancy.base_domain', 'admin-liga.com') }}</span>
+        </div>
+        <div class="form-hint">Ejemplo: juancitopinto, ligacopacabana, ligalapaz.</div>
+        <div class="invalid-feedback" data-error-for="subdomain"></div>
     </div>
     <div class="col-md-6">
         <label class="form-label" for="company-phone">Telefono</label>
@@ -28,6 +43,22 @@
         <label class="form-label" for="company-country">Pais</label>
         <input class="form-control" id="company-country" name="country" value="{{ old('country', $company->country ?? 'Bolivia') }}">
         <div class="invalid-feedback" data-error-for="country"></div>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label" for="company-foundation-date">Fecha de fundacion</label>
+        <input class="form-control" id="company-foundation-date" name="foundation_date" type="date" value="{{ old('foundation_date', ($company ?? null)?->foundation_date?->format('Y-m-d')) }}">
+        <div class="invalid-feedback" data-error-for="foundation_date"></div>
+    </div>
+    <div class="col-md-8">
+        <label class="form-label" for="company-legal-personality">Personeria juridica</label>
+        <input class="form-control" id="company-legal-personality" name="legal_personality" value="{{ old('legal_personality', $company->legal_personality ?? '') }}">
+        <div class="invalid-feedback" data-error-for="legal_personality"></div>
+    </div>
+    <div class="col-md-12">
+        <label class="form-label" for="company-interest-data">Datos de interes</label>
+        <textarea class="form-control" id="company-interest-data" name="interest_data" rows="3">{{ old('interest_data', $company->interest_data ?? '') }}</textarea>
+        <div class="form-hint">Informacion institucional que podra usarse en cabeceras, reportes y comunicados.</div>
+        <div class="invalid-feedback" data-error-for="interest_data"></div>
     </div>
     <div class="col-md-12">
         <label class="form-label" for="company-logo">Logo de la liga para reportes</label>

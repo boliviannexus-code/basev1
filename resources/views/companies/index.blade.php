@@ -7,9 +7,9 @@
 @section('content')
     <x-ui.table-card title="Listado de ligas deportivas" data-refresh-container>
         <x-slot:actions>
-            @can('companies.create')
+            @if (auth()->user()?->can('companies.create') && \App\Support\CompanyContext::isGlobalAdmin(auth()->user()))
                 <a class="btn btn-primary btn-sm" href="{{ route('companies.create') }}" data-modal-url="{{ route('companies.create') }}" data-modal-title="Nueva liga deportiva">Nueva liga</a>
-            @endcan
+            @endif
         </x-slot:actions>
 
         <table class="table table-hover align-middle">
@@ -35,7 +35,7 @@
                         </td>
                         <td>
                             <div class="fw-semibold">{{ $company->name }}</div>
-                            <div class="text-body-secondary small">{{ trim(($company->city ?: '').' / '.($company->country ?: ''), ' /') ?: '-' }}</div>
+                            <div class="text-body-secondary small">{{ $company->code ?: 'Sin codigo' }} · {{ trim(($company->city ?: '').' / '.($company->country ?: ''), ' /') ?: '-' }}</div>
                         </td>
                         <td>
                             <div>{{ $company->phone ?: '-' }}</div>
@@ -48,13 +48,13 @@
                             @can('companies.update')
                                 <a class="btn btn-outline-primary btn-sm" href="{{ route('companies.edit', $company) }}" data-modal-url="{{ route('companies.edit', $company) }}" data-modal-title="Editar liga deportiva">Editar</a>
                             @endcan
-                            @can('companies.delete')
+                            @if (auth()->user()?->can('companies.delete') && \App\Support\CompanyContext::isGlobalAdmin(auth()->user()))
                                 <form class="d-inline" method="POST" action="{{ route('companies.destroy', $company) }}" data-confirm-delete="Eliminar liga deportiva? Los usuarios asignados quedaran sin liga.">
                                     @csrf
                                     @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm" type="submit">Eliminar</button>
                                 </form>
-                            @endcan
+                            @endif
                         </td>
                     </tr>
                 @empty

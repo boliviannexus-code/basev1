@@ -21,10 +21,6 @@ class DeletePlayerPhotoRequest extends FormRequest
             return true;
         }
 
-        $companyId = CompanyContext::id($user);
-
-        return $player->teamPlayers()->where('company_id', $companyId)->exists()
-            || $player->tournamentTeamPlayers()->where('company_id', $companyId)->exists()
-            || (! $player->teamPlayers()->exists() && ! $player->tournamentTeamPlayers()->exists());
+        return (int) $player->company_id === (int) CompanyContext::id($user);
     }
 }

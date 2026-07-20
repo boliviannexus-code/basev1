@@ -1,19 +1,13 @@
 .git
-.github
-.vscode
 .env
 .env.*
-!.env.example
-.env copy
 node_modules
 vendor
-storage/logs/*
+storage/app/*
 storage/framework/cache/*
 storage/framework/sessions/*
+storage/framework/testing/*
 storage/framework/views/*
-bootstrap/cache/*
-npm-debug.log
-yarn-error.log
+storage/logs/*
 .phpunit.result.cache
-coverage
-public/build
+npm-debug.log

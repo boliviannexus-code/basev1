@@ -17,10 +17,39 @@ class PermissionRepository
 
     public function allGroupedByModule(): Collection
     {
+        $moduleOrder = collect([
+            'dashboard',
+            'users',
+            'roles',
+            'permissions',
+            'fingerprint-templates',
+            'companies',
+            'seasons',
+            'divisions',
+            'courts',
+            'teams',
+            'players',
+            'player-imports',
+            'categories',
+            'tournaments',
+            'tournament-registrations',
+            'fixtures',
+            'matchdays',
+            'match-reports',
+            'meetings',
+            'standings',
+            'accreditations',
+            'player-habilitations',
+            'player-transfers',
+            'league-settings',
+            'audits',
+        ])->flip();
+
         return Permission::query()
             ->orderBy('name')
             ->get()
-            ->groupBy(fn (Permission $permission): string => str($permission->name)->before('.')->toString());
+            ->groupBy(fn (Permission $permission): string => str($permission->name)->before('.')->toString())
+            ->sortKeysUsing(fn (string $left, string $right): int => ($moduleOrder[$left] ?? 999) <=> ($moduleOrder[$right] ?? 999));
     }
 
     public function create(array $data): Permission

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Player;
+use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -13,6 +14,7 @@ class PlayerService
         $query = trim((string) $query);
 
         return Player::query()
+            ->forCompany(CompanyContext::id())
             ->when($query !== '', fn ($builder) => $this->applySearch($builder, $query))
             ->latest()
             ->paginate($perPage)
@@ -22,6 +24,7 @@ class PlayerService
     public function create(array $data): Player
     {
         $data = $this->normalize($data, true);
+        $data = CompanyContext::applyToData($data);
         unset($data['internal_code']);
 
         $player = Player::query()->create($data);
@@ -38,6 +41,7 @@ class PlayerService
         }
 
         return Player::query()
+            ->forCompany(CompanyContext::id())
             ->where('ci_normalized', $normalizedCi)
             ->first();
     }
@@ -76,6 +80,7 @@ class PlayerService
         }
 
         return Player::query()
+            ->forCompany(CompanyContext::id())
             ->where('is_active', true)
             ->where(fn ($builder) => $this->applySearch($builder, $query))
             ->orderBy('last_name')
@@ -93,6 +98,7 @@ class PlayerService
             $search
                 ->whereRaw('LOWER(first_name) LIKE ?', [$like])
                 ->orWhereRaw('LOWER(last_name) LIKE ?', [$like])
+                ->orWhereRaw('LOWER(maternal_name) LIKE ?', [$like])
                 ->orWhereRaw('LOWER(internal_code) LIKE ?', [$like])
                 ->orWhere('ci_normalized', 'like', $normalizedCi);
         });
@@ -113,7 +119,7 @@ class PlayerService
     {
         if (blank($player->internal_code)) {
             $player->forceFill([
-                'internal_code' => Player::internalCodeForId((int) $player->id),
+                'internal_code' => Player::internalCodeFor($player),
             ])->saveQuietly();
         }
 

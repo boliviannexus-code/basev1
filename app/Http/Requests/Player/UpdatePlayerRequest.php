@@ -11,7 +11,14 @@ class UpdatePlayerRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return ($this->user()?->can('players.update') ?? false) && CompanyContext::canOperate($this->user());
+        $player = $this->route('player');
+
+        if (! $player instanceof Player || ! ($this->user()?->can('players.update') ?? false) || ! CompanyContext::canOperate($this->user())) {
+            return false;
+        }
+
+        return CompanyContext::isGlobalAdmin($this->user())
+            || (int) $player->company_id === (int) CompanyContext::id($this->user());
     }
 
     public function rules(): array
@@ -20,6 +27,7 @@ class UpdatePlayerRequest extends FormRequest
             'ci' => ['required', 'string', 'max:50'],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
+            'maternal_name' => ['nullable', 'string', 'max:255'],
             'birth_date' => ['required', 'date', 'before:today'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['sometimes', 'boolean'],
@@ -33,6 +41,7 @@ class UpdatePlayerRequest extends FormRequest
                 $player = $this->route('player');
 
                 if (Player::query()
+                    ->forCompany(CompanyContext::id($this->user()))
                     ->where('ci_normalized', Player::normalizeCi((string) $this->input('ci')))
                     ->when($player, fn ($query, Player $player) => $query->whereKeyNot($player->id))
                     ->exists()) {
@@ -48,6 +57,7 @@ class UpdatePlayerRequest extends FormRequest
             'ci' => is_string($this->input('ci')) ? str($this->input('ci'))->squish()->upper()->toString() : $this->input('ci'),
             'first_name' => is_string($this->input('first_name')) ? str($this->input('first_name'))->squish()->toString() : $this->input('first_name'),
             'last_name' => is_string($this->input('last_name')) ? str($this->input('last_name'))->squish()->toString() : $this->input('last_name'),
+            'maternal_name' => is_string($this->input('maternal_name')) ? str($this->input('maternal_name'))->squish()->toString() : $this->input('maternal_name'),
         ]);
     }
 }

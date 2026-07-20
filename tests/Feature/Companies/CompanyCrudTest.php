@@ -24,6 +24,7 @@ class CompanyCrudTest extends TestCase
             ->actingAs($user)
             ->post(route('companies.store'), [
                 'name' => 'Liga Demo',
+                'code' => 'LDE',
                 'phone' => '70000000',
                 'email' => 'demo@example.com',
                 'address' => 'Av. Siempre Viva',
@@ -38,6 +39,7 @@ class CompanyCrudTest extends TestCase
         $company = Company::query()->firstOrFail();
 
         $this->assertSame('Liga Demo', $company->name);
+        $this->assertSame('LDE', $company->code);
         $this->assertNotNull($company->logo_path);
         Storage::disk('public')->assertExists($company->logo_path);
     }

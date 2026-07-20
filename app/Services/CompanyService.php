@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Company;
+use App\Models\Player;
+use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -11,7 +13,7 @@ class CompanyService
 {
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
-        return Company::query()
+        return CompanyContext::scope(Company::query(), column: 'id')
             ->withCount('users')
             ->latest()
             ->paginate($perPage);
@@ -50,9 +52,16 @@ class CompanyService
 
         unset($data['logo'], $data['remove_logo'], $data['legal_name'], $data['tax_id']);
 
-        $company->update($data);
+        $oldCode = $company->code;
 
-        return $company->refresh();
+        $company->update($data);
+        $company->refresh();
+
+        if ($oldCode !== $company->code) {
+            $this->refreshPlayerCodes($company);
+        }
+
+        return $company;
     }
 
     public function delete(Company $company): bool
@@ -66,6 +75,14 @@ class CompanyService
 
     private function normalize(array $data, ?bool $defaultActive = null): array
     {
+        if (array_key_exists('code', $data)) {
+            $data['code'] = Company::normalizeCode((string) $data['code']);
+        }
+
+        if (array_key_exists('subdomain', $data)) {
+            $data['subdomain'] = Company::normalizeSubdomain((string) $data['subdomain']);
+        }
+
         if (array_key_exists('is_active', $data)) {
             $data['is_active'] = (bool) $data['is_active'];
         } elseif ($defaultActive !== null) {
@@ -73,5 +90,21 @@ class CompanyService
         }
 
         return $data;
+    }
+
+    private function refreshPlayerCodes(Company $company): void
+    {
+        Player::query()
+            ->where('company_id', $company->id)
+            ->orderBy('id')
+            ->select(['id', 'company_id'])
+            ->chunkById(500, function ($players) use ($company): void {
+                foreach ($players as $player) {
+                    $player->setRelation('company', $company);
+                    $player->forceFill([
+                        'internal_code' => Player::internalCodeFor($player),
+                    ])->saveQuietly();
+                }
+            });
     }
 }

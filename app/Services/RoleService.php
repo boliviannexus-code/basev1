@@ -6,6 +6,7 @@ use App\Repositories\RoleRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -42,9 +43,9 @@ class RoleService
         $permissions = $data['permissions'] ?? null;
         unset($data['permissions']);
 
-        if ($role->name === 'admin' && ($data['name'] ?? 'admin') !== 'admin') {
+        if (in_array($role->name, self::ADMIN_ROLES, true) && ($data['name'] ?? $role->name) !== $role->name) {
             throw ValidationException::withMessages([
-                'name' => 'No puedes renombrar el rol admin.',
+                'name' => 'No puedes renombrar un rol administrador del sistema.',
             ]);
         }
 
@@ -63,6 +64,10 @@ class RoleService
 
     public function syncPermissions(Role $role, array $permissions): Role
     {
+        if ($role->name === 'super_admin') {
+            $permissions = Permission::query()->pluck('name')->all();
+        }
+
         if (in_array($role->name, self::ADMIN_ROLES, true)) {
             $required = ['roles.view', 'roles.edit', 'roles.assign-permissions'];
 

@@ -777,54 +777,257 @@ body {
     margin-bottom: 0;
 }
 
-.registration-division-tabs,
-.registration-tournament-tabs {
+.registration-filter-tabs {
     flex-wrap: nowrap;
-    gap: .4rem;
+    gap: .35rem;
     overflow-x: auto;
     overflow-y: hidden;
     padding-bottom: .15rem;
+    border-bottom: 1px solid rgba(var(--tblr-border-color-rgb), .85);
     scrollbar-width: thin;
 }
 
-.registration-division-tabs {
-    border-bottom: 1px solid rgba(var(--tblr-border-color-rgb), .9);
+.registration-filter-tabs.compact {
+    gap: .35rem;
+    border-bottom: 1px solid rgba(var(--tblr-border-color-rgb), .7);
 }
 
-.registration-tournament-tabs {
-    border-bottom: 0;
-}
-
-.registration-color-tab {
-    --registration-hue: 210;
-    --registration-sat: 70%;
+.registration-filter-tab {
     display: inline-flex;
     align-items: center;
     gap: .45rem;
-    min-height: 2.75rem;
-    border: 1px solid hsl(var(--registration-hue) var(--registration-sat) 82%) !important;
-    border-radius: .5rem .5rem 0 0 !important;
-    background: hsl(var(--registration-hue) var(--registration-sat) 97%) !important;
-    color: hsl(var(--registration-hue) 62% 28%) !important;
+    min-height: 2.45rem;
+    border: 1px solid var(--tblr-border-color) !important;
+    border-radius: .45rem .45rem 0 0 !important;
+    background: var(--tblr-bg-surface) !important;
+    color: var(--tblr-body-color) !important;
+    white-space: nowrap;
+}
+
+.registration-filter-tab.compact {
+    min-height: 2.3rem;
+    border-radius: .45rem .45rem 0 0 !important;
+}
+
+.registration-filter-tab:hover,
+.registration-filter-tab:focus {
+    border-color: rgba(var(--tblr-primary-rgb), .45) !important;
+    background: rgba(var(--tblr-primary-rgb), .06) !important;
+    color: var(--tblr-primary) !important;
+}
+
+.registration-filter-tab.active {
+    border-color: var(--tblr-primary) !important;
+    background: var(--tblr-primary) !important;
+    color: #fff !important;
+    box-shadow: inset 0 -.16rem 0 rgba(255, 255, 255, .28);
+}
+
+.registration-filter-tab .registration-tab-badge {
+    background: var(--tblr-bg-surface-secondary);
+    color: var(--tblr-body-color);
+}
+
+.registration-filter-tab.active .registration-tab-badge {
+    background: rgba(255, 255, 255, .9);
+    color: var(--tblr-primary);
+}
+
+[data-registration-team-number-form] {
+    width: 4.75rem;
+}
+
+[data-registration-team-number-form] .form-control {
+    min-height: 2.25rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.fixture-stepper {
+    display: grid;
+    gap: 1.25rem;
+}
+
+.fixture-stepper-header {
+    display: flex;
+    gap: .5rem;
+    overflow-x: auto;
+    padding-bottom: .15rem;
+}
+
+.fixture-step-indicator {
+    min-height: 2.5rem;
+    border: 1px solid var(--tblr-border-color);
+    border-radius: .45rem;
+    background: var(--tblr-bg-surface);
+    color: var(--tblr-body-color);
+    padding: .45rem .75rem;
+    white-space: nowrap;
+}
+
+.fixture-step-indicator.active {
+    border-color: var(--tblr-primary);
+    background: var(--tblr-primary);
+    color: #fff;
+}
+
+.fixture-step-indicator.completed {
+    border-color: rgba(var(--tblr-success-rgb), .55);
+    color: var(--tblr-success);
+}
+
+.fixture-option {
+    display: flex;
+    gap: .75rem;
+    min-height: 100%;
+    border: 1px solid var(--tblr-border-color);
+    border-radius: .5rem;
+    padding: .85rem;
+    cursor: pointer;
+}
+
+.fixture-option:has(input:checked) {
+    border-color: var(--tblr-primary);
+    background: rgba(var(--tblr-primary-rgb), .06);
+}
+
+.fixture-option-title,
+.fixture-option-copy {
+    display: block;
+}
+
+.fixture-option-title {
+    font-weight: 600;
+}
+
+.fixture-option-copy {
+    color: var(--tblr-secondary);
+    font-size: .875rem;
+    margin-top: .2rem;
+}
+
+.fixture-stepper-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-top: 1.25rem;
+}
+
+.fixture-summary-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    border: 1px solid var(--tblr-border-color);
+    border-radius: .5rem;
+    background: var(--tblr-bg-surface);
+    padding: .9rem;
+}
+
+.fixture-summary-flow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: .75rem;
+    margin-top: .75rem;
+}
+
+.fixture-summary-step {
+    display: flex;
+    gap: .75rem;
+    min-height: 7rem;
+    border: 1px solid var(--tblr-border-color);
+    border-radius: .5rem;
+    background: var(--tblr-bg-surface);
+    padding: .85rem;
+}
+
+.fixture-summary-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 2rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: rgba(var(--tblr-primary-rgb), .1);
+    color: var(--tblr-primary);
+    font-weight: 700;
+}
+
+.fixture-summary-label {
+    display: block;
+    color: var(--tblr-secondary);
+    font-size: .8125rem;
+    font-weight: 600;
+    margin-bottom: .2rem;
+}
+
+.fixture-summary-step strong,
+.fixture-summary-step small {
+    display: block;
+}
+
+.fixture-summary-step small {
+    color: var(--tblr-secondary);
+    line-height: 1.35;
+    margin-top: .35rem;
+}
+
+.fixture-bracket-stages {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: .75rem;
+}
+
+.fixture-bracket-stage {
+    min-height: 8.5rem;
+    border: 1px solid var(--tblr-border-color);
+    border-radius: .5rem;
+    background: var(--tblr-bg-surface);
+    padding: .75rem;
+}
+
+.fixture-bracket-stage-title {
+    font-weight: 600;
+}
+
+.fixture-bracket-stage-meta {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    color: var(--tblr-secondary);
+    font-size: .8125rem;
+    margin-top: .35rem;
+}
+
+.registration-color-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    min-height: 2.45rem;
+    border: 1px solid var(--tblr-border-color) !important;
+    border-radius: .45rem .45rem 0 0 !important;
+    background: var(--tblr-bg-surface) !important;
+    color: var(--tblr-body-color) !important;
     white-space: nowrap;
 }
 
 .registration-color-tab:hover,
 .registration-color-tab:focus {
-    background: hsl(var(--registration-hue) var(--registration-sat) 94%) !important;
-    color: hsl(var(--registration-hue) 68% 24%) !important;
+    border-color: rgba(var(--tblr-primary-rgb), .45) !important;
+    background: rgba(var(--tblr-primary-rgb), .06) !important;
+    color: var(--tblr-primary) !important;
 }
 
 .registration-color-tab.active {
-    border-color: hsl(var(--registration-hue) var(--registration-sat) 42%) !important;
-    background: hsl(var(--registration-hue) var(--registration-sat) 42%) !important;
+    border-color: var(--tblr-primary) !important;
+    background: var(--tblr-primary) !important;
     color: #fff !important;
-    box-shadow: inset 0 -.18rem 0 rgba(255, 255, 255, .35);
+    box-shadow: inset 0 -.16rem 0 rgba(255, 255, 255, .28);
 }
 
 .registration-tournament-tab {
-    min-height: 2.35rem;
-    border-radius: 999px !important;
+    min-height: 2.3rem;
+    border-radius: .45rem .45rem 0 0 !important;
 }
 
 .registration-tab-title {
@@ -834,16 +1037,16 @@ body {
 }
 
 .registration-tab-badge {
-    background: rgba(255, 255, 255, .82);
-    color: hsl(var(--registration-hue) 58% 28%);
+    background: var(--tblr-bg-surface-secondary);
+    color: var(--tblr-body-color);
 }
 
 .registration-color-tab:not(.active) .registration-tab-badge {
-    background: hsl(var(--registration-hue) var(--registration-sat) 89%);
+    background: var(--tblr-bg-surface-secondary);
 }
 
 .registration-tab-badge-soft {
-    background: rgba(255, 255, 255, .55);
+    background: rgba(var(--tblr-primary-rgb), .1);
 }
 
 .registration-division-content {
@@ -856,8 +1059,8 @@ body {
     justify-content: space-between;
     gap: 1rem;
     padding: .75rem .9rem;
-    border-left: .25rem solid hsl(var(--registration-hue) var(--registration-sat) 42%);
-    background: hsl(var(--registration-hue) var(--registration-sat) 97%);
+    border-left: .25rem solid var(--tblr-primary);
+    background: var(--tblr-bg-surface-secondary);
 }
 
 .stock-filter-bar {
