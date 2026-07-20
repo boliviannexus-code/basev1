@@ -60,7 +60,7 @@
                         </td>
                         <td>
                             <div class="fw-semibold">{{ $meeting->present_count }} / {{ $meeting->attendances_count }}</div>
-                            <div class="text-body-secondary small">{{ max(0, $meeting->attendances_count - $meeting->present_count) }} ausentes</div>
+                            <div class="text-body-secondary small">{{ $meeting->permission_count }} permisos · {{ max(0, $meeting->attendances_count - $meeting->present_count - $meeting->permission_count) }} ausentes</div>
                         </td>
                         <td>
                             <span class="badge text-bg-{{ $meeting->status === \App\Models\Meeting::STATUS_FINISHED ? 'success' : 'warning' }}">

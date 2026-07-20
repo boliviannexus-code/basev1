@@ -114,6 +114,7 @@ function openAjaxModal(trigger) {
             ajaxModalBody.innerHTML = html;
             disableBusinessFormAutocomplete(ajaxModalBody);
             initTomSelects(ajaxModalBody);
+            initPunishmentPlayerFilters(ajaxModalBody);
             initRegistrationCategorySelects(ajaxModalBody);
             initTournamentCategorySelects(ajaxModalBody);
             initTournamentNamePreviews(ajaxModalBody);
@@ -934,6 +935,7 @@ async function refreshContainer(url) {
     if (fresh) {
         current.replaceWith(fresh);
         initTomSelects(fresh);
+        initPunishmentPlayerFilters(fresh);
         initTeamNameMatches(fresh);
         initAdminDataTables();
         initHabilitationPlayerSearch(fresh);
@@ -1381,6 +1383,71 @@ function initTomSelects(scope = document) {
                 select.tomselect?.clear(true);
                 select.tomselect?.clearOptions();
             });
+        }
+    });
+}
+
+function initPunishmentPlayerFilters(scope = document) {
+    scope.querySelectorAll('[data-punishment-team]').forEach((teamSelect) => {
+        if (teamSelect.dataset.punishmentFilterReady === '1') {
+            return;
+        }
+
+        teamSelect.dataset.punishmentFilterReady = '1';
+
+        const form = teamSelect.closest('form') ?? scope;
+        const playerSelect = form.querySelector('[data-punishment-player]');
+
+        if (!playerSelect) {
+            return;
+        }
+
+        const resetPlayers = () => {
+            playerSelect.tomselect?.clear(true);
+            playerSelect.tomselect?.clearOptions();
+            playerSelect.disabled = true;
+            playerSelect.tomselect?.disable();
+        };
+
+        const loadPlayers = () => {
+            resetPlayers();
+
+            if (!teamSelect.value || !playerSelect.dataset.urlTemplate) {
+                return;
+            }
+
+            const url = playerSelect.dataset.urlTemplate.replace('__TEAM__', teamSelect.value);
+
+            fetch(url, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            })
+                .then((response) => response.json())
+                .then((payload) => {
+                    (payload.data ?? []).forEach((option) => {
+                        playerSelect.tomselect?.addOption(option);
+                    });
+
+                    playerSelect.disabled = false;
+                    playerSelect.tomselect?.enable();
+                    playerSelect.tomselect?.refreshOptions(false);
+
+                    if (playerSelect.dataset.selectedValue) {
+                        playerSelect.tomselect?.setValue(playerSelect.dataset.selectedValue, true);
+                        playerSelect.dataset.selectedValue = '';
+                    }
+                })
+                .catch(() => resetPlayers());
+        };
+
+        resetPlayers();
+        teamSelect.addEventListener('change', loadPlayers);
+        teamSelect.tomselect?.on('change', loadPlayers);
+
+        if (teamSelect.value) {
+            loadPlayers();
         }
     });
 }
@@ -4500,7 +4567,8 @@ function initMeetingAttendance(scope = document) {
             const original = !input.checked;
             const row = input.closest('[data-meeting-attendance-row]');
             const label = row?.querySelector('[data-meeting-attendance-label]');
-            const time = row?.querySelector('[data-meeting-attendance-time]');
+            const status = row?.querySelector('[data-meeting-attendance-status]');
+            const permissionForm = row?.querySelector('[data-meeting-permission-form]');
 
             input.disabled = true;
 
@@ -4527,18 +4595,24 @@ function initMeetingAttendance(scope = document) {
                 input.checked = present;
 
                 if (label) {
-                    label.textContent = present ? 'Presente' : 'Ausente';
+                    label.textContent = present ? 'Presente' : 'Marcar asistencia';
                     label.classList.toggle('text-success', present);
                     label.classList.toggle('text-body-secondary', !present);
                 }
 
-                if (time) {
-                    time.textContent = present
-                        ? (payload.data?.attended_at ?? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
-                        : '-';
+                if (status) {
+                    status.innerHTML = present
+                        ? `<span class="badge text-bg-success">Presente</span><div class="text-body-secondary small">${payload.data?.attended_at ?? ''}</div>`
+                        : '<span class="badge text-bg-secondary">Ausente</span>';
+                }
+
+                if (permissionForm) {
+                    permissionForm.querySelector('input[name="permission_reason"]')?.toggleAttribute('disabled', present);
+                    permissionForm.querySelector('button')?.toggleAttribute('disabled', present);
                 }
 
                 document.querySelector('[data-meeting-present-count]')?.replaceChildren(String(payload.data?.present_count ?? 0));
+                document.querySelector('[data-meeting-permission-count]')?.replaceChildren(String(payload.data?.permission_count ?? 0));
                 document.querySelector('[data-meeting-absent-count]')?.replaceChildren(String(payload.data?.absent_count ?? 0));
                 document.querySelector('[data-meeting-total-count]')?.replaceChildren(String(payload.data?.total_count ?? 0));
                 toast.fire({ icon: 'success', title: payload.message ?? 'Asistencia actualizada.' });
@@ -4550,11 +4624,76 @@ function initMeetingAttendance(scope = document) {
             }
         });
     });
+
+    scope.querySelectorAll('[data-meeting-permission-form]').forEach((form) => {
+        if (form.dataset.meetingPermissionInitialized === '1') {
+            return;
+        }
+
+        form.dataset.meetingPermissionInitialized = '1';
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const row = form.closest('[data-meeting-attendance-row]');
+            const toggle = row?.querySelector('[data-meeting-attendance-toggle]');
+            const label = row?.querySelector('[data-meeting-attendance-label]');
+            const status = row?.querySelector('[data-meeting-attendance-status]');
+            const button = form.querySelector('button');
+            const reason = form.querySelector('input[name="permission_reason"]');
+
+            button.disabled = true;
+
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: new URLSearchParams(new FormData(form)),
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const payload = await response.json();
+
+                if (!response.ok || payload.success === false) {
+                    throw new Error(payload.message ?? 'No se pudo solicitar el permiso.');
+                }
+
+                if (toggle) {
+                    toggle.checked = false;
+                }
+
+                if (label) {
+                    label.textContent = 'Marcar asistencia';
+                    label.classList.remove('text-success');
+                    label.classList.add('text-body-secondary');
+                }
+
+                if (status) {
+                    status.innerHTML = `<span class="badge text-bg-warning">Permiso</span><div class="text-body-secondary small">${payload.data?.permission_requested_at ?? ''}</div>`;
+                }
+
+                if (reason) {
+                    reason.disabled = true;
+                }
+
+                document.querySelector('[data-meeting-present-count]')?.replaceChildren(String(payload.data?.present_count ?? 0));
+                document.querySelector('[data-meeting-permission-count]')?.replaceChildren(String(payload.data?.permission_count ?? 0));
+                document.querySelector('[data-meeting-absent-count]')?.replaceChildren(String(payload.data?.absent_count ?? 0));
+                document.querySelector('[data-meeting-total-count]')?.replaceChildren(String(payload.data?.total_count ?? 0));
+                toast.fire({ icon: 'success', title: payload.message ?? 'Permiso solicitado.' });
+            } catch (error) {
+                button.disabled = false;
+                Swal.fire({ icon: 'error', title: 'Permiso', text: error.message });
+            }
+        });
+    });
 }
 
 showInitialAlerts();
 disableBusinessFormAutocomplete();
 initTomSelects();
+initPunishmentPlayerFilters();
 initRegistrationCategorySelects();
 initTournamentCategorySelects();
 initTournamentNamePreviews();

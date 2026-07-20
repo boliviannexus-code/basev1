@@ -395,6 +395,8 @@ class PlayerHabilitationService
             return filled($existing->qr_code_path) ? $existing : $this->qrCodes->generateForHabilitation($existing);
         }
 
+        $this->ensureEnabledPlayerLimit($tournament, $registration);
+
         $habilitation = DB::transaction(fn () => TournamentTeamPlayer::query()->create([
             'company_id' => $tournament->company_id,
             'tournament_id' => $tournament->id,
@@ -404,6 +406,7 @@ class PlayerHabilitationService
             'team_player_id' => $teamPlayer->id,
             'status' => TournamentTeamPlayer::STATUS_ENABLED,
             'enabled_at' => now(),
+            'enabled_by' => auth()->id(),
             'notes' => $data['notes'] ?? null,
         ]));
 
@@ -420,6 +423,31 @@ class PlayerHabilitationService
         ])->save();
 
         return $habilitation;
+    }
+
+    private function ensureEnabledPlayerLimit(Tournament $tournament, TournamentRegistration $registration): void
+    {
+        $limit = (int) (LeagueSetting::query()
+            ->where('company_id', $tournament->company_id)
+            ->value('max_enabled_players_per_team_category') ?? 0);
+
+        if ($limit <= 0) {
+            return;
+        }
+
+        $enabledCount = TournamentTeamPlayer::query()
+            ->where('company_id', $tournament->company_id)
+            ->where('tournament_id', $tournament->id)
+            ->where('tournament_registration_id', $registration->id)
+            ->where('status', TournamentTeamPlayer::STATUS_ENABLED)
+            ->whereNull('deleted_at')
+            ->count();
+
+        if ($enabledCount >= $limit) {
+            throw ValidationException::withMessages([
+                'team_player_id' => "Este equipo ya alcanzo el limite de {$limit} habilitado(s) para esta categoria.",
+            ]);
+        }
     }
 
     public function registrationFor(Tournament $tournament, Team $team): ?TournamentRegistration

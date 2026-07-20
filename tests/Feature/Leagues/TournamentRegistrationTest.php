@@ -180,6 +180,48 @@ class TournamentRegistrationTest extends TestCase
         ]);
     }
 
+    public function test_team_number_is_reassigned_when_registration_moves_to_another_series(): void
+    {
+        [$company, , $user] = $this->leagueUser(['tournament-registrations.update']);
+        $tournament = $this->tournamentFor($company);
+        $movingTeam = Team::factory()->create(['company_id' => $company->id]);
+        $existingTeam = Team::factory()->create(['company_id' => $company->id]);
+        $movingRegistration = TournamentRegistration::factory()->create([
+            'company_id' => $company->id,
+            'tournament_id' => $tournament->id,
+            'division_id' => $tournament->division_id,
+            'category_id' => $tournament->category_id,
+            'team_id' => $movingTeam->id,
+            'series' => 'serie_a',
+            'team_number' => 1,
+        ]);
+        TournamentRegistration::factory()->create([
+            'company_id' => $company->id,
+            'tournament_id' => $tournament->id,
+            'division_id' => $tournament->division_id,
+            'category_id' => $tournament->category_id,
+            'team_id' => $existingTeam->id,
+            'series' => 'serie_b',
+            'team_number' => 1,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->put(route('tournament-registrations.update', $movingRegistration), [
+                'category_id' => $tournament->category_id,
+                'series' => 'serie_b',
+                'status' => 'registered',
+                'notes' => null,
+            ])
+            ->assertRedirect(route('tournament-registrations.index'));
+
+        $this->assertDatabaseHas('tournament_registrations', [
+            'id' => $movingRegistration->id,
+            'series' => 'serie_b',
+            'team_number' => 2,
+        ]);
+    }
+
     public function test_team_can_register_to_different_tournaments_in_same_division(): void
     {
         [$company, , $user] = $this->leagueUser(['tournament-registrations.create']);

@@ -6,6 +6,7 @@ use App\Models\Concerns\AuditsCompanyChanges;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use OwenIt\Auditing\Contracts\Auditable;
 
 class FixtureMatch extends Model implements Auditable
@@ -91,5 +92,10 @@ class FixtureMatch extends Model implements Auditable
     public function report(): HasOne
     {
         return $this->hasOne(MatchReport::class);
+    }
+
+    public function redCardSanctions(): HasMany
+    {
+        return $this->hasMany(RedCardSanction::class);
     }
 }

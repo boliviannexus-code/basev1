@@ -15,7 +15,7 @@ class UpdateMatchReportPlayerStatsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'field' => ['required', Rule::in(['goals', 'yellow_cards', 'red_cards'])],
+            'field' => ['required', Rule::in(['goals', 'yellow_cards'])],
             'delta' => ['required', 'integer', Rule::in([-1, 1])],
         ];
     }

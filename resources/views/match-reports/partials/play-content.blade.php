@@ -31,10 +31,6 @@
                 <div class="col-5 text-end fw-semibold text-warning">AMARILLAS</div>
                 <div class="col-2 fw-bold text-warning">{{ $summary['home_yellow_cards'] }} &nbsp; {{ $summary['away_yellow_cards'] }}</div>
                 <div class="col-5 text-start fw-semibold text-warning">AMARILLAS</div>
-
-                <div class="col-5 text-end fw-semibold text-danger">ROJAS</div>
-                <div class="col-2 fw-bold text-danger">{{ $summary['home_red_cards'] }} &nbsp; {{ $summary['away_red_cards'] }}</div>
-                <div class="col-5 text-start fw-semibold text-danger">ROJAS</div>
             </div>
         </div>
     </div>

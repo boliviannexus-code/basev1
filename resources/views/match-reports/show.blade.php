@@ -30,9 +30,11 @@
                         <tr>
                             <td class="fw-semibold">{{ $match->scheduled_time ? \Carbon\Carbon::parse($match->scheduled_time)->format('H:i') : '-' }}</td>
                             <td>
-                                <span class="fw-semibold">{{ $match->homeTeam?->name ?? $match->home_seed ?? 'Por definir' }}</span>
-                                <span class="text-body-secondary mx-1">vs</span>
-                                <span class="fw-semibold">{{ $match->awayTeam?->name ?? $match->away_seed ?? 'Por definir' }}</span>
+                                <div class="d-flex align-items-center gap-2 flex-nowrap">
+                                    <span class="fw-semibold text-truncate" style="min-width: 0;">{{ $match->homeTeam?->name ?? $match->home_seed ?? 'Por definir' }}</span>
+                                    <span class="text-body-secondary flex-shrink-0">vs</span>
+                                    <span class="fw-semibold text-truncate" style="min-width: 0;">{{ $match->awayTeam?->name ?? $match->away_seed ?? 'Por definir' }}</span>
+                                </div>
                                 <div class="text-body-secondary small">{{ $match->tournament?->name ?? '-' }}</div>
                             </td>
                             <td>{{ $match->category?->name ?? '-' }}</td>

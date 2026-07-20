@@ -1,26 +1,35 @@
 @php
-    $organizationOpen = request()->routeIs('companies.*', 'seasons.*', 'divisions.*', 'courts.*', 'teams.*', 'players.*', 'categories.*');
-    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'fixtures.*', 'matchdays.*', 'match-reports.*', 'meetings.*', 'standings.*', 'accreditations.*', 'player-habilitations.*', 'player-transfers.*');
+    $leagueOpen = request()->routeIs('companies.*', 'courts.*', 'seasons.*', 'divisions.*', 'categories.*', 'teams.*', 'players.*', 'player-imports.*');
+    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'fixtures.*', 'standings.*', 'player-habilitations.*', 'player-transfers.*');
+    $reportsOpen = request()->routeIs('sports-reports.*');
+    $matchdayOpen = request()->routeIs('matchdays.*', 'match-reports.*');
+    $penaltiesOpen = request()->routeIs('red-cards.*', 'red-card-articles.*', 'punishments.*');
+    $meetingsOpen = request()->routeIs('accreditations.*', 'meetings.*');
     $settingsOpen = request()->routeIs('league-settings.*');
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'biometric.*');
 
-    $canOrganization = auth()->user()?->can('companies.view')
+    $canLeague = auth()->user()?->can('companies.view')
+        || auth()->user()?->can('courts.view')
         || auth()->user()?->can('seasons.view')
         || auth()->user()?->can('divisions.view')
-        || auth()->user()?->can('courts.view')
+        || auth()->user()?->can('categories.view')
         || auth()->user()?->can('teams.view')
         || auth()->user()?->can('players.view')
-        || auth()->user()?->can('categories.view');
+        || auth()->user()?->can('player-imports.view');
     $canTournament = auth()->user()?->can('tournaments.view')
         || auth()->user()?->can('tournament-registrations.view')
         || auth()->user()?->can('fixtures.view')
-        || auth()->user()?->can('matchdays.view')
-        || auth()->user()?->can('match-reports.view')
-        || auth()->user()?->can('meetings.view')
         || auth()->user()?->can('standings.view')
-        || auth()->user()?->can('accreditations.view')
         || auth()->user()?->can('player-habilitations.view')
         || auth()->user()?->can('player-transfers.view');
+    $canReports = auth()->user()?->can('sports-reports.view');
+    $canMatchday = auth()->user()?->can('matchdays.view')
+        || auth()->user()?->can('match-reports.view');
+    $canPenalties = auth()->user()?->can('red-cards.view')
+        || auth()->user()?->can('red-card-articles.view')
+        || auth()->user()?->can('punishments.view');
+    $canMeetings = auth()->user()?->can('accreditations.view')
+        || auth()->user()?->can('meetings.view');
     $canSettings = auth()->user()?->can('league-settings.view');
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('fingerprint-templates.view')
@@ -59,20 +68,28 @@
                     </a>
                 </li>
 
-                @if ($canOrganization)
-                    <li class="nav-item app-menu-section {{ $organizationOpen ? 'active' : '' }}">
-                        <button class="nav-link app-menu-toggle {{ $organizationOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-organization" aria-expanded="{{ $organizationOpen ? 'true' : 'false' }}" aria-controls="menu-organization">
+                @if ($canLeague)
+                    <li class="nav-item app-menu-section {{ $leagueOpen ? 'active' : '' }}">
+                        <button class="nav-link app-menu-toggle {{ $leagueOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-league" aria-expanded="{{ $leagueOpen ? 'true' : 'false' }}" aria-controls="menu-league">
                             <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-building-store"></i></span>
-                            <span class="nav-link-title">Ligas</span>
+                            <span class="nav-link-title">Liga</span>
                             <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
                         </button>
-                        <div class="collapse {{ $organizationOpen ? 'show' : '' }}" id="menu-organization">
+                        <div class="collapse {{ $leagueOpen ? 'show' : '' }}" id="menu-league">
                             <ul class="nav app-submenu">
                                 @can('companies.view')
                                     <li class="nav-item {{ request()->routeIs('companies.*') ? 'active' : '' }}">
                                         <a class="nav-link" href="{{ route('companies.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-building"></i></span>
                                             <span class="nav-link-title">Ligas deportivas</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('courts.view')
+                                    <li class="nav-item {{ request()->routeIs('courts.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('courts.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-map-pin"></i></span>
+                                            <span class="nav-link-title">Canchas</span>
                                         </a>
                                     </li>
                                 @endcan
@@ -92,11 +109,11 @@
                                         </a>
                                     </li>
                                 @endcan
-                                @can('courts.view')
-                                    <li class="nav-item {{ request()->routeIs('courts.*') ? 'active' : '' }}">
-                                        <a class="nav-link" href="{{ route('courts.index') }}">
-                                            <span class="nav-link-icon"><i class="ti ti-map-pin"></i></span>
-                                            <span class="nav-link-title">Canchas</span>
+                                @can('categories.view')
+                                    <li class="nav-item {{ request()->routeIs('categories.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('categories.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-tags"></i></span>
+                                            <span class="nav-link-title">Categorias</span>
                                         </a>
                                     </li>
                                 @endcan
@@ -121,14 +138,6 @@
                                         <a class="nav-link" href="{{ route('player-imports.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-file-spreadsheet"></i></span>
                                             <span class="nav-link-title">Importar jugadores</span>
-                                        </a>
-                                    </li>
-                                @endcan
-                                @can('categories.view')
-                                    <li class="nav-item {{ request()->routeIs('categories.*') ? 'active' : '' }}">
-                                        <a class="nav-link" href="{{ route('categories.index') }}">
-                                            <span class="nav-link-icon"><i class="ti ti-tags"></i></span>
-                                            <span class="nav-link-title">Categorias</span>
                                         </a>
                                     </li>
                                 @endcan
@@ -176,43 +185,11 @@
                                         </a>
                                     </li>
                                 @endcan
-                                @can('matchdays.view')
-                                    <li class="nav-item {{ request()->routeIs('matchdays.*') ? 'active' : '' }}">
-                                        <a class="nav-link" href="{{ route('matchdays.index') }}">
-                                            <span class="nav-link-icon"><i class="ti ti-calendar-event"></i></span>
-                                            <span class="nav-link-title">Jornadas</span>
-                                        </a>
-                                    </li>
-                                @endcan
-                                @can('match-reports.view')
-                                    <li class="nav-item {{ request()->routeIs('match-reports.*') ? 'active' : '' }}">
-                                        <a class="nav-link" href="{{ route('match-reports.index') }}">
-                                            <span class="nav-link-icon"><i class="ti ti-clipboard-check"></i></span>
-                                            <span class="nav-link-title">Registro de partidos</span>
-                                        </a>
-                                    </li>
-                                @endcan
-                                @can('meetings.view')
-                                    <li class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
-                                        <a class="nav-link" href="{{ route('meetings.index') }}">
-                                            <span class="nav-link-icon"><i class="ti ti-users-group"></i></span>
-                                            <span class="nav-link-title">Asistencia reuniones</span>
-                                        </a>
-                                    </li>
-                                @endcan
                                 @can('standings.view')
                                     <li class="nav-item {{ request()->routeIs('standings.*') ? 'active' : '' }}">
                                         <a class="nav-link" href="{{ route('standings.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-list-numbers"></i></span>
                                             <span class="nav-link-title">Tabla de posiciones</span>
-                                        </a>
-                                    </li>
-                                @endcan
-                                @can('accreditations.view')
-                                    <li class="nav-item {{ request()->routeIs('accreditations.*') ? 'active' : '' }}">
-                                        <a class="nav-link" href="{{ route('accreditations.index') }}">
-                                            <span class="nav-link-icon"><i class="ti ti-id-badge-2"></i></span>
-                                            <span class="nav-link-title">Acreditaciones</span>
                                         </a>
                                     </li>
                                 @endcan
@@ -229,6 +206,160 @@
                                         <a class="nav-link" href="{{ route('player-transfers.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-switch-horizontal"></i></span>
                                             <span class="nav-link-title">Pases</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                            </ul>
+                        </div>
+                    </li>
+                @endif
+
+                @if ($canReports)
+                    <li class="nav-item app-menu-section {{ $reportsOpen ? 'active' : '' }}">
+                        <button class="nav-link app-menu-toggle {{ $reportsOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-reports" aria-expanded="{{ $reportsOpen ? 'true' : 'false' }}" aria-controls="menu-reports">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-report"></i></span>
+                            <span class="nav-link-title">Reportes</span>
+                            <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
+                        </button>
+                        <div class="collapse {{ $reportsOpen ? 'show' : '' }}" id="menu-reports">
+                            <ul class="nav app-submenu">
+                                <li class="nav-item {{ request()->routeIs('sports-reports.registered-teams*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('sports-reports.registered-teams') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-report"></i></span>
+                                        <span class="nav-link-title">Equipos inscritos</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('sports-reports.enabled-players*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('sports-reports.enabled-players') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-report-analytics"></i></span>
+                                        <span class="nav-link-title">Jugadores habilitados</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('sports-reports.transfers*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('sports-reports.transfers') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-report-money"></i></span>
+                                        <span class="nav-link-title">Pases</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('sports-reports.player-kardex*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('sports-reports.player-kardex') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-id"></i></span>
+                                        <span class="nav-link-title">Kardex jugador</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('sports-reports.finalized-matchdays*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('sports-reports.finalized-matchdays') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-calendar-check"></i></span>
+                                        <span class="nav-link-title">Jornadas finalizadas</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('sports-reports.yellow-cards*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('sports-reports.yellow-cards') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-cards"></i></span>
+                                        <span class="nav-link-title">Tarjetas amarillas</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('sports-reports.red-cards*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('sports-reports.red-cards') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-cardboards"></i></span>
+                                        <span class="nav-link-title">Tarjetas rojas</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                @endif
+
+                @if ($canMatchday)
+                    <li class="nav-item app-menu-section {{ $matchdayOpen ? 'active' : '' }}">
+                        <button class="nav-link app-menu-toggle {{ $matchdayOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-matchday" aria-expanded="{{ $matchdayOpen ? 'true' : 'false' }}" aria-controls="menu-matchday">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-calendar-event"></i></span>
+                            <span class="nav-link-title">Jornada</span>
+                            <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
+                        </button>
+                        <div class="collapse {{ $matchdayOpen ? 'show' : '' }}" id="menu-matchday">
+                            <ul class="nav app-submenu">
+                                @can('matchdays.view')
+                                    <li class="nav-item {{ request()->routeIs('matchdays.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('matchdays.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-calendar-event"></i></span>
+                                            <span class="nav-link-title">Jornadas</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('match-reports.view')
+                                    <li class="nav-item {{ request()->routeIs('match-reports.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('match-reports.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-clipboard-check"></i></span>
+                                            <span class="nav-link-title">Registro de partidos</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                            </ul>
+                        </div>
+                    </li>
+                @endif
+
+                @if ($canPenalties)
+                    <li class="nav-item app-menu-section {{ $penaltiesOpen ? 'active' : '' }}">
+                        <button class="nav-link app-menu-toggle {{ $penaltiesOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-penalties" aria-expanded="{{ $penaltiesOpen ? 'true' : 'false' }}" aria-controls="menu-penalties">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-gavel"></i></span>
+                            <span class="nav-link-title">Comite de Penas</span>
+                            <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
+                        </button>
+                        <div class="collapse {{ $penaltiesOpen ? 'show' : '' }}" id="menu-penalties">
+                            <ul class="nav app-submenu">
+                                @can('red-cards.view')
+                                    <li class="nav-item {{ request()->routeIs('red-cards.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('red-cards.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-cards"></i></span>
+                                            <span class="nav-link-title">Tarjetas rojas</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('red-card-articles.view')
+                                    <li class="nav-item {{ request()->routeIs('red-card-articles.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('red-card-articles.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-section"></i></span>
+                                            <span class="nav-link-title">Articulos sancion</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('punishments.view')
+                                    <li class="nav-item {{ request()->routeIs('punishments.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('punishments.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-gavel"></i></span>
+                                            <span class="nav-link-title">Castigos</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                            </ul>
+                        </div>
+                    </li>
+                @endif
+
+                @if ($canMeetings)
+                    <li class="nav-item app-menu-section {{ $meetingsOpen ? 'active' : '' }}">
+                        <button class="nav-link app-menu-toggle {{ $meetingsOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-meetings" aria-expanded="{{ $meetingsOpen ? 'true' : 'false' }}" aria-controls="menu-meetings">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-users-group"></i></span>
+                            <span class="nav-link-title">Reuniones</span>
+                            <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
+                        </button>
+                        <div class="collapse {{ $meetingsOpen ? 'show' : '' }}" id="menu-meetings">
+                            <ul class="nav app-submenu">
+                                @can('accreditations.view')
+                                    <li class="nav-item {{ request()->routeIs('accreditations.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('accreditations.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-id-badge-2"></i></span>
+                                            <span class="nav-link-title">Acreditaciones</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('meetings.view')
+                                    <li class="nav-item {{ request()->routeIs('meetings.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('meetings.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-users-group"></i></span>
+                                            <span class="nav-link-title">Asistencia reuniones</span>
                                         </a>
                                     </li>
                                 @endcan

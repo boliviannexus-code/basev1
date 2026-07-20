@@ -33,6 +33,7 @@ class TournamentRegistration extends Model implements Auditable
         'team_number',
         'series',
         'status',
+        'created_by',
         'notes',
     ];
 
@@ -71,6 +72,11 @@ class TournamentRegistration extends Model implements Auditable
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function tournamentTeamPlayers(): HasMany

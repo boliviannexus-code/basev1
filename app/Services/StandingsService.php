@@ -16,7 +16,7 @@ class StandingsService
         $rows = $this->baseRows($tournament, $categoryId, $series);
 
         $matches = FixtureMatch::query()
-            ->with(['report.players', 'homeTeam', 'awayTeam'])
+            ->with(['report.players', 'redCardSanctions', 'homeTeam', 'awayTeam'])
             ->where('company_id', $tournament->company_id)
             ->where('tournament_id', $tournament->id)
             ->where('category_id', $categoryId)
@@ -41,7 +41,8 @@ class StandingsService
                 $report->home_points,
                 $this->outcomeFor($report->home_score, $report->away_score, $report->status, $report->wo_side, 'home'),
                 $report->status === 'walkover' && in_array($report->wo_side, ['home', 'double'], true),
-                $report->players->where('team_side', 'home')
+                $report->players->where('team_side', 'home'),
+                $match->redCardSanctions->where('team_id', $match->home_team_id)->count()
             );
 
             $this->applySide(
@@ -52,7 +53,8 @@ class StandingsService
                 $report->away_points,
                 $this->outcomeFor($report->away_score, $report->home_score, $report->status, $report->wo_side, 'away'),
                 $report->status === 'walkover' && in_array($report->wo_side, ['away', 'double'], true),
-                $report->players->where('team_side', 'away')
+                $report->players->where('team_side', 'away'),
+                $match->redCardSanctions->where('team_id', $match->away_team_id)->count()
             );
         }
 
@@ -167,7 +169,8 @@ class StandingsService
         int $points,
         string $outcome,
         bool $walkover,
-        Collection $players
+        Collection $players,
+        int $redCards
     ): void {
         if (! $rows->has($teamId)) {
             return;
@@ -182,7 +185,7 @@ class StandingsService
         $row['final_points'] = $row['points'] + $row['adjustment_points'];
         $row['walkovers'] += $walkover ? 1 : 0;
         $row['yellow_cards'] += $players->sum(fn (MatchReportPlayer $player): int => (int) $player->yellow_cards);
-        $row['red_cards'] += $players->sum(fn (MatchReportPlayer $player): int => (int) $player->red_cards);
+        $row['red_cards'] += $redCards;
 
         match ($outcome) {
             'won' => $row['won']++,

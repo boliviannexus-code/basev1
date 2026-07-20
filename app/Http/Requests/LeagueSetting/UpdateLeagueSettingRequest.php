@@ -23,6 +23,9 @@ class UpdateLeagueSettingRequest extends FormRequest
             $rules[$field] = ['required', 'numeric', 'min:0', 'max:99999999.99'];
         }
 
+        $rules['max_enabled_players_per_team_category'] = ['required', 'integer', 'min:0', 'max:999'];
+        $rules['max_meeting_permissions_per_team'] = ['required', 'integer', 'min:0', 'max:999'];
+
         return $rules;
     }
 }

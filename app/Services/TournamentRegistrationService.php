@@ -33,6 +33,7 @@ class TournamentRegistrationService
         $data = $this->normalizeContext($data);
         $data['status'] = $data['status'] ?? 'registered';
         $data['series'] = $data['series'] ?? 'unica';
+        $data['created_by'] = auth()->id();
         $data['team_number'] = $this->nextTeamNumber((int) $data['tournament_id'], (int) $data['category_id'], $data['series']);
 
         if (TournamentRegistration::query()
@@ -76,13 +77,25 @@ class TournamentRegistrationService
     {
         $this->ensureVisible($registration);
         $categoryId = $this->validCategoryIdForTournament($registration->tournament, $data['category_id'] ?? null);
+        $series = $data['series'] ?? $registration->series ?? 'unica';
+        $groupChanged = (int) $registration->category_id !== $categoryId || $registration->series !== $series;
 
-        $registration->update([
+        $updates = [
             'category_id' => $categoryId,
-            'series' => $data['series'] ?? $registration->series ?? 'unica',
+            'series' => $series,
             'status' => $data['status'] ?? $registration->status,
             'notes' => $data['notes'] ?? null,
-        ]);
+        ];
+
+        if ($groupChanged) {
+            $updates['team_number'] = $this->nextTeamNumber(
+                (int) $registration->tournament_id,
+                $categoryId,
+                $series
+            );
+        }
+
+        $registration->update($updates);
 
         return $registration->refresh();
     }

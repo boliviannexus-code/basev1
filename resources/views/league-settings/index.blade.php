@@ -2,7 +2,7 @@
 
 @section('title', 'Configuraciones | '.config('app.name', 'Base Admin'))
 @section('page-title', 'Configuraciones')
-@section('page-subtitle', 'Parametros economicos propios de la liga')
+@section('page-subtitle', 'Parametros deportivos y economicos propios de la liga')
 
 @section('content')
     <div class="row g-3">
@@ -28,6 +28,50 @@
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
+                            <div class="col-sm-6 col-xl-4">
+                                <label class="form-label" for="setting-{{ $company->id }}-max-enabled-players">
+                                    <i class="ti ti-user-check me-1"></i>
+                                    Limite de habilitados por equipo y categoria
+                                </label>
+                                <input
+                                    class="form-control text-end @error('max_enabled_players_per_team_category') is-invalid @enderror"
+                                    id="setting-{{ $company->id }}-max-enabled-players"
+                                    name="max_enabled_players_per_team_category"
+                                    type="number"
+                                    min="0"
+                                    max="999"
+                                    step="1"
+                                    value="{{ old('max_enabled_players_per_team_category', (int) ($setting?->max_enabled_players_per_team_category ?? 0)) }}"
+                                    @cannot('league-settings.update') readonly @endcannot
+                                    required
+                                >
+                                <div class="form-hint">Usa 0 para no limitar la cantidad de habilitados.</div>
+                                @error('max_enabled_players_per_team_category')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-sm-6 col-xl-4">
+                                <label class="form-label" for="setting-{{ $company->id }}-max-meeting-permissions">
+                                    <i class="ti ti-calendar-check me-1"></i>
+                                    Permisos permitidos por equipo
+                                </label>
+                                <input
+                                    class="form-control text-end @error('max_meeting_permissions_per_team') is-invalid @enderror"
+                                    id="setting-{{ $company->id }}-max-meeting-permissions"
+                                    name="max_meeting_permissions_per_team"
+                                    type="number"
+                                    min="0"
+                                    max="999"
+                                    step="1"
+                                    value="{{ old('max_meeting_permissions_per_team', (int) ($setting?->max_meeting_permissions_per_team ?? 0)) }}"
+                                    @cannot('league-settings.update') readonly @endcannot
+                                    required
+                                >
+                                <div class="form-hint">Usa 0 para no permitir permisos en reuniones.</div>
+                                @error('max_meeting_permissions_per_team')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
                             @foreach ($fields as $field => $meta)
                                 <div class="col-sm-6 col-xl-4">
                                     <label class="form-label" for="setting-{{ $company->id }}-{{ $field }}">

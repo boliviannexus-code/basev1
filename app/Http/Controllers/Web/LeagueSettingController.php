@@ -54,6 +54,8 @@ class LeagueSettingController extends Controller
         $setting = LeagueSetting::query()->firstOrNew(['company_id' => $company->id]);
         $setting->fill($costs + [
             'company_id' => $company->id,
+            'max_enabled_players_per_team_category' => $data['max_enabled_players_per_team_category'],
+            'max_meeting_permissions_per_team' => $data['max_meeting_permissions_per_team'],
             'updated_by' => auth()->id(),
         ]);
 
@@ -97,6 +99,9 @@ class LeagueSettingController extends Controller
         foreach (LeagueSetting::COST_FIELDS as $field) {
             $setting->{$field} = '0.00';
         }
+
+        $setting->max_enabled_players_per_team_category = 0;
+        $setting->max_meeting_permissions_per_team = 0;
 
         return $setting;
     }

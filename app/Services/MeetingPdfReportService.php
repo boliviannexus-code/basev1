@@ -47,7 +47,8 @@ class MeetingPdfReportService
     {
         $total = $meeting->attendances->count();
         $present = $meeting->attendances->where('present', true)->count();
-        $absent = max(0, $total - $present);
+        $permission = $meeting->attendances->where('permission_requested', true)->count();
+        $absent = max(0, $total - $present - $permission);
         $dateLabel = $meeting->meeting_date
             ? str($meeting->meeting_date->copy()->locale('es')->translatedFormat('l j \d\e F Y'))->upper()->toString()
             : '-';
@@ -72,9 +73,10 @@ class MeetingPdfReportService
             <div style="height:4px;"></div>
             <table cellpadding="5" cellspacing="0" style="width:100%;">
                 <tr>
-                    <td style="width:33%;background-color:#eef6ff;color:#132f4c;text-align:center;font-weight:bold;">TOTAL<br><span style="font-size:15px;">'.e((string) $total).'</span></td>
-                    <td style="width:34%;background-color:#ecfdf5;color:#166534;text-align:center;font-weight:bold;">PRESENTES<br><span style="font-size:15px;">'.e((string) $present).'</span></td>
-                    <td style="width:33%;background-color:#fef2f2;color:#991b1b;text-align:center;font-weight:bold;">AUSENTES<br><span style="font-size:15px;">'.e((string) $absent).'</span></td>
+                    <td style="width:25%;background-color:#eef6ff;color:#132f4c;text-align:center;font-weight:bold;">TOTAL<br><span style="font-size:15px;">'.e((string) $total).'</span></td>
+                    <td style="width:25%;background-color:#ecfdf5;color:#166534;text-align:center;font-weight:bold;">PRESENTES<br><span style="font-size:15px;">'.e((string) $present).'</span></td>
+                    <td style="width:25%;background-color:#fffbeb;color:#92400e;text-align:center;font-weight:bold;">PERMISOS<br><span style="font-size:15px;">'.e((string) $permission).'</span></td>
+                    <td style="width:25%;background-color:#fef2f2;color:#991b1b;text-align:center;font-weight:bold;">AUSENTES<br><span style="font-size:15px;">'.e((string) $absent).'</span></td>
                 </tr>
             </table>
             <div style="height:4px;"></div>
@@ -89,9 +91,10 @@ class MeetingPdfReportService
                 <thead>
                     <tr style="background-color:#132f4c;color:#ffffff;font-weight:bold;text-align:center;font-size:8px;">
                         <th style="width:8%;">NRO</th>
-                        <th style="width:62%;text-align:left;">EQUIPO</th>
+                        <th style="width:52%;text-align:left;">EQUIPO</th>
                         <th style="width:15%;">ASISTENCIA</th>
                         <th style="width:15%;">HORA</th>
+                        <th style="width:10%;">PERMISO</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -100,12 +103,19 @@ class MeetingPdfReportService
         foreach ($meeting->attendances as $index => $attendance) {
             /** @var MeetingAttendance $attendance */
             $present = $attendance->present;
+            $permission = $attendance->permission_requested;
+            $status = $present ? 'PRESENTE' : ($permission ? 'PERMISO' : 'AUSENTE');
+            $color = $present ? '#15803d' : ($permission ? '#92400e' : '#dc2626');
+            $time = $present
+                ? $attendance->attended_at?->format('H:i')
+                : $attendance->permission_requested_at?->format('H:i');
             $html .= '
                 <tr style="font-size:8px;background-color:'.($present ? '#ffffff' : '#fff7ed').';">
                     <td style="width:8%;text-align:center;">'.e((string) ($index + 1)).'</td>
-                    <td style="width:62%;font-weight:bold;">'.e($attendance->team?->name ?? '-').'</td>
-                    <td style="width:15%;text-align:center;color:'.($present ? '#15803d' : '#dc2626').';font-weight:bold;">'.($present ? 'PRESENTE' : 'AUSENTE').'</td>
-                    <td style="width:15%;text-align:center;">'.e($attendance->attended_at?->format('H:i') ?? '-').'</td>
+                    <td style="width:52%;font-weight:bold;">'.e($attendance->team?->name ?? '-').'<br><span style="font-size:7px;color:#64748b;">'.e($this->categoryLabel($attendance)).'</span></td>
+                    <td style="width:15%;text-align:center;color:'.$color.';font-weight:bold;">'.$status.'</td>
+                    <td style="width:15%;text-align:center;">'.e($time ?? '-').'</td>
+                    <td style="width:10%;text-align:center;">'.($permission ? 'SI' : '-').'</td>
                 </tr>
             ';
         }
@@ -114,6 +124,23 @@ class MeetingPdfReportService
                 </tbody>
             </table>
         ';
+    }
+
+    private function categoryLabel(MeetingAttendance $attendance): string
+    {
+        $categories = $attendance->represented_categories;
+
+        if ($categories) {
+            return $categories;
+        }
+
+        $registration = $attendance->tournamentRegistration;
+
+        if (! $registration) {
+            return 'Sin categoria';
+        }
+
+        return trim(($registration->category?->name ?? 'Sin categoria').' · '.$registration->seriesLabel().' · '.($registration->tournament?->name ?? '-'));
     }
 
     private function reportHeaderHtml(?Company $company, string $rightHtml = ''): string

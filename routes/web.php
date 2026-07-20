@@ -21,9 +21,13 @@ use App\Http\Controllers\Web\PlayerBiometricRegistrationController;
 use App\Http\Controllers\Web\PlayerController;
 use App\Http\Controllers\Web\PlayerHabilitationController;
 use App\Http\Controllers\Web\PlayerImportController;
+use App\Http\Controllers\Web\PlayerPunishmentController;
 use App\Http\Controllers\Web\PlayerTransferController;
+use App\Http\Controllers\Web\RedCardArticleController;
+use App\Http\Controllers\Web\RedCardController;
 use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\SeasonController;
+use App\Http\Controllers\Web\SportsReportController;
 use App\Http\Controllers\Web\StandingsController;
 use App\Http\Controllers\Web\TeamController;
 use App\Http\Controllers\Web\TournamentController;
@@ -182,16 +186,59 @@ Route::middleware('auth')->group(function (): void {
         Route::post('{matchReport}/players', [MatchReportController::class, 'addPlayer'])->middleware('permission:match-reports.update')->name('players.store');
         Route::patch('players/{player}/stats', [MatchReportController::class, 'updatePlayerStats'])->middleware('permission:match-reports.update')->name('players.stats');
     });
+    Route::prefix('red-cards')->name('red-cards.')->group(function (): void {
+        Route::get('/', [RedCardController::class, 'index'])->middleware('permission:red-cards.view')->name('index');
+        Route::get('matchdays/{matchday}', [RedCardController::class, 'showMatchday'])->middleware('permission:red-cards.view')->name('matchdays.show');
+        Route::get('matches/{fixtureMatch}', [RedCardController::class, 'editMatch'])->middleware('permission:red-cards.view')->name('matches.edit');
+        Route::post('matches/{fixtureMatch}', [RedCardController::class, 'store'])->middleware('permission:red-cards.update')->name('matches.store');
+        Route::delete('sanctions/{redCardSanction}', [RedCardController::class, 'destroy'])->middleware('permission:red-cards.update')->name('sanctions.destroy');
+    });
+    Route::resource('red-card-articles', RedCardArticleController::class)->except(['show'])->middleware([
+        'index' => 'permission:red-card-articles.view',
+        'create' => 'permission:red-card-articles.create',
+        'store' => 'permission:red-card-articles.create',
+        'edit' => 'permission:red-card-articles.update',
+        'update' => 'permission:red-card-articles.update',
+        'destroy' => 'permission:red-card-articles.delete',
+    ]);
+    Route::prefix('punishments')->name('punishments.')->group(function (): void {
+        Route::get('/', [PlayerPunishmentController::class, 'index'])->middleware('permission:punishments.view')->name('index');
+        Route::get('create', [PlayerPunishmentController::class, 'create'])->middleware('permission:punishments.create')->name('create');
+        Route::get('teams/{team}/players', [PlayerPunishmentController::class, 'players'])->middleware('permission:punishments.create')->name('teams.players');
+        Route::post('/', [PlayerPunishmentController::class, 'store'])->middleware('permission:punishments.create')->name('store');
+        Route::patch('{punishment}/request-lift', [PlayerPunishmentController::class, 'requestLift'])->middleware('permission:punishments.request-lift')->name('request-lift');
+        Route::patch('{punishment}/review-lift', [PlayerPunishmentController::class, 'reviewLift'])->middleware('permission:punishments.approve-lift')->name('review-lift');
+    });
     Route::prefix('meetings')->name('meetings.')->group(function (): void {
         Route::get('/', [MeetingController::class, 'index'])->middleware('permission:meetings.view')->name('index');
         Route::post('/', [MeetingController::class, 'store'])->middleware('permission:meetings.create')->name('store');
         Route::get('{meeting}', [MeetingController::class, 'show'])->middleware('permission:meetings.view')->name('show');
         Route::patch('{meeting}/attendances/{attendance}', [MeetingController::class, 'updateAttendance'])->middleware('permission:meetings.update')->name('attendances.update');
+        Route::patch('{meeting}/attendances/{attendance}/permission', [MeetingController::class, 'requestPermission'])->middleware('permission:meetings.update')->name('attendances.permission');
         Route::patch('{meeting}/finish', [MeetingController::class, 'finish'])->middleware('permission:meetings.update')->name('finish');
         Route::get('{meeting}/pdf', [MeetingController::class, 'pdf'])->middleware('permission:meetings.view')->name('pdf');
     });
     Route::get('standings', [StandingsController::class, 'index'])->middleware('permission:standings.view')->name('standings.index');
     Route::get('standings/pdf', [StandingsController::class, 'pdf'])->middleware('permission:standings.view')->name('standings.pdf');
+    Route::prefix('sports-reports')->name('sports-reports.')->middleware('permission:sports-reports.view')->group(function (): void {
+        Route::get('registered-teams', [SportsReportController::class, 'registeredTeams'])->name('registered-teams');
+        Route::get('registered-teams/pdf', [SportsReportController::class, 'registeredTeamsPdf'])->name('registered-teams.pdf');
+        Route::get('enabled-players', [SportsReportController::class, 'enabledPlayers'])->name('enabled-players');
+        Route::get('enabled-players/pdf', [SportsReportController::class, 'enabledPlayersPdf'])->name('enabled-players.pdf');
+        Route::get('transfers', [SportsReportController::class, 'transfers'])->name('transfers');
+        Route::get('transfers/pdf', [SportsReportController::class, 'transfersPdf'])->name('transfers.pdf');
+        Route::get('player-kardex', [SportsReportController::class, 'playerKardex'])->name('player-kardex');
+        Route::get('player-kardex/pdf', [SportsReportController::class, 'playerKardexPdf'])->name('player-kardex.pdf');
+        Route::get('finalized-matchdays', [SportsReportController::class, 'finalizedMatchdays'])->name('finalized-matchdays');
+        Route::get('finalized-matchdays/pdf', [SportsReportController::class, 'finalizedMatchdaysPdf'])->name('finalized-matchdays.pdf');
+        Route::get('finalized-matchdays/{matchday}/results-pdf', [SportsReportController::class, 'matchdayResultsPdf'])->name('finalized-matchdays.results-pdf');
+        Route::get('yellow-cards', [SportsReportController::class, 'yellowCards'])->name('yellow-cards');
+        Route::get('yellow-cards/pdf', [SportsReportController::class, 'yellowCardsPdf'])->name('yellow-cards.pdf');
+        Route::get('red-cards', [SportsReportController::class, 'redCards'])->name('red-cards');
+        Route::get('red-cards/pdf', [SportsReportController::class, 'redCardsPdf'])->name('red-cards.pdf');
+        Route::get('card-summary', [SportsReportController::class, 'cardSummary'])->name('card-summary');
+        Route::get('card-summary/pdf', [SportsReportController::class, 'cardSummaryPdf'])->name('card-summary.pdf');
+    });
     Route::post('standings/adjustments', [StandingsController::class, 'storeAdjustment'])->middleware('permission:standings.adjust')->name('standings.adjustments.store');
     Route::prefix('accreditations')->name('accreditations.')->group(function (): void {
         Route::get('/', [AccreditationController::class, 'index'])->middleware('permission:accreditations.view')->name('index');

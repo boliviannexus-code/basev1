@@ -342,8 +342,6 @@ class MatchReportController extends Controller
                 'away_goals' => $report->players->where('team_side', 'away')->sum('goals'),
                 'home_yellow_cards' => $report->players->where('team_side', 'home')->sum('yellow_cards'),
                 'away_yellow_cards' => $report->players->where('team_side', 'away')->sum('yellow_cards'),
-                'home_red_cards' => $report->players->where('team_side', 'home')->sum('red_cards'),
-                'away_red_cards' => $report->players->where('team_side', 'away')->sum('red_cards'),
             ],
             'refreshUrl' => route('match-reports.matches.play', $report->fixtureMatch),
         ];
@@ -391,29 +389,7 @@ class MatchReportController extends Controller
             }
 
             $nextValue = min(2, $nextValue);
-            $updates = ['yellow_cards' => $nextValue];
-
-            if ($nextValue === 2) {
-                $updates['red_cards'] = 1;
-            }
-
-            return $updates;
-        }
-
-        if ($field === 'red_cards') {
-            if ($delta < 0 && (int) $player->yellow_cards >= 2) {
-                throw ValidationException::withMessages([
-                    'red_cards' => 'Para quitar la roja por doble amarilla primero reduce las tarjetas amarillas.',
-                ]);
-            }
-
-            if ($delta > 0 && $currentValue >= 1) {
-                throw ValidationException::withMessages([
-                    'red_cards' => 'Un jugador no puede tener mas de 1 tarjeta roja.',
-                ]);
-            }
-
-            return ['red_cards' => min(1, $nextValue)];
+            return ['yellow_cards' => $nextValue];
         }
 
         return [$field => $nextValue];

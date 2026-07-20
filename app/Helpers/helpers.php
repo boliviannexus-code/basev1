@@ -29,6 +29,8 @@ if (! function_exists('role_label')) {
             'super_admin' => 'Super administrador',
             'manager' => 'Gerente',
             'viewer' => 'Visualizador',
+            'comite_penas' => 'Comite de penas',
+            'comite_penas_superior' => 'Comite de penas superior',
         ];
 
         return $labels[$name] ?? str($name)->replace(['-', '_'], ' ')->headline()->toString();
@@ -56,8 +58,12 @@ if (! function_exists('permission_module_label')) {
             'fixtures' => 'Fixture',
             'matchdays' => 'Jornadas',
             'match-reports' => 'Registro de partidos',
+            'red-cards' => 'Tarjetas rojas',
+            'red-card-articles' => 'Articulos de sancion',
+            'punishments' => 'Castigos',
             'meetings' => 'Asistencia reuniones',
             'standings' => 'Tabla de posiciones',
+            'sports-reports' => 'Reportes deportivos',
             'accreditations' => 'Acreditaciones',
             'player-habilitations' => 'Habilitaciones',
             'player-transfers' => 'Pases',
@@ -110,6 +116,8 @@ if (! function_exists('permission_action_label')) {
             'adjust' => 'Ajustar puntos',
             'reopen' => 'Reabrir',
             'manage' => 'Administrar',
+            'request-lift' => 'Solicitar retiro',
+            'approve-lift' => 'Aprobar retiro',
         ];
 
         return $labels[$action] ?? str($action)->replace(['-', '_'], ' ')->headline()->toString();

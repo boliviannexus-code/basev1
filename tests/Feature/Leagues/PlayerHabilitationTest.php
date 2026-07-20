@@ -5,6 +5,7 @@ namespace Tests\Feature\Leagues;
 use App\Models\Company;
 use App\Models\Division;
 use App\Models\DivisionCategory;
+use App\Models\LeagueSetting;
 use App\Models\Player;
 use App\Models\Season;
 use App\Models\Team;
@@ -429,6 +430,46 @@ class PlayerHabilitationTest extends TestCase
             ->post(route('player-habilitations.enable'), [
                 'tournament_id' => $tournament->id,
                 'team_player_id' => $secondTeamPlayer->id,
+            ])
+            ->assertSessionHasErrors('team_player_id');
+
+        $this->assertDatabaseCount('tournament_team_players', 1);
+    }
+
+    public function test_team_enabled_players_are_limited_by_league_setting_per_category(): void
+    {
+        Storage::fake('public');
+
+        [$company, , $user] = $this->leagueUser(['player-habilitations.create']);
+        LeagueSetting::query()->create([
+            'company_id' => $company->id,
+            'max_enabled_players_per_team_category' => 1,
+        ]);
+        $division = Division::factory()->create(['company_id' => $company->id, 'min_age' => 15, 'max_age' => 25]);
+        $team = Team::factory()->create(['company_id' => $company->id]);
+        $tournament = $this->tournamentFor($company, $division);
+        $this->registerTeam($company, $tournament, $team);
+        $players = Player::factory()->count(2)->create(['birth_date' => now()->subYears(18)->toDateString()]);
+        $teamPlayers = $players->map(fn (Player $player): TeamPlayer => TeamPlayer::factory()->create([
+            'company_id' => $company->id,
+            'division_id' => $division->id,
+            'team_id' => $team->id,
+            'player_id' => $player->id,
+        ]));
+
+        $this
+            ->actingAs($user)
+            ->post(route('player-habilitations.enable'), [
+                'tournament_id' => $tournament->id,
+                'team_player_id' => $teamPlayers[0]->id,
+            ])
+            ->assertRedirect();
+
+        $this
+            ->actingAs($user)
+            ->post(route('player-habilitations.enable'), [
+                'tournament_id' => $tournament->id,
+                'team_player_id' => $teamPlayers[1]->id,
             ])
             ->assertSessionHasErrors('team_player_id');
 

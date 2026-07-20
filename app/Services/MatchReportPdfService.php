@@ -179,18 +179,17 @@ class MatchReportPdfService
         $rows = $players->map(fn (MatchReportPlayer $player, int $index): string => '
             <tr>
                 <td style="width:10%;font-size:6px;text-align:center;">'.e((string) ($player->jersey_number ?? '-')).'</td>
-                <td style="width:54%;font-size:6px;">'.e($player->player?->full_name ?? '-').'</td>
+                <td style="width:63%;font-size:6px;">'.e($player->player?->full_name ?? '-').'</td>
                 <td style="width:9%;font-size:6px;text-align:center;">'.e((string) $player->goals).'</td>
                 <td style="width:9%;font-size:6px;text-align:center;">'.e((string) $player->yellow_cards).'</td>
                 <td style="width:9%;font-size:6px;text-align:center;">0</td>
-                <td style="width:9%;font-size:6px;text-align:center;">'.e((string) $player->red_cards).'</td>
             </tr>
         ')->implode('');
 
         if ($this->isWalkoverSide($report, $side)) {
             $rows = '
                 <tr>
-                    <td colspan="6" style="height:24mm;font-size:13px;text-align:center;color:#dc2626;font-weight:bold;">
+                    <td colspan="5" style="height:24mm;font-size:13px;text-align:center;color:#dc2626;font-weight:bold;">
                         '.e($this->walkoverTeamMessage($report, $teamName)).'
                     </td>
                 </tr>
@@ -198,7 +197,7 @@ class MatchReportPdfService
         } elseif ($rows === '') {
             $rows = '
                 <tr>
-                    <td colspan="6" style="font-size:7px;text-align:center;color:#6b7280;">Sin jugadores registrados.</td>
+                    <td colspan="5" style="font-size:7px;text-align:center;color:#6b7280;">Sin jugadores registrados.</td>
                 </tr>
             ';
         }
@@ -208,11 +207,10 @@ class MatchReportPdfService
                 <thead>
                     <tr style="background-color:#f3f4f6;font-weight:bold;text-align:center;">
                         <th style="width:10%;font-size:6px;">Nro.</th>
-                        <th style="width:54%;font-size:6px;">Jugador</th>
+                        <th style="width:63%;font-size:6px;">Jugador</th>
                         <th style="width:9%;font-size:6px;">Goles</th>
                         <th style="width:9%;font-size:6px;">T.AM</th>
                         <th style="width:9%;font-size:6px;">T.DA</th>
-                        <th style="width:9%;font-size:6px;">T.RD</th>
                     </tr>
                 </thead>
                 <tbody>'.$rows.'</tbody>
@@ -239,8 +237,6 @@ class MatchReportPdfService
     {
         $homeYellow = $report->players->where('team_side', 'home')->sum('yellow_cards');
         $awayYellow = $report->players->where('team_side', 'away')->sum('yellow_cards');
-        $homeRed = $report->players->where('team_side', 'home')->sum('red_cards');
-        $awayRed = $report->players->where('team_side', 'away')->sum('red_cards');
         $winner = $this->winnerLabel($report, $homeName, $awayName);
 
         return '
@@ -261,13 +257,6 @@ class MatchReportPdfService
                     <td></td>
                     <td style="background-color:#f3f4f6;text-align:center;font-size:8px;font-weight:bold;">'.e((string) $awayYellow).'</td>
                     <td style="text-align:center;font-size:7px;">AMARILLAS</td>
-                </tr>
-                <tr>
-                    <td style="text-align:center;font-size:7px;">ROJAS</td>
-                    <td style="background-color:#f3f4f6;text-align:center;font-size:8px;font-weight:bold;">'.e((string) $homeRed).'</td>
-                    <td></td>
-                    <td style="background-color:#f3f4f6;text-align:center;font-size:8px;font-weight:bold;">'.e((string) $awayRed).'</td>
-                    <td style="text-align:center;font-size:7px;">ROJAS</td>
                 </tr>
                 <tr style="background-color:#f9fafb;">
                     <td style="width:30%;text-align:center;font-size:9px;font-weight:bold;">GANADOR</td>

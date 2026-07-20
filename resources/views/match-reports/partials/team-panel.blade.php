@@ -15,7 +15,6 @@
                         <th>Jugador</th>
                         <th class="text-center" style="width: 7rem;">Goles</th>
                         <th class="text-center" style="width: 7rem;">Amarillas</th>
-                        <th class="text-center" style="width: 5rem;">Rojas</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -34,7 +33,6 @@
                             @foreach ([
                                 'goals' => $player->goals,
                                 'yellow_cards' => $player->yellow_cards,
-                                'red_cards' => $player->red_cards,
                             ] as $field => $value)
                                 <td class="text-center">
                                     <div class="d-inline-flex align-items-center gap-1">
@@ -43,7 +41,7 @@
                                             @method('PATCH')
                                             <input type="hidden" name="field" value="{{ $field }}">
                                             <input type="hidden" name="delta" value="-1">
-                                            <button class="btn btn-danger btn-icon btn-sm" type="submit" @disabled($value <= 0 || ($field === 'red_cards' && $player->yellow_cards >= 2))>
+                                            <button class="btn btn-danger btn-icon btn-sm" type="submit" @disabled($value <= 0)>
                                                 <i class="ti ti-minus"></i>
                                             </button>
                                         </form>
@@ -53,7 +51,7 @@
                                             @method('PATCH')
                                             <input type="hidden" name="field" value="{{ $field }}">
                                             <input type="hidden" name="delta" value="1">
-                                            <button class="btn btn-success btn-icon btn-sm" type="submit" @disabled(($field === 'yellow_cards' && $value >= 2) || ($field === 'red_cards' && $value >= 1))>
+                                            <button class="btn btn-success btn-icon btn-sm" type="submit" @disabled($field === 'yellow_cards' && $value >= 2)>
                                                 <i class="ti ti-plus"></i>
                                             </button>
                                         </form>

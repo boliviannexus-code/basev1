@@ -36,6 +36,8 @@ class LeagueSetting extends Model implements Auditable
         'referee_fee',
         'medicine_fee',
         'insurance_fee',
+        'max_enabled_players_per_team_category',
+        'max_meeting_permissions_per_team',
         'created_by',
         'updated_by',
     ];
@@ -53,6 +55,8 @@ class LeagueSetting extends Model implements Auditable
             'referee_fee' => 'decimal:2',
             'medicine_fee' => 'decimal:2',
             'insurance_fee' => 'decimal:2',
+            'max_enabled_players_per_team_category' => 'integer',
+            'max_meeting_permissions_per_team' => 'integer',
         ];
     }
 
