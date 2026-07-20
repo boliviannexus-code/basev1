@@ -56,5 +56,8 @@ class User extends Authenticatable implements Auditable
     public function biometricFingerprints(): HasMany
     {
         return $this->hasMany(BiometricFingerprint::class);
+    public function tourBookings(): HasMany
+    {
+        return $this->hasMany(TourBooking::class);
     }
 }

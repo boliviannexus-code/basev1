@@ -11,7 +11,7 @@
     <div class="container container-tight py-4">
         <div class="text-center mb-4">
             <h1 class="h2">{{ config('app.name', 'Base Admin') }}</h1>
-            <p class="text-muted">Panel administrativo</p>
+            <p class="text-muted">Ingresa para administrar o gestionar tus reservas</p>
         </div>
         <div class="card card-md">
             <div class="card-body">
@@ -38,6 +38,9 @@
                         </div>
                         <button class="btn btn-primary w-100" type="submit">Ingresar</button>
                     </form>
+                    <p class="text-center text-muted mt-3 mb-0">
+                        Eres turista? <a href="{{ route('tourist.register') }}">Crear cuenta</a>
+                    </p>
             </div>
         </div>
     </div>

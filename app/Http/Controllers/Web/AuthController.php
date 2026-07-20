@@ -28,6 +28,10 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
+        if ($request->user()?->hasRole('tourist')) {
+            return redirect()->intended(route('tourist.reservations.index'));
+        }
+
         return redirect()->intended(route('dashboard'));
     }
 
