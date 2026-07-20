@@ -19,6 +19,7 @@ class Company extends Model implements Auditable
     protected $fillable = [
         'name',
         'code',
+        'subdomain',
         'phone',
         'email',
         'address',
@@ -29,6 +30,19 @@ class Company extends Model implements Auditable
         'interest_data',
         'logo_path',
         'report_footer',
+        'public_page_title',
+        'public_page_summary',
+        'public_page_body',
+        'public_contact_text',
+        'public_whatsapp',
+        'public_facebook_url',
+        'public_instagram_url',
+        'public_tiktok_url',
+        'public_youtube_url',
+        'public_banner_path',
+        'public_image_one_path',
+        'public_image_two_path',
+        'public_page_is_enabled',
         'is_active',
     ];
 
@@ -36,6 +50,7 @@ class Company extends Model implements Auditable
     {
         return [
             'foundation_date' => 'date',
+            'public_page_is_enabled' => 'boolean',
             'is_active' => 'boolean',
         ];
     }
@@ -44,6 +59,7 @@ class Company extends Model implements Auditable
     {
         static::saving(function (Company $company): void {
             $company->code = self::normalizeCode((string) $company->code);
+            $company->subdomain = self::normalizeSubdomain((string) $company->subdomain);
         });
     }
 
@@ -124,6 +140,11 @@ class Company extends Model implements Auditable
         return 'data:'.$mimeType.';base64,'.base64_encode($disk->get($this->logo_path));
     }
 
+    public function publicImageUrl(?string $path): ?string
+    {
+        return $path ? Storage::disk('public')->url($path) : null;
+    }
+
     public static function normalizeCode(string $code): string
     {
         return str($code)
@@ -132,5 +153,19 @@ class Company extends Model implements Auditable
             ->replaceMatches('/[^A-Z]/', '')
             ->limit(3, '')
             ->toString();
+    }
+
+    public static function normalizeSubdomain(string $subdomain): ?string
+    {
+        $normalized = str($subdomain)
+            ->squish()
+            ->lower()
+            ->ascii()
+            ->replaceMatches('/[^a-z0-9-]/', '')
+            ->replaceMatches('/-+/', '-')
+            ->trim('-')
+            ->toString();
+
+        return $normalized !== '' ? $normalized : null;
     }
 }

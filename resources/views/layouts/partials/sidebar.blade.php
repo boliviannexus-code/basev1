@@ -1,5 +1,5 @@
 @php
-    $leagueOpen = request()->routeIs('companies.*', 'courts.*', 'seasons.*', 'divisions.*', 'categories.*', 'teams.*', 'players.*', 'player-imports.*');
+    $leagueOpen = request()->routeIs('companies.*', 'website-page.*', 'courts.*', 'seasons.*', 'divisions.*', 'categories.*', 'teams.*', 'players.*', 'player-imports.*');
     $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'fixtures.*', 'standings.*', 'player-habilitations.*', 'player-transfers.*');
     $reportsOpen = request()->routeIs('sports-reports.*');
     $matchdayOpen = request()->routeIs('matchdays.*', 'match-reports.*');
@@ -9,6 +9,7 @@
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'biometric.*');
 
     $canLeague = auth()->user()?->can('companies.view')
+        || auth()->user()?->can('companies.update')
         || auth()->user()?->can('courts.view')
         || auth()->user()?->can('seasons.view')
         || auth()->user()?->can('divisions.view')
@@ -82,6 +83,14 @@
                                         <a class="nav-link" href="{{ route('companies.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-building"></i></span>
                                             <span class="nav-link-title">Ligas deportivas</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('companies.update')
+                                    <li class="nav-item {{ request()->routeIs('website-page.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('website-page.edit') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-world-www"></i></span>
+                                            <span class="nav-link-title">Pagina web</span>
                                         </a>
                                     </li>
                                 @endcan

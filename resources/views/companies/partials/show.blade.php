@@ -15,6 +15,8 @@
     <dd class="col-sm-8">{{ $company->phone ?: '-' }}</dd>
     <dt class="col-sm-4">Codigo</dt>
     <dd class="col-sm-8">{{ $company->code ?: '-' }}</dd>
+    <dt class="col-sm-4">Subdominio</dt>
+    <dd class="col-sm-8">{{ $company->subdomain ? $company->subdomain.'.'.config('tenancy.base_domain', 'admin-liga.com') : '-' }}</dd>
     <dt class="col-sm-4">Email</dt>
     <dd class="col-sm-8">{{ $company->email ?: '-' }}</dd>
     <dt class="col-sm-4">Direccion de sede</dt>

@@ -11,6 +11,15 @@ class CompanyContext
     public static function id(?User $user = null): ?int
     {
         $user ??= auth()->user();
+        $tenantCompany = self::tenantCompany();
+
+        if ($tenantCompany !== null) {
+            if ($user === null || self::isGlobalAdmin($user) || (int) $user->company_id === (int) $tenantCompany->id) {
+                return (int) $tenantCompany->id;
+            }
+
+            return -1;
+        }
 
         if ($user === null) {
             return null;
@@ -49,6 +58,15 @@ class CompanyContext
     public static function activeCompany(?User $user = null): ?Company
     {
         $user ??= auth()->user();
+        $tenantCompany = self::tenantCompany();
+
+        if ($tenantCompany !== null) {
+            if ($user === null || self::isGlobalAdmin($user) || (int) $user->company_id === (int) $tenantCompany->id) {
+                return $tenantCompany;
+            }
+
+            return null;
+        }
 
         if ($user === null || $user->company_id === null) {
             return null;
@@ -68,6 +86,12 @@ class CompanyContext
 
     public static function belongsToUser(?int $companyId, User $user): bool
     {
+        $tenantCompany = self::tenantCompany();
+
+        if ($tenantCompany !== null && (int) $tenantCompany->id !== (int) $companyId) {
+            return false;
+        }
+
         return self::isGlobalAdmin($user)
             || ($user->company_id !== null && (int) $user->company_id === (int) $companyId);
     }
@@ -81,5 +105,10 @@ class CompanyContext
         }
 
         return $data;
+    }
+
+    public static function tenantCompany(): ?Company
+    {
+        return app()->bound('tenant.company') ? app('tenant.company') : null;
     }
 }

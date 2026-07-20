@@ -23,6 +23,7 @@ use App\Http\Controllers\Web\PlayerHabilitationController;
 use App\Http\Controllers\Web\PlayerImportController;
 use App\Http\Controllers\Web\PlayerPunishmentController;
 use App\Http\Controllers\Web\PlayerTransferController;
+use App\Http\Controllers\Web\PublicLeaguePageController;
 use App\Http\Controllers\Web\RedCardArticleController;
 use App\Http\Controllers\Web\RedCardController;
 use App\Http\Controllers\Web\RoleController;
@@ -33,7 +34,16 @@ use App\Http\Controllers\Web\TeamController;
 use App\Http\Controllers\Web\TournamentController;
 use App\Http\Controllers\Web\TournamentRegistrationController;
 use App\Http\Controllers\Web\UserController;
+use App\Http\Controllers\Web\WebsitePageController;
 use Illuminate\Support\Facades\Route;
+
+Route::domain('{tenant}.'.config('tenancy.base_domain'))->group(function (): void {
+    Route::get('/', PublicLeaguePageController::class)->name('public.league');
+    Route::get('tabla-posiciones', [PublicLeaguePageController::class, 'standings'])->name('public.standings');
+    Route::get('partidos', [PublicLeaguePageController::class, 'matches'])->name('public.matches');
+    Route::get('kardex', [PublicLeaguePageController::class, 'kardex'])->name('public.kardex');
+    Route::get('pagina-imagen/{field}', [PublicLeaguePageController::class, 'image'])->name('public.image');
+});
 
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthController::class, 'showLogin'])->name('login');
@@ -44,6 +54,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('logout', [AuthController::class, 'logout'])->name('logout');
 
     Route::get('/', DashboardController::class)->name('dashboard');
+    Route::get('pagina-web', [WebsitePageController::class, 'edit'])->middleware('permission:companies.update')->name('website-page.edit');
+    Route::put('pagina-web', [WebsitePageController::class, 'update'])->middleware('permission:companies.update')->name('website-page.update');
     Route::get('biometrico/prueba', [BiometricTestController::class, 'index'])->name('biometric.test');
     Route::post('biometrico/enroll', [BiometricTestController::class, 'enroll'])->name('biometric.enroll');
     Route::post('biometrico/verify', [BiometricTestController::class, 'verify'])->name('biometric.verify');

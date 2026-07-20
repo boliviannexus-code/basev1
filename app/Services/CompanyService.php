@@ -79,6 +79,10 @@ class CompanyService
             $data['code'] = Company::normalizeCode((string) $data['code']);
         }
 
+        if (array_key_exists('subdomain', $data)) {
+            $data['subdomain'] = Company::normalizeSubdomain((string) $data['subdomain']);
+        }
+
         if (array_key_exists('is_active', $data)) {
             $data['is_active'] = (bool) $data['is_active'];
         } elseif ($defaultActive !== null) {

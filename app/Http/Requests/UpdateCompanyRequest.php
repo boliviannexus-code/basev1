@@ -22,6 +22,7 @@ class UpdateCompanyRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'code' => ['required', 'string', 'size:3', 'regex:/^[A-Z]{3}$/', Rule::unique('companies', 'code')->ignore($this->route('company'))],
+            'subdomain' => ['nullable', 'string', 'max:63', 'regex:/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/', Rule::unique('companies', 'subdomain')->ignore($this->route('company'))],
             'phone' => ['nullable', 'string', 'max:80'],
             'email' => ['nullable', 'email', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
@@ -41,6 +42,7 @@ class UpdateCompanyRequest extends FormRequest
     {
         $this->merge([
             'code' => is_string($this->input('code')) ? str($this->input('code'))->squish()->upper()->toString() : $this->input('code'),
+            'subdomain' => is_string($this->input('subdomain')) ? \App\Models\Company::normalizeSubdomain($this->input('subdomain')) : $this->input('subdomain'),
         ]);
     }
 }

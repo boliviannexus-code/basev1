@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use App\Models\FixtureMatch;
 use App\Models\Player;
 use App\Models\PlayerPunishment;
 use App\Models\PlayerTransferRequest;
@@ -20,7 +19,6 @@ use App\Services\SportsReportPdfService;
 use App\Support\CompanyContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\HtmlString;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -183,45 +181,21 @@ class SportsReportController extends Controller
         abort_unless(CompanyContext::belongsToUser($matchday->company_id, auth()->user()), 403);
         abort_unless($matchday->status === 'finalized', 404);
 
-        $matchday->loadMissing(['company', 'season']);
-        $rows = FixtureMatch::query()
-            ->with(['tournament', 'category', 'homeTeam', 'awayTeam', 'matchdayDate', 'report'])
-            ->whereHas('matchdayDate', fn ($query) => $query->where('matchday_id', $matchday->id))
-            ->orderBy('matchday_date_id')
-            ->orderBy('scheduled_time')
-            ->orderBy('match_number')
-            ->get();
+        $matchday->loadMissing([
+            'company',
+            'season',
+            'dates' => fn ($query) => $query
+                ->orderByRaw('COALESCE(sort_order, 2147483647)')
+                ->orderBy('date')
+                ->orderBy('id'),
+            'dates.court',
+            'dates.fixtureMatches' => fn ($query) => $query
+                ->with(['category', 'homeTeam', 'awayTeam', 'report'])
+                ->orderBy('scheduled_time')
+                ->orderBy('match_number'),
+        ]);
 
-        return $pdf->table('Resultados - '.$matchday->name, $matchday->company, [
-            'tournament' => $matchday->season?->name ?? '-',
-            'category' => $matchday->name,
-            'series' => 'Todas',
-        ], ['Fecha', 'Hora', 'Categoria', 'Local', 'GL', 'GV', 'Visitante', 'Estado'], $rows->map(function (FixtureMatch $row): array {
-            $homeScore = $row->report?->home_score;
-            $awayScore = $row->report?->away_score;
-            $homeWins = $homeScore !== null && $awayScore !== null && $homeScore > $awayScore;
-            $awayWins = $homeScore !== null && $awayScore !== null && $awayScore > $homeScore;
-
-            return [
-                $row->matchdayDate?->date?->format('d/m/Y') ?? '-',
-                $row->scheduled_time ? \Carbon\Carbon::parse($row->scheduled_time)->format('H:i') : '-',
-                $row->category?->name ?? '-',
-                $this->teamWinnerCell($row->homeTeam?->name ?? '-', $homeWins),
-                $homeScore ?? '-',
-                $awayScore ?? '-',
-                $this->teamWinnerCell($row->awayTeam?->name ?? '-', $awayWins),
-                $row->report?->status ?? $row->status,
-            ];
-        }), 'reporte-resultados-'.$matchday->name, ['10%', '8%', '16%', '22%', '6%', '6%', '22%', '10%']);
-    }
-
-    private function teamWinnerCell(string $team, bool $winner): HtmlString|string
-    {
-        if (! $winner) {
-            return $team;
-        }
-
-        return new HtmlString(e($team).'<br><span style="font-size:6px;color:#15803d;">Ganador</span>');
+        return $pdf->matchdayResults($matchday, $matchday->dates, 'reporte-resultados-'.$matchday->name);
     }
 
     public function yellowCards(Request $request): View

@@ -11,6 +11,15 @@
         <div class="invalid-feedback" data-error-for="code"></div>
     </div>
     <div class="col-md-6">
+        <label class="form-label" for="company-subdomain">Subdominio</label>
+        <div class="input-group">
+            <input class="form-control text-lowercase" id="company-subdomain" name="subdomain" value="{{ old('subdomain', $company->subdomain ?? '') }}" maxlength="63" pattern="[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?">
+            <span class="input-group-text">.{{ config('tenancy.base_domain', 'admin-liga.com') }}</span>
+        </div>
+        <div class="form-hint">Ejemplo: juancitopinto, ligacopacabana, ligalapaz.</div>
+        <div class="invalid-feedback" data-error-for="subdomain"></div>
+    </div>
+    <div class="col-md-6">
         <label class="form-label" for="company-phone">Telefono</label>
         <input class="form-control" id="company-phone" name="phone" value="{{ old('phone', $company->phone ?? '') }}">
         <div class="invalid-feedback" data-error-for="phone"></div>

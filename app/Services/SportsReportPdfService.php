@@ -3,6 +3,9 @@
 namespace App\Services;
 
 use App\Models\Company;
+use App\Models\FixtureMatch;
+use App\Models\Matchday;
+use App\Models\MatchdayDate;
 use App\Models\Player;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Collection;
@@ -30,6 +33,31 @@ class SportsReportPdfService
         $pdf = $this->makePdf($title);
         $pdf->AddPage();
         $pdf->writeHTML($this->kardexHtml($player, $context), true, false, true, false, '');
+
+        return response($pdf->Output(Str::slug($filename).'.pdf', 'S'), 200, [
+            'Content-Disposition' => 'inline; filename="'.Str::slug($filename).'.pdf"',
+            'Content-Type' => 'application/pdf',
+        ]);
+    }
+
+    public function matchdayResults(Matchday $matchday, Collection $dates, string $filename): Response
+    {
+        $title = 'Resultados - '.$matchday->name;
+        $pdf = $this->makePdf($title);
+
+        if ($dates->isEmpty()) {
+            $pdf->AddPage();
+            $pdf->writeHTML($this->matchdayResultsHtml($title, $matchday, $dates), true, false, true, false, '');
+        }
+
+        foreach ($dates as $index => $date) {
+            if ($index === 0 || ($pdf->GetY() + 20 + ($date->fixtureMatches->count() * 8)) > ($pdf->getPageHeight() - $pdf->getBreakMargin())) {
+                $pdf->AddPage();
+                $pdf->writeHTML($this->matchdayResultsHeaderHtml($title, $matchday), true, false, true, false, '');
+            }
+
+            $pdf->writeHTML($this->matchdayResultsDateHtml($date, $index), true, false, true, false, '');
+        }
 
         return response($pdf->Output(Str::slug($filename).'.pdf', 'S'), 200, [
             'Content-Disposition' => 'inline; filename="'.Str::slug($filename).'.pdf"',
@@ -114,6 +142,117 @@ class SportsReportPdfService
     private function cellHtml(mixed $cell): string
     {
         return $cell instanceof Htmlable ? $cell->toHtml() : e((string) $cell);
+    }
+
+    private function matchdayResultsHtml(string $title, Matchday $matchday, Collection $dates): string
+    {
+        if ($dates->isNotEmpty()) {
+            return '';
+        }
+
+        return $this->matchdayResultsHeaderHtml($title, $matchday).'
+            <table cellpadding="8" cellspacing="0" border="1" style="width:100%;border-color:#d8dee9;">
+                <tr><td style="text-align:center;color:#667085;">No hay partidos programados en esta jornada.</td></tr>
+            </table>
+        ';
+    }
+
+    private function matchdayResultsHeaderHtml(string $title, Matchday $matchday): string
+    {
+        return '
+            '.$this->reportHeaderHtml($matchday->company, '
+                <div style="font-size:8px;color:#64748b;font-weight:bold;">IMPRESION</div>
+                <div style="font-size:8px;line-height:9px;color:#132f4c;">Fecha: '.e(now()->format('d/m/Y H:i')).'</div>
+                <div style="font-size:8px;line-height:9px;color:#132f4c;">Usuario: '.e(auth()->user()?->name ?? '-').'</div>
+            ').'
+            <table cellpadding="5" cellspacing="0" style="width:100%;">
+                <tr>
+                    <td style="width:100%;text-align:center;color:#132f4c;font-size:12px;font-weight:bold;">
+                        '.e(str($title)->upper()->toString()).'
+                    </td>
+                </tr>
+            </table>
+            <table cellpadding="4" cellspacing="0" style="width:100%;background-color:#0f766e;color:#ffffff;">
+                <tr>
+                    <td style="width:70%;font-size:8px;font-weight:bold;">GESTION: '.e(str($matchday->season?->name ?? '-')->upper()->toString()).'</td>
+                    <td style="width:30%;font-size:8px;font-weight:bold;text-align:right;">JORNADA: '.e((string) ($matchday->number ?? '-')).'</td>
+                </tr>
+            </table>
+            <div style="height:4px;"></div>
+        ';
+    }
+
+    private function matchdayResultsDateHtml(MatchdayDate $date, int $index): string
+    {
+        $dateLabel = $date->date
+            ? str($date->date->copy()->locale('es')->translatedFormat('l j \d\e F Y'))->upper()->toString()
+            : 'FECHA SIN DEFINIR';
+        $accent = $index % 2 === 0 ? '#0f766e' : '#1d4ed8';
+
+        $html = '
+            <table cellpadding="3" cellspacing="0" style="width:100%;background-color:#132f4c;color:#ffffff;">
+                <tr>
+                    <td style="width:100%;text-align:center;font-size:9px;font-weight:bold;">CANCHA: '.e(str($date->court?->name ?? 'Sin cancha')->upper()->toString()).'</td>
+                </tr>
+            </table>
+            <table cellpadding="4" cellspacing="0" style="width:100%;background-color:'.$accent.';color:#ffffff;">
+                <tr>
+                    <td style="width:100%;text-align:center;font-size:11px;font-weight:bold;">'.e($dateLabel).'</td>
+                </tr>
+            </table>
+            <table cellpadding="2" cellspacing="0" border="1" style="width:100%;border-color:#d8dee9;">
+                <thead>
+                    <tr style="background-color:#132f4c;color:#ffffff;font-weight:bold;text-align:center;font-size:7px;">
+                        <th style="width:9%;">HORA</th>
+                        <th style="width:13%;">CAT.</th>
+                        <th style="width:25%;">LOCAL</th>
+                        <th style="width:7%;">GL</th>
+                        <th style="width:7%;">GV</th>
+                        <th style="width:25%;">VISITANTE</th>
+                        <th style="width:14%;">ESTADO</th>
+                    </tr>
+                </thead>
+                <tbody>
+        ';
+
+        foreach ($date->fixtureMatches as $match) {
+            $html .= $this->matchdayResultsRowHtml($match);
+        }
+
+        if ($date->fixtureMatches->isEmpty()) {
+            $html .= '<tr><td colspan="7" style="text-align:center;color:#667085;">No hay partidos programados en esta fecha.</td></tr>';
+        }
+
+        return $html.'</tbody></table><div style="height:5px;"></div>';
+    }
+
+    private function matchdayResultsRowHtml(FixtureMatch $match): string
+    {
+        $homeScore = $match->report?->home_score;
+        $awayScore = $match->report?->away_score;
+        $homeWins = $homeScore !== null && $awayScore !== null && $homeScore > $awayScore;
+        $awayWins = $homeScore !== null && $awayScore !== null && $awayScore > $homeScore;
+
+        return '
+            <tr style="font-size:7px;">
+                <td style="width:9%;text-align:center;font-weight:bold;">'.e($match->scheduled_time ? \Carbon\Carbon::parse($match->scheduled_time)->format('H:i') : '-').'</td>
+                <td style="width:13%;text-align:center;">'.e($match->category?->name ?? '-').'</td>
+                <td style="width:25%;font-weight:bold;text-align:right;">'.$this->winnerTeamHtml($match->homeTeam?->name ?? '-', $homeWins).'</td>
+                <td style="width:7%;text-align:center;font-weight:bold;">'.e((string) ($homeScore ?? '-')).'</td>
+                <td style="width:7%;text-align:center;font-weight:bold;">'.e((string) ($awayScore ?? '-')).'</td>
+                <td style="width:25%;font-weight:bold;text-align:left;">'.$this->winnerTeamHtml($match->awayTeam?->name ?? '-', $awayWins).'</td>
+                <td style="width:14%;text-align:center;">'.e($match->report?->status ?? $match->status).'</td>
+            </tr>
+        ';
+    }
+
+    private function winnerTeamHtml(string $team, bool $winner): string
+    {
+        if (! $winner) {
+            return e($team);
+        }
+
+        return e($team).'<br><span style="font-size:6px;color:#15803d;">Ganador</span>';
     }
 
     private function kardexHtml(Player $player, array $context): string
