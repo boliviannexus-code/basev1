@@ -1380,6 +1380,15 @@ function initTomSelects(scope = document) {
         if (select.matches('[data-remote-team-select]')) {
             const form = select.closest('form') ?? document;
             const tournament = form.querySelector('[data-registration-tournament]');
+
+            tournament?.addEventListener('change', () => {
+                select.tomselect?.clear(true);
+                select.tomselect?.clearOptions();
+            });
+        }
+    });
+}
+
 function initLocalLocationAutocomplete(scope = document) {
     scope.querySelectorAll('input[data-location-country-picker]').forEach((input) => {
         if (input.tomselect) {
@@ -1572,18 +1581,6 @@ function initPublicPopup() {
         if (event.target === popup) {
             popup.hidden = true;
             sessionStorage.setItem('public-popup-closed', '1');
-        }
-    });
-}
-
-function selectedOption(select) {
-    return select?.selectedOptions?.[0] ?? null;
-}
-
-            tournament?.addEventListener('change', () => {
-                select.tomselect?.clear(true);
-                select.tomselect?.clearOptions();
-            });
         }
     });
 }
