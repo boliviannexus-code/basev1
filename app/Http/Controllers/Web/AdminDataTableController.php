@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Player;
 use App\Models\Team;
 use App\Models\ActivityType;
-use App\Models\Category;
+use App\Models\DivisionCategory;
 use App\Models\GuideType;
 use App\Models\TransportType;
 use App\Models\User;
@@ -121,15 +121,19 @@ class AdminDataTableController extends Controller
             ->editColumn('is_active', fn (Team $team): string => '<span class="badge text-bg-'.($team->is_active ? 'success' : 'secondary').'">'.($team->is_active ? 'Activo' : 'Inactivo').'</span>')
             ->addColumn('actions', fn (Team $team): string => $this->teamActions($team))
             ->rawColumns(['team_name', 'is_active', 'actions'])
+            ->toJson();
+    }
+
     public function categories(): JsonResponse
     {
         abort_unless(auth()->user()?->can('categories.view'), 403);
 
-        return DataTables::eloquent(Category::query())
-            ->editColumn('description', fn (Category $category): string => $category->description ?: '-')
-            ->editColumn('is_active', fn (Category $category): string => $this->statusBadge((bool) $category->is_active))
-            ->editColumn('created_at', fn (Category $category): string => $category->created_at?->format('Y-m-d H:i:s') ?? '')
-            ->addColumn('actions', fn (Category $category): string => view('categories.partials.actions', compact('category'))->render())
+        return DataTables::eloquent(CompanyContext::scope(DivisionCategory::query())->with(['company', 'division']))
+            ->addColumn('division_name', fn (DivisionCategory $category): string => $category->division?->name ?? '-')
+            ->editColumn('description', fn (DivisionCategory $category): string => $category->description ?: '-')
+            ->editColumn('is_active', fn (DivisionCategory $category): string => $this->statusBadge((bool) $category->is_active))
+            ->editColumn('created_at', fn (DivisionCategory $category): string => $category->created_at?->format('Y-m-d H:i:s') ?? '')
+            ->addColumn('actions', fn (DivisionCategory $category): string => view('categories.partials.actions', compact('category'))->render())
             ->rawColumns(['is_active', 'actions'])
             ->toJson();
     }

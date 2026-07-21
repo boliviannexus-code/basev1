@@ -35,6 +35,7 @@ services:
             - '${BIOMETRIC_ENGINE_PORT:-8001}:8001'
         networks:
             - sail
+        depends_on:
             - pgsql
             - redis
             - mailpit

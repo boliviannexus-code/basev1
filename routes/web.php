@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Web\AccreditationController;
 use App\Http\Controllers\Web\AdminDataTableController;
+use App\Http\Controllers\Web\ActivityTypeController;
 use App\Http\Controllers\Web\AuditController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\BiometricTestController;
@@ -33,17 +34,12 @@ use App\Http\Controllers\Web\StandingsController;
 use App\Http\Controllers\Web\TeamController;
 use App\Http\Controllers\Web\TournamentController;
 use App\Http\Controllers\Web\TournamentRegistrationController;
-use App\Http\Controllers\Web\CategoryController;
-use App\Http\Controllers\Web\CompanyController;
-use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\GuideTypeController;
 use App\Http\Controllers\Web\LocationSearchController;
-use App\Http\Controllers\Web\PermissionController;
 use App\Http\Controllers\Web\Public\PublicTourController;
 use App\Http\Controllers\Web\Public\TourBookingController;
 use App\Http\Controllers\Web\Public\TouristAuthController;
 use App\Http\Controllers\Web\Public\TouristPanelController;
-use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\TourAvailabilityController;
 use App\Http\Controllers\Web\TourBookingAdminController;
 use App\Http\Controllers\Web\TourController;
@@ -324,6 +320,7 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         Route::get('audits', [AdminDataTableController::class, 'audits'])->name('audits');
         Route::get('players', [AdminDataTableController::class, 'players'])->name('players');
         Route::get('teams', [AdminDataTableController::class, 'teams'])->name('teams');
+    });
     Route::prefix('guide-types')->name('guide-types.')->group(function (): void {
         Route::get('/', [GuideTypeController::class, 'index'])->middleware('permission:guide_types.view')->name('index');
         Route::get('create', [GuideTypeController::class, 'create'])->middleware('permission:guide_types.create')->name('create');
