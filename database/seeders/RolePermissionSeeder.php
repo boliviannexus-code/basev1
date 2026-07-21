@@ -143,6 +143,12 @@ class RolePermissionSeeder extends Seeder
             ]);
         }
 
+        $permissionModels = Permission::query()
+            ->where('guard_name', $guard)
+            ->whereIn('name', $permissions)
+            ->get()
+            ->keyBy('name');
+
         Permission::query()
             ->whereNotIn('name', $permissions)
             ->delete();
