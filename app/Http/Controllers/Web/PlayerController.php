@@ -182,7 +182,11 @@ class PlayerController extends Controller
 
         abort_unless(
             CompanyContext::id() !== null
-            && (int) $player->company_id === (int) CompanyContext::id(),
+            && $player->teamPlayers()
+                ->where('company_id', CompanyContext::id())
+                ->where('status', 'active')
+                ->whereNull('deleted_at')
+                ->exists(),
             403
         );
     }

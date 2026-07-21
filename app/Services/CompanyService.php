@@ -95,12 +95,11 @@ class CompanyService
     private function refreshPlayerCodes(Company $company): void
     {
         Player::query()
-            ->where('company_id', $company->id)
+            ->whereHas('teamPlayers', fn ($query) => $query->where('company_id', $company->id))
             ->orderBy('id')
-            ->select(['id', 'company_id'])
-            ->chunkById(500, function ($players) use ($company): void {
+            ->select(['id'])
+            ->chunkById(500, function ($players): void {
                 foreach ($players as $player) {
-                    $player->setRelation('company', $company);
                     $player->forceFill([
                         'internal_code' => Player::internalCodeFor($player),
                     ])->saveQuietly();

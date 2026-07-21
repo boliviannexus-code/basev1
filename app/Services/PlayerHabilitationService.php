@@ -143,7 +143,6 @@ class PlayerHabilitationService
         return TeamPlayer::query()
             ->with(['player'])
             ->where('company_id', $tournament->company_id)
-            ->whereHas('player', fn ($query) => $query->where('company_id', $tournament->company_id))
             ->where('division_id', $tournament->division_id)
             ->where('team_id', $team->id)
             ->where('status', TeamPlayer::STATUS_ACTIVE)
@@ -173,7 +172,6 @@ class PlayerHabilitationService
         }
 
         $player = Player::query()
-            ->forCompany(CompanyContext::id())
             ->where('ci_normalized', $normalizedCi)
             ->first();
 

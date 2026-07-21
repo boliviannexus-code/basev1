@@ -18,7 +18,11 @@ class UpdatePlayerRequest extends FormRequest
         }
 
         return CompanyContext::isGlobalAdmin($this->user())
-            || (int) $player->company_id === (int) CompanyContext::id($this->user());
+            || $player->teamPlayers()
+                ->where('company_id', CompanyContext::id($this->user()))
+                ->where('status', 'active')
+                ->whereNull('deleted_at')
+                ->exists();
     }
 
     public function rules(): array
@@ -41,7 +45,6 @@ class UpdatePlayerRequest extends FormRequest
                 $player = $this->route('player');
 
                 if (Player::query()
-                    ->forCompany(CompanyContext::id($this->user()))
                     ->where('ci_normalized', Player::normalizeCi((string) $this->input('ci')))
                     ->when($player, fn ($query, Player $player) => $query->whereKeyNot($player->id))
                     ->exists()) {

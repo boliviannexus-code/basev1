@@ -95,7 +95,12 @@ class Player extends Model
 
     public function scopeForCompany(Builder $query, ?int $companyId): Builder
     {
-        return $query->when($companyId !== null, fn (Builder $query): Builder => $query->where('players.company_id', $companyId));
+        return $query->when($companyId !== null, fn (Builder $query): Builder => $query
+            ->whereHas('teamPlayers', fn (Builder $teamPlayers): Builder => $teamPlayers
+                ->where('team_players.company_id', $companyId)
+                ->where('team_players.status', TeamPlayer::STATUS_ACTIVE)
+                ->whereNull('team_players.deleted_at')
+            ));
     }
 
     public static function normalizeCi(string $ci): string
@@ -109,14 +114,11 @@ class Player extends Model
 
     public static function internalCodeForId(int $id): string
     {
-        return 'Nex'.str_pad((string) $id, 6, '0', STR_PAD_LEFT);
+        return 'N'.str_pad((string) ($id + 99), 5, '0', STR_PAD_LEFT);
     }
 
     public static function internalCodeFor(self $player): string
     {
-        $prefix = $player->company?->code
-            ?? ($player->company_id ? $player->company()->value('code') : null);
-
-        return (filled($prefix) ? $prefix : 'Nex').str_pad((string) $player->id, 6, '0', STR_PAD_LEFT);
+        return self::internalCodeForId((int) $player->id);
     }
 }

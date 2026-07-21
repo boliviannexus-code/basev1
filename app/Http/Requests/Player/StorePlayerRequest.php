@@ -32,7 +32,6 @@ class StorePlayerRequest extends FormRequest
         return [
             function (Validator $validator): void {
                 if (Player::query()
-                    ->forCompany(CompanyContext::id($this->user()))
                     ->where('ci_normalized', Player::normalizeCi((string) $this->input('ci')))
                     ->exists()) {
                     $validator->errors()->add('ci', 'Ya existe un jugador registrado con este CI.');
