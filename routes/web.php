@@ -48,6 +48,8 @@ use App\Http\Controllers\Web\UserController;
 use App\Http\Controllers\Web\WebsitePageController;
 use Illuminate\Support\Facades\Route;
 
+Route::redirect('/', '/login');
+
 Route::domain('{tenant}.'.config('tenancy.base_domain'))->group(function (): void {
     Route::get('/', PublicLeaguePageController::class)->name('public.league');
     Route::get('tabla-posiciones', [PublicLeaguePageController::class, 'standings'])->name('public.standings');
