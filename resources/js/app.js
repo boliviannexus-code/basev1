@@ -509,6 +509,13 @@ function renderAffiliatePlayerSummary(container, payload) {
         wrapper.append(ageWarning);
     }
 
+    if (!habilitation && actions.habilitation_blocked_reason) {
+        const habilitationWarning = document.createElement('div');
+        habilitationWarning.className = 'alert alert-warning py-2 mt-2 mb-0';
+        habilitationWarning.textContent = actions.habilitation_blocked_reason;
+        wrapper.append(habilitationWarning);
+    }
+
     container.append(wrapper);
 }
 

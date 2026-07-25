@@ -7,6 +7,7 @@ use App\Models\Division;
 use App\Models\DivisionCategory;
 use App\Models\LeagueSetting;
 use App\Models\Player;
+use App\Models\PlayerTransferRequest;
 use App\Models\Season;
 use App\Models\Team;
 use App\Models\TeamPlayer;
@@ -59,6 +60,44 @@ class PlayerHabilitationTest extends TestCase
             ->assertSee('Plantilla del club')
             ->assertSee('Habilitados al torneo')
             ->assertSee('CLUB CENTRAL');
+    }
+
+    public function test_enabled_global_player_is_visible_in_tournament_enabled_table(): void
+    {
+        [$company, , $user] = $this->leagueUser(['player-habilitations.view']);
+        $division = Division::factory()->create(['company_id' => $company->id, 'min_age' => 15, 'max_age' => 30]);
+        $team = Team::factory()->create(['company_id' => $company->id, 'name' => 'Club Central']);
+        $tournament = $this->tournamentFor($company, $division);
+        $registration = $this->registerTeam($company, $tournament, $team);
+        $player = Player::factory()->create([
+            'company_id' => null,
+            'first_name' => 'Mario',
+            'last_name' => 'Habilitado',
+            'birth_date' => now()->subYears(20)->toDateString(),
+        ]);
+        $teamPlayer = TeamPlayer::factory()->create([
+            'company_id' => $company->id,
+            'division_id' => $division->id,
+            'team_id' => $team->id,
+            'player_id' => $player->id,
+        ]);
+
+        TournamentTeamPlayer::factory()->create([
+            'company_id' => $company->id,
+            'tournament_id' => $tournament->id,
+            'tournament_registration_id' => $registration->id,
+            'team_id' => $team->id,
+            'player_id' => $player->id,
+            'team_player_id' => $teamPlayer->id,
+            'status' => TournamentTeamPlayer::STATUS_ENABLED,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('player-habilitations.show', ['tournament' => $tournament, 'team' => $team]))
+            ->assertOk()
+            ->assertSee('Habilitados al torneo')
+            ->assertSee('Mario Habilitado');
     }
 
     public function test_player_ci_is_unique_by_normalized_value(): void
@@ -372,6 +411,101 @@ class PlayerHabilitationTest extends TestCase
                 'team_player_id' => 999999,
             ])
             ->assertSessionHasErrors('team_player_id');
+    }
+
+    public function test_player_with_pending_transfer_cannot_be_enabled_until_reviewed(): void
+    {
+        [$company, , $user] = $this->leagueUser(['player-habilitations.create']);
+        $division = Division::factory()->create(['company_id' => $company->id, 'min_age' => 15, 'max_age' => 25]);
+        $fromTeam = Team::factory()->create(['company_id' => $company->id]);
+        $toTeam = Team::factory()->create(['company_id' => $company->id]);
+        $tournament = $this->tournamentFor($company, $division);
+        $this->registerTeam($company, $tournament, $fromTeam);
+        $this->registerTeam($company, $tournament, $toTeam);
+        $player = Player::factory()->create(['birth_date' => now()->subYears(18)->toDateString()]);
+        $teamPlayer = TeamPlayer::factory()->create([
+            'company_id' => $company->id,
+            'division_id' => $division->id,
+            'team_id' => $fromTeam->id,
+            'player_id' => $player->id,
+        ]);
+        PlayerTransferRequest::query()->create([
+            'company_id' => $company->id,
+            'player_id' => $player->id,
+            'division_id' => $division->id,
+            'from_team_id' => $fromTeam->id,
+            'to_team_id' => $toTeam->id,
+            'from_team_player_id' => $teamPlayer->id,
+            'requested_by' => $user->id,
+            'code' => 'ABC-PEND',
+            'sequence' => 1,
+            'status' => PlayerTransferRequest::STATUS_PENDING,
+            'fee_amount' => 100,
+            'requested_note' => 'Pase pendiente.',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('player-habilitations.enable'), [
+                'tournament_id' => $tournament->id,
+                'team_player_id' => $teamPlayer->id,
+            ])
+            ->assertSessionHasErrors('team_player_id');
+
+        $this->assertDatabaseMissing('tournament_team_players', [
+            'tournament_id' => $tournament->id,
+            'player_id' => $player->id,
+            'status' => TournamentTeamPlayer::STATUS_ENABLED,
+        ]);
+    }
+
+    public function test_player_with_reviewed_transfer_can_be_enabled_again(): void
+    {
+        [$company, , $user] = $this->leagueUser(['player-habilitations.create']);
+        $division = Division::factory()->create(['company_id' => $company->id, 'min_age' => 15, 'max_age' => 25]);
+        $fromTeam = Team::factory()->create(['company_id' => $company->id]);
+        $toTeam = Team::factory()->create(['company_id' => $company->id]);
+        $tournament = $this->tournamentFor($company, $division);
+        $this->registerTeam($company, $tournament, $fromTeam);
+        $this->registerTeam($company, $tournament, $toTeam);
+        $player = Player::factory()->create(['birth_date' => now()->subYears(18)->toDateString()]);
+        $teamPlayer = TeamPlayer::factory()->create([
+            'company_id' => $company->id,
+            'division_id' => $division->id,
+            'team_id' => $fromTeam->id,
+            'player_id' => $player->id,
+        ]);
+        PlayerTransferRequest::query()->create([
+            'company_id' => $company->id,
+            'player_id' => $player->id,
+            'division_id' => $division->id,
+            'from_team_id' => $fromTeam->id,
+            'to_team_id' => $toTeam->id,
+            'from_team_player_id' => $teamPlayer->id,
+            'requested_by' => $user->id,
+            'reviewed_by' => $user->id,
+            'code' => 'ABC-RECH',
+            'sequence' => 1,
+            'status' => PlayerTransferRequest::STATUS_REJECTED,
+            'fee_amount' => 100,
+            'requested_note' => 'Pase revisado.',
+            'review_notes' => 'Rechazado.',
+            'reviewed_at' => now(),
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('player-habilitations.enable'), [
+                'tournament_id' => $tournament->id,
+                'team_player_id' => $teamPlayer->id,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('tournament_team_players', [
+            'tournament_id' => $tournament->id,
+            'player_id' => $player->id,
+            'status' => TournamentTeamPlayer::STATUS_ENABLED,
+        ]);
     }
 
     public function test_player_age_is_validated_against_tournament_division(): void

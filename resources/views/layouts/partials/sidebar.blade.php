@@ -387,10 +387,22 @@
                         </button>
                         <div class="collapse {{ $settingsOpen ? 'show' : '' }}" id="menu-settings">
                             <ul class="nav app-submenu">
-                                <li class="nav-item {{ request()->routeIs('league-settings.*') ? 'active' : '' }}">
+                                <li class="nav-item {{ request()->routeIs('league-settings.index') ? 'active' : '' }}">
                                     <a class="nav-link" href="{{ route('league-settings.index') }}">
                                         <span class="nav-link-icon"><i class="ti ti-cash"></i></span>
                                         <span class="nav-link-title">Parametros de liga</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('league-settings.appearance*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('league-settings.appearance') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-palette"></i></span>
+                                        <span class="nav-link-title">Apariencia</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('league-settings.match-control-items*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('league-settings.match-control-items') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-checklist"></i></span>
+                                        <span class="nav-link-title">Items de control</span>
                                     </a>
                                 </li>
                             </ul>

@@ -3,8 +3,10 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Login | {{ config('app.name', 'Base Admin') }}</title>
+    @php($loginCompany = \App\Support\CompanyContext::activeCompany())
+    <title>Login | {{ $loginCompany?->name ?? config('app.name', 'Base Admin') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('layouts.partials.interface-theme')
 </head>
 <body class="auth-login-body">
 <main class="auth-login-shell">
@@ -12,7 +14,7 @@
         <div>
             <span class="auth-login-mark"><i class="ti ti-ball-football"></i></span>
             <p class="auth-login-kicker">Panel deportivo</p>
-            <h1>{{ config('app.name', 'Base Admin') }}</h1>
+            <h1>{{ $loginCompany?->name ?? config('app.name', 'Base Admin') }}</h1>
             <p>Administra ligas, torneos, jugadores, reportes y reservas desde un acceso protegido.</p>
         </div>
     </section>

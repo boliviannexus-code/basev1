@@ -43,6 +43,11 @@ class Company extends Model implements Auditable
         'public_image_one_path',
         'public_image_two_path',
         'public_page_is_enabled',
+        'interface_primary_color',
+        'interface_secondary_color',
+        'interface_accent_color',
+        'interface_sidebar_color',
+        'interface_login_background_color',
         'is_active',
     ];
 
@@ -123,6 +128,11 @@ class Company extends Model implements Auditable
         return $this->hasOne(LeagueSetting::class);
     }
 
+    public function matchControlItems(): HasMany
+    {
+        return $this->hasMany(MatchControlItem::class);
+    }
+
     public function getLogoUrlAttribute(): ?string
     {
         return $this->logo_path ? Storage::disk('public')->url($this->logo_path) : null;
@@ -172,5 +182,16 @@ class Company extends Model implements Auditable
             ->toString();
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    public function interfaceThemeVariables(): array
+    {
+        return [
+            'primary' => $this->interface_primary_color,
+            'secondary' => $this->interface_secondary_color,
+            'accent' => $this->interface_accent_color,
+            'sidebar' => $this->interface_sidebar_color,
+            'login_background' => $this->interface_login_background_color,
+        ];
     }
 }

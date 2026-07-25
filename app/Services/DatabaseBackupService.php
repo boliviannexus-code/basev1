@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Throwable;
 use RuntimeException;
+use Throwable;
 
 class DatabaseBackupService
 {
@@ -136,6 +136,8 @@ class DatabaseBackupService
 
     private function restorePostgres(array $connection, string $path): void
     {
+        $this->resetPostgresSchema($connection);
+
         $command = [
             'psql',
             '--host='.$connection['host'],
@@ -145,6 +147,21 @@ class DatabaseBackupService
             '--single-transaction',
             '--set=ON_ERROR_STOP=1',
             '--file='.$path,
+        ];
+
+        $this->run($command, ['PGPASSWORD' => (string) ($connection['password'] ?? '')]);
+    }
+
+    private function resetPostgresSchema(array $connection): void
+    {
+        $command = [
+            'psql',
+            '--host='.$connection['host'],
+            '--port='.(string) $connection['port'],
+            '--username='.$connection['username'],
+            '--dbname='.$connection['database'],
+            '--set=ON_ERROR_STOP=1',
+            '--command=DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;',
         ];
 
         $this->run($command, ['PGPASSWORD' => (string) ($connection['password'] ?? '')]);

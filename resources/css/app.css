@@ -616,7 +616,7 @@ body {
 
 .auth-login-body {
     min-height: 100vh;
-    background: #f4f7f5;
+    background: var(--league-login-background, #f4f7f5);
 }
 
 .auth-login-shell {
@@ -630,8 +630,8 @@ body {
     align-items: end;
     padding: clamp(2rem, 6vw, 4rem);
     background:
-        linear-gradient(180deg, rgba(14, 87, 68, .2), rgba(11, 55, 49, .92)),
-        linear-gradient(135deg, #0f7b5f 0%, #20443d 55%, #f5c542 100%);
+        linear-gradient(180deg, rgba(var(--league-secondary-rgb, 14, 87, 68), .2), rgba(var(--league-sidebar-rgb, 11, 55, 49), .92)),
+        linear-gradient(135deg, var(--tblr-primary, #0f7b5f) 0%, var(--league-sidebar, #20443d) 55%, var(--league-accent, #f5c542) 100%);
     color: #fff;
 }
 
@@ -851,6 +851,7 @@ body {
 .app-sidebar {
     width: var(--app-sidebar-width);
     border-right: 1px solid rgba(var(--tblr-light-rgb), .08);
+    background: var(--league-sidebar, var(--tblr-dark));
 }
 
 .app-wrapper {
@@ -1961,6 +1962,90 @@ body {
 
 .dashboard-alert-row {
     justify-content: flex-start;
+}
+
+.match-report-entry {
+    display: grid;
+    gap: 1rem;
+}
+
+.match-report-section {
+    overflow: hidden;
+    border-color: rgba(var(--tblr-primary-rgb), .16);
+}
+
+.match-control-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.match-control-table {
+    min-width: max(760px, 100%);
+    table-layout: fixed;
+}
+
+.match-control-table thead th {
+    min-width: 8.5rem;
+    padding-block: .85rem;
+    background: var(--tblr-bg-surface-secondary);
+    color: var(--tblr-secondary);
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    vertical-align: middle;
+    white-space: normal;
+}
+
+.match-control-table thead th span,
+.match-control-table thead th small {
+    display: block;
+}
+
+.match-control-table thead th small {
+    margin-top: .15rem;
+    color: var(--tblr-primary);
+    font-size: .64rem;
+    font-weight: 600;
+    text-transform: none;
+}
+
+.match-control-table tbody td {
+    height: 4.6rem;
+    vertical-align: middle;
+}
+
+.match-control-team-col {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    width: 16rem;
+    min-width: 16rem;
+    max-width: 16rem;
+    background: var(--tblr-bg-surface);
+    box-shadow: 1px 0 0 var(--tblr-border-color);
+}
+
+.match-control-table thead .match-control-team-col {
+    z-index: 3;
+    background: var(--tblr-bg-surface-secondary);
+}
+
+.match-control-check {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-width: 2px;
+}
+
+@media (max-width: 575.98px) {
+    .match-control-table {
+        min-width: 680px;
+    }
+
+    .match-control-team-col {
+        width: 12rem;
+        min-width: 12rem;
+        max-width: 12rem;
+    }
 }
 
 @media (max-width: 767.98px) {

@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('layouts.partials.interface-theme')
     <style>
-        :root { --ink:#111827; --field:#0f7b5f; --line:#dbe7df; --sun:#f5c542; --paper:#f7faf7; --red:#b91c1c; }
+        :root { --ink:#111827; --field:var(--tblr-primary, #0f7b5f); --line:#dbe7df; --sun:var(--league-accent, #f5c542); --paper:var(--league-login-background, #f7faf7); --red:#b91c1c; }
         body { margin:0; background:var(--paper); color:var(--ink); font-family: Inter, system-ui, sans-serif; }
         .public-shell { width:min(1120px, calc(100% - 32px)); margin:0 auto; }
         .public-hero { min-height:560px; color:#fff; background-image:linear-gradient(90deg, rgba(8,38,30,.92), rgba(8,38,30,.62)), var(--hero-image); background-size:100% 100%, contain; background-repeat:no-repeat; background-position:center; background-color:#08261e; }

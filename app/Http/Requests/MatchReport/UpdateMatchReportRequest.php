@@ -23,6 +23,11 @@ class UpdateMatchReportRequest extends FormRequest
             'away_present' => ['sometimes', 'boolean'],
             'home_paid_court_fee' => ['sometimes', 'boolean'],
             'away_paid_court_fee' => ['sometimes', 'boolean'],
+            'control_items' => ['nullable', 'array'],
+            'control_items.home' => ['nullable', 'array'],
+            'control_items.home.*' => ['sometimes', 'boolean'],
+            'control_items.away' => ['nullable', 'array'],
+            'control_items.away.*' => ['sometimes', 'boolean'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ];
     }

@@ -40,78 +40,94 @@
         @csrf
         @method('PUT')
 
-        <div class="row g-3">
-            <div class="col-lg-5">
-                <x-ui.table-card title="Arbitros">
-                    <div class="mb-3">
-                        <label class="form-label" for="referee-1">Arbitro 1</label>
-                        <input class="form-control @error('referee_1') is-invalid @enderror" id="referee-1" name="referee_1" value="{{ old('referee_1', $report->referee_1 ?? '') }}">
-                        @error('referee_1')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        <div class="match-report-entry">
+            <div class="card match-report-section">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title mb-0">Arbitros</h3>
+                        <div class="text-body-secondary small">Equipo arbitral asignado al partido</div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="referee-2">Arbitro 2</label>
-                        <input class="form-control @error('referee_2') is-invalid @enderror" id="referee-2" name="referee_2" value="{{ old('referee_2', $report->referee_2 ?? '') }}">
-                        @error('referee_2')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label" for="referee-1">Arbitro 1</label>
+                            <input class="form-control @error('referee_1') is-invalid @enderror" id="referee-1" name="referee_1" value="{{ old('referee_1', $report->referee_1 ?? '') }}">
+                            @error('referee_1')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="referee-2">Arbitro 2</label>
+                            <input class="form-control @error('referee_2') is-invalid @enderror" id="referee-2" name="referee_2" value="{{ old('referee_2', $report->referee_2 ?? '') }}">
+                            @error('referee_2')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="referee-3">Arbitro 3</label>
+                            <input class="form-control @error('referee_3') is-invalid @enderror" id="referee-3" name="referee_3" value="{{ old('referee_3', $report->referee_3 ?? '') }}">
+                            @error('referee_3')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
                     </div>
-                    <div class="mb-0">
-                        <label class="form-label" for="referee-3">Arbitro 3</label>
-                        <input class="form-control @error('referee_3') is-invalid @enderror" id="referee-3" name="referee_3" value="{{ old('referee_3', $report->referee_3 ?? '') }}">
-                        @error('referee_3')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                </x-ui.table-card>
+                </div>
             </div>
 
-            <div class="col-lg-7">
-                <x-ui.table-card title="Datos iniciales por equipo">
-                    <table class="table align-middle">
+            <div class="card match-report-section">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div>
+                        <h3 class="card-title mb-0">Datos iniciales por equipo</h3>
+                        <div class="text-body-secondary small">{{ $controlItems->count() }} controles activos para esta liga</div>
+                    </div>
+                    <span class="badge text-bg-light border">Local / Visitante</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="match-control-scroll">
+                        <table class="table table-vcenter match-control-table mb-0">
                         <thead>
                             <tr>
-                                <th>Equipo</th>
-                                <th class="text-center">Trajo balon</th>
-                                <th class="text-center">Presente</th>
-                                <th class="text-center">Pago cancha</th>
+                                <th class="match-control-team-col">Equipo</th>
+                                @foreach ($controlItems as $item)
+                                    <th class="text-center">
+                                        <span>{{ $item['label'] }}</span>
+                                        @if ($item['is_universal'])
+                                            <small>Universal</small>
+                                        @endif
+                                    </th>
+                                @endforeach
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="fw-semibold">{{ $homeName }}</td>
-                                <td class="text-center">
-                                    <input type="hidden" name="home_brought_ball" value="0">
-                                    <input class="form-check-input" name="home_brought_ball" type="checkbox" value="1" @checked(old('home_brought_ball', $report ? $report->home_brought_ball : true))>
+                                <td class="match-control-team-col">
+                                    <div class="fw-semibold text-truncate">{{ $homeName }}</div>
+                                    <div class="text-body-secondary small">Local</div>
                                 </td>
-                                <td class="text-center">
-                                    <input type="hidden" name="home_present" value="0">
-                                    <input class="form-check-input" name="home_present" type="checkbox" value="1" @checked(old('home_present', $report ? $report->home_present : true))>
-                                </td>
-                                <td class="text-center">
-                                    <input type="hidden" name="home_paid_court_fee" value="0">
-                                    <input class="form-check-input" name="home_paid_court_fee" type="checkbox" value="1" @checked(old('home_paid_court_fee', $report ? $report->home_paid_court_fee : true))>
-                                </td>
+                                @foreach ($controlItems as $item)
+                                    <td class="text-center">
+                                        <input type="hidden" name="control_items[home][{{ $item['key'] }}]" value="0">
+                                        <input class="form-check-input match-control-check" name="control_items[home][{{ $item['key'] }}]" type="checkbox" value="1" aria-label="{{ $homeName }} - {{ $item['label'] }}" @checked(old('control_items.home.'.$item['key'], data_get($controlValues, 'home.'.$item['key'], true)))>
+                                    </td>
+                                @endforeach
                             </tr>
                             <tr>
-                                <td class="fw-semibold">{{ $awayName }}</td>
-                                <td class="text-center">
-                                    <input type="hidden" name="away_brought_ball" value="0">
-                                    <input class="form-check-input" name="away_brought_ball" type="checkbox" value="1" @checked(old('away_brought_ball', $report ? $report->away_brought_ball : true))>
+                                <td class="match-control-team-col">
+                                    <div class="fw-semibold text-truncate">{{ $awayName }}</div>
+                                    <div class="text-body-secondary small">Visitante</div>
                                 </td>
-                                <td class="text-center">
-                                    <input type="hidden" name="away_present" value="0">
-                                    <input class="form-check-input" name="away_present" type="checkbox" value="1" @checked(old('away_present', $report ? $report->away_present : true))>
-                                </td>
-                                <td class="text-center">
-                                    <input type="hidden" name="away_paid_court_fee" value="0">
-                                    <input class="form-check-input" name="away_paid_court_fee" type="checkbox" value="1" @checked(old('away_paid_court_fee', $report ? $report->away_paid_court_fee : true))>
-                                </td>
+                                @foreach ($controlItems as $item)
+                                    <td class="text-center">
+                                        <input type="hidden" name="control_items[away][{{ $item['key'] }}]" value="0">
+                                        <input class="form-check-input match-control-check" name="control_items[away][{{ $item['key'] }}]" type="checkbox" value="1" aria-label="{{ $awayName }} - {{ $item['label'] }}" @checked(old('control_items.away.'.$item['key'], data_get($controlValues, 'away.'.$item['key'], true)))>
+                                    </td>
+                                @endforeach
                             </tr>
                         </tbody>
                     </table>
+                    </div>
 
-                    <div class="mb-0">
+                    <div class="p-3 border-top">
                         <label class="form-label" for="match-report-notes">Observaciones iniciales</label>
                         <textarea class="form-control @error('notes') is-invalid @enderror" id="match-report-notes" name="notes" rows="3">{{ old('notes', $report->notes ?? '') }}</textarea>
                         @error('notes')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
-                </x-ui.table-card>
+                </div>
             </div>
         </div>
 

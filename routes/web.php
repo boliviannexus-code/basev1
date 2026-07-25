@@ -1,19 +1,20 @@
 <?php
 
 use App\Http\Controllers\Web\AccreditationController;
-use App\Http\Controllers\Web\AdminDataTableController;
 use App\Http\Controllers\Web\ActivityTypeController;
+use App\Http\Controllers\Web\AdminDataTableController;
 use App\Http\Controllers\Web\AuditController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\BiometricTestController;
 use App\Http\Controllers\Web\CategoryController;
 use App\Http\Controllers\Web\CompanyController;
 use App\Http\Controllers\Web\CourtController;
-use App\Http\Controllers\Web\DatabaseBackupController;
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\DatabaseBackupController;
 use App\Http\Controllers\Web\DivisionController;
 use App\Http\Controllers\Web\FingerprintTemplateController;
 use App\Http\Controllers\Web\FixtureSetupController;
+use App\Http\Controllers\Web\GuideTypeController;
 use App\Http\Controllers\Web\LeagueSettingController;
 use App\Http\Controllers\Web\MatchdayController;
 use App\Http\Controllers\Web\MatchReportController;
@@ -25,6 +26,8 @@ use App\Http\Controllers\Web\PlayerHabilitationController;
 use App\Http\Controllers\Web\PlayerImportController;
 use App\Http\Controllers\Web\PlayerPunishmentController;
 use App\Http\Controllers\Web\PlayerTransferController;
+use App\Http\Controllers\Web\Public\TourBookingController;
+use App\Http\Controllers\Web\Public\TouristPanelController;
 use App\Http\Controllers\Web\PublicLeaguePageController;
 use App\Http\Controllers\Web\RedCardArticleController;
 use App\Http\Controllers\Web\RedCardController;
@@ -35,15 +38,6 @@ use App\Http\Controllers\Web\StandingsController;
 use App\Http\Controllers\Web\TeamController;
 use App\Http\Controllers\Web\TournamentController;
 use App\Http\Controllers\Web\TournamentRegistrationController;
-use App\Http\Controllers\Web\GuideTypeController;
-use App\Http\Controllers\Web\LocationSearchController;
-use App\Http\Controllers\Web\Public\PublicTourController;
-use App\Http\Controllers\Web\Public\TourBookingController;
-use App\Http\Controllers\Web\Public\TouristAuthController;
-use App\Http\Controllers\Web\Public\TouristPanelController;
-use App\Http\Controllers\Web\TourAvailabilityController;
-use App\Http\Controllers\Web\TourBookingAdminController;
-use App\Http\Controllers\Web\TourController;
 use App\Http\Controllers\Web\TransportTypeController;
 use App\Http\Controllers\Web\UserController;
 use App\Http\Controllers\Web\WebsitePageController;
@@ -314,6 +308,10 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
     Route::prefix('league-settings')->name('league-settings.')->group(function (): void {
         Route::get('/', [LeagueSettingController::class, 'index'])->middleware('permission:league-settings.view')->name('index');
         Route::post('/', [LeagueSettingController::class, 'update'])->middleware('permission:league-settings.update')->name('update');
+        Route::get('appearance', [LeagueSettingController::class, 'appearance'])->middleware('permission:league-settings.view')->name('appearance');
+        Route::post('appearance', [LeagueSettingController::class, 'updateAppearance'])->middleware('permission:league-settings.update')->name('appearance.update');
+        Route::get('match-control-items', [LeagueSettingController::class, 'matchControlItems'])->middleware('permission:league-settings.view')->name('match-control-items');
+        Route::post('match-control-items', [LeagueSettingController::class, 'updateMatchControlItems'])->middleware('permission:league-settings.update')->name('match-control-items.update');
     });
     Route::prefix('categories')->name('categories.')->group(function (): void {
         Route::get('/', [CategoryController::class, 'index'])->middleware('permission:categories.view')->name('index');

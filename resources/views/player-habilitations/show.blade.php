@@ -8,6 +8,13 @@
     <div data-refresh-container>
         @php
             $enabledPlayerIds = $enabledPlayers->pluck('player_id')->all();
+            $pendingTransferPlayerIds = \App\Models\PlayerTransferRequest::query()
+                ->where('company_id', $tournament->company_id)
+                ->where('division_id', $tournament->division_id)
+                ->where('status', \App\Models\PlayerTransferRequest::STATUS_PENDING)
+                ->whereNull('deleted_at')
+                ->pluck('player_id')
+                ->all();
             $refreshUrl = route('player-habilitations.show', [
                 'tournament' => $tournament,
                 'team' => $team,
@@ -97,6 +104,7 @@
                                         $age = $player?->age();
                                         $ageOk = $age !== null && $age >= $tournament->division->min_age && $age <= $tournament->division->max_age;
                                         $alreadyEnabled = in_array($teamPlayer->player_id, $enabledPlayerIds, true);
+                                        $hasPendingTransfer = in_array($teamPlayer->player_id, $pendingTransferPlayerIds, true);
                                     @endphp
                                     <tr>
                                         <td>
@@ -111,7 +119,7 @@
                                             @if ($alreadyEnabled)
                                                 <span class="badge text-bg-success">Habilitado</span>
                                             @else
-                                                <span class="badge text-bg-secondary">Pendiente</span>
+                                                <span class="badge text-bg-{{ $hasPendingTransfer ? 'warning' : 'secondary' }}">{{ $hasPendingTransfer ? 'Pase pendiente' : 'Pendiente' }}</span>
                                             @endif
                                         </td>
                                         <td class="text-end">
@@ -122,7 +130,7 @@
                                                     <input type="hidden" name="team_player_id" value="{{ $teamPlayer->id }}">
                                                     <input type="hidden" name="team_id" value="{{ $team->id }}">
                                                     <input type="hidden" name="q" value="{{ $search }}">
-                                                    <button class="btn btn-outline-primary btn-sm" type="submit" @disabled($alreadyEnabled || ! $ageOk)>Habilitar</button>
+                                                    <button class="btn btn-outline-primary btn-sm" type="submit" @disabled($alreadyEnabled || ! $ageOk || $hasPendingTransfer)>Habilitar</button>
                                                 </form>
                                             @endcan
                                         </td>

@@ -4,9 +4,9 @@ namespace App\Services;
 
 use App\Models\Company;
 use App\Models\FixtureMatch;
+use App\Models\MatchdayDateFiscal;
 use App\Models\MatchReport;
 use App\Models\MatchReportPlayer;
-use App\Models\MatchdayDateFiscal;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -81,6 +81,8 @@ class MatchReportPdfService
                     <td style="width:49%;">'.$this->playersTableHtml($awayPlayers, $report, 'away', $awayName).'</td>
                 </tr>
             </table>
+            <div style="height:6px;"></div>
+            '.$this->controlItemsHtml($report, $homeName, $awayName).'
             <div style="height:6px;"></div>
             '.$this->resultHtml($report, $homeName, $awayName).'
             '.$this->observationsHtml($report).'
@@ -231,6 +233,46 @@ class MatchReportPdfService
             : 'NO SE PRESENTO';
 
         return str($teamName)->upper()->toString().' '.$reason.' (W.O.)';
+    }
+
+    private function controlItemsHtml(MatchReport $report, string $homeName, string $awayName): string
+    {
+        $items = app(MatchControlItemService::class)->itemsForCompany($report->company_id);
+
+        $rows = $items->map(fn (array $item): string => '
+            <tr>
+                <td style="width:40%;font-size:7px;">'.e($item['label']).'</td>
+                <td style="width:30%;font-size:7px;text-align:center;">'.e($this->controlValueLabel($report, 'home', $item['key'])).'</td>
+                <td style="width:30%;font-size:7px;text-align:center;">'.e($this->controlValueLabel($report, 'away', $item['key'])).'</td>
+            </tr>
+        ')->implode('');
+
+        return '
+            <table cellpadding="2" cellspacing="0" border="1" style="width:100%;border-color:#9ca3af;">
+                <tr style="background-color:#f3f4f6;font-weight:bold;text-align:center;">
+                    <td style="width:40%;font-size:7px;">CONTROL</td>
+                    <td style="width:30%;font-size:7px;">'.e($homeName).'</td>
+                    <td style="width:30%;font-size:7px;">'.e($awayName).'</td>
+                </tr>
+                '.$rows.'
+            </table>
+        ';
+    }
+
+    private function controlValueLabel(MatchReport $report, string $side, string $key): string
+    {
+        $value = data_get($report->control_items, "{$side}.{$key}");
+
+        if ($value === null) {
+            $value = match ($key) {
+                'present' => $report->{$side.'_present'},
+                'court_fee_paid' => $report->{$side.'_paid_court_fee'},
+                'trajo_balon' => $report->{$side.'_brought_ball'},
+                default => false,
+            };
+        }
+
+        return $value ? 'SI' : 'NO';
     }
 
     private function resultHtml(MatchReport $report, string $homeName, string $awayName): string

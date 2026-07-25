@@ -11,6 +11,7 @@ use App\Models\Matchday;
 use App\Models\MatchReport;
 use App\Models\MatchReportPlayer;
 use App\Models\TournamentTeamPlayer;
+use App\Services\MatchControlItemService;
 use App\Services\MatchReportPdfService;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
@@ -58,7 +59,7 @@ class MatchReportController extends Controller
         return view('match-reports.show', compact('matchday'));
     }
 
-    public function edit(FixtureMatch $fixtureMatch): View
+    public function edit(FixtureMatch $fixtureMatch, MatchControlItemService $controlItems): View
     {
         $this->ensureVisibleFinalizedMatch($fixtureMatch);
 
@@ -72,19 +73,31 @@ class MatchReportController extends Controller
             'report',
         ]);
 
+        $items = $controlItems->itemsForCompany($fixtureMatch->company_id);
+
         return view('match-reports.edit', [
             'match' => $fixtureMatch,
             'report' => $fixtureMatch->report,
+            'controlItems' => $items,
+            'controlValues' => $controlItems->valuesForReport($fixtureMatch->report, $items),
         ]);
     }
 
-    public function update(UpdateMatchReportRequest $request, FixtureMatch $fixtureMatch): RedirectResponse
+    public function update(UpdateMatchReportRequest $request, FixtureMatch $fixtureMatch, MatchControlItemService $controlItems): RedirectResponse
     {
         $this->ensureVisibleFinalizedMatch($fixtureMatch);
 
         $data = $request->validated();
         $data['company_id'] = $fixtureMatch->company_id;
         $data['fixture_match_id'] = $fixtureMatch->id;
+        $items = $controlItems->itemsForCompany($fixtureMatch->company_id);
+        $data['control_items'] = $controlItems->normalizeSubmitted($data['control_items'] ?? [], $items);
+        $data['home_present'] = data_get($data, 'control_items.home.present', false);
+        $data['away_present'] = data_get($data, 'control_items.away.present', false);
+        $data['home_paid_court_fee'] = data_get($data, 'control_items.home.court_fee_paid', false);
+        $data['away_paid_court_fee'] = data_get($data, 'control_items.away.court_fee_paid', false);
+        $data['home_brought_ball'] = data_get($data, 'control_items.home.trajo_balon', false);
+        $data['away_brought_ball'] = data_get($data, 'control_items.away.trajo_balon', false);
 
         foreach ([
             'home_brought_ball',
@@ -389,6 +402,7 @@ class MatchReportController extends Controller
             }
 
             $nextValue = min(2, $nextValue);
+
             return ['yellow_cards' => $nextValue];
         }
 

@@ -126,7 +126,6 @@ class PlayerHabilitationService
         return TournamentTeamPlayer::query()
             ->with(['player', 'teamPlayer'])
             ->where('company_id', $tournament->company_id)
-            ->whereHas('player', fn ($query) => $query->where('company_id', $tournament->company_id))
             ->where('tournament_id', $tournament->id)
             ->where('team_id', $team->id)
             ->where('status', TournamentTeamPlayer::STATUS_ENABLED)
@@ -188,6 +187,7 @@ class PlayerHabilitationService
         $enabledInSelectedTeam = false;
         $enabledInOtherTeam = false;
         $pendingTransfer = null;
+        $habilitationBlockedReason = null;
 
         if ($tournament && CompanyContext::belongsToUser($tournament->company_id, auth()->user())) {
             $currentTeamPlayer = TeamPlayer::query()
@@ -222,16 +222,7 @@ class PlayerHabilitationService
                 && $selectedTeam
                 && (int) $selectedTeam->id !== (int) $habilitation->team_id;
 
-            if ($selectedTeam) {
-                $pendingTransfer = PlayerTransferRequest::query()
-                    ->where('company_id', $tournament->company_id)
-                    ->where('division_id', $tournament->division_id)
-                    ->where('player_id', $player->id)
-                    ->where('to_team_id', $selectedTeam->id)
-                    ->where('status', PlayerTransferRequest::STATUS_PENDING)
-                    ->whereNull('deleted_at')
-                    ->first();
-            }
+            $pendingTransfer = $this->pendingTransferFor($tournament, $player->id);
         }
 
         $status = 'No afiliado';
@@ -269,12 +260,13 @@ class PlayerHabilitationService
         }
 
         $canRequestTransfer = $belongsToOtherTeam && ! $habilitation;
-        $canAffiliate = ! $belongsToOtherTeam && ! $enabledInOtherTeam && $ageOk;
-        $canEnable = $belongsToSelectedTeam && ! $habilitation && $ageOk;
+        $canAffiliate = ! $pendingTransfer && ! $belongsToOtherTeam && ! $enabledInOtherTeam && $ageOk;
+        $canEnable = ! $pendingTransfer && $belongsToSelectedTeam && ! $habilitation && $ageOk;
         $transferRequestUrl = null;
 
         if ($pendingTransfer) {
             $canRequestTransfer = false;
+            $habilitationBlockedReason = "El jugador tiene una solicitud de pase pendiente ({$pendingTransfer->code}). Debe aprobarse o rechazarse antes de habilitarlo.";
             $transferBlockedReason = "Ya existe una solicitud de pase pendiente ({$pendingTransfer->code}).";
         } elseif ($canRequestTransfer && $tournament && $selectedTeam) {
             $setting = PlayerTransferSetting::query()->where('company_id', $tournament->company_id)->first();
@@ -334,6 +326,7 @@ class PlayerHabilitationService
                 'can_request_transfer' => $canRequestTransfer,
                 'age_valid' => $ageOk,
                 'age_blocked_reason' => $ageBlockedReason,
+                'habilitation_blocked_reason' => $habilitationBlockedReason,
                 'is_selected_team_roster' => $belongsToSelectedTeam,
                 'is_other_team_roster' => $belongsToOtherTeam,
                 'enabled_in_selected_team' => $enabledInSelectedTeam,
@@ -372,6 +365,7 @@ class PlayerHabilitationService
         }
 
         $this->ensurePlayerAge($teamPlayer->player, $tournament);
+        $this->ensureNoPendingTransfer($tournament, $teamPlayer->player_id);
 
         $existing = TournamentTeamPlayer::query()
             ->with('team')
@@ -446,6 +440,30 @@ class PlayerHabilitationService
                 'team_player_id' => "Este equipo ya alcanzo el limite de {$limit} habilitado(s) para esta categoria.",
             ]);
         }
+    }
+
+    private function ensureNoPendingTransfer(Tournament $tournament, int $playerId): void
+    {
+        $pendingTransfer = $this->pendingTransferFor($tournament, $playerId);
+
+        if (! $pendingTransfer) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'team_player_id' => "El jugador tiene una solicitud de pase pendiente ({$pendingTransfer->code}). Debe aprobarse o rechazarse antes de habilitarlo.",
+        ]);
+    }
+
+    private function pendingTransferFor(Tournament $tournament, int $playerId): ?PlayerTransferRequest
+    {
+        return PlayerTransferRequest::query()
+            ->where('company_id', $tournament->company_id)
+            ->where('division_id', $tournament->division_id)
+            ->where('player_id', $playerId)
+            ->where('status', PlayerTransferRequest::STATUS_PENDING)
+            ->whereNull('deleted_at')
+            ->first();
     }
 
     public function registrationFor(Tournament $tournament, Team $team): ?TournamentRegistration
