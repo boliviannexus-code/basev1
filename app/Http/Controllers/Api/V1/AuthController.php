@@ -10,7 +10,7 @@ use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 
 class AuthController extends Controller
@@ -19,11 +19,26 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): JsonResponse
     {
-        if (! Auth::attempt($request->validated())) {
+        $request->ensureIsNotRateLimited();
+        $credentials = $request->validated();
+        $user = User::query()
+            ->with(['company', 'roles'])
+            ->where('email', $credentials['email'])
+            ->first();
+
+        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
+            $request->hitRateLimiter();
+
             return $this->errorResponse('Las credenciales no son validas.', null, 422);
         }
 
-        $user = $request->user()->load('roles');
+        if (! $user->is_active || ($user->company_id !== null && ! $user->company?->is_active)) {
+            $request->hitRateLimiter();
+
+            return $this->errorResponse('Tu usuario o liga deportiva se encuentra inactiva.', null, 403);
+        }
+
+        $request->clearRateLimiter();
         $token = $user->createToken('api-token')->plainTextToken;
 
         return $this->successResponse([

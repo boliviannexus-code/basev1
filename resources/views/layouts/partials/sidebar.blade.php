@@ -6,7 +6,7 @@
     $penaltiesOpen = request()->routeIs('red-cards.*', 'red-card-articles.*', 'punishments.*');
     $meetingsOpen = request()->routeIs('accreditations.*', 'meetings.*');
     $settingsOpen = request()->routeIs('league-settings.*');
-    $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'biometric.*');
+    $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'biometric.*', 'database-backups.*');
 
     $canLeague = auth()->user()?->can('companies.view')
         || auth()->user()?->can('companies.update')
@@ -36,6 +36,7 @@
         || auth()->user()?->can('fingerprint-templates.view')
         || auth()->user()?->can('roles.view')
         || auth()->user()?->can('permissions.view')
+        || auth()->user()?->can('database-backups.view')
         || auth()->user()?->can('audits.view');
     $sidebarCompany = \App\Support\CompanyContext::activeCompany(auth()->user());
 @endphp
@@ -438,6 +439,15 @@
                                         <a class="nav-link" href="{{ route('permissions.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-shield-check"></i></span>
                                             <span class="nav-link-title">Permisos</span>
+                                        </a>
+                                    </li>
+                                @endcan
+
+                                @can('database-backups.view')
+                                    <li class="nav-item {{ request()->routeIs('database-backups.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('database-backups.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-database-export"></i></span>
+                                            <span class="nav-link-title">Respaldos BD</span>
                                         </a>
                                     </li>
                                 @endcan

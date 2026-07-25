@@ -12,7 +12,6 @@ Route::prefix('v1')
     ->middleware('throttle:api')
     ->group(function (): void {
         Route::post('auth/login', [AuthController::class, 'login'])->name('api.v1.login');
-        Route::post('auth/register-tourist', [AuthController::class, 'registerTourist'])->name('api.v1.register-tourist');
 
         Route::get('tours', [PublicTourController::class, 'index'])->name('api.v1.tours.index');
         Route::get('tours/featured', [PublicTourController::class, 'featured'])->name('api.v1.tours.featured');
@@ -20,7 +19,7 @@ Route::prefix('v1')
         Route::get('website-content', [PublicTourController::class, 'websiteContent'])->name('api.v1.website-content');
         Route::get('tours/{tour}', [PublicTourController::class, 'show'])->name('api.v1.tours.show');
 
-        Route::middleware('auth:sanctum')->group(function (): void {
+        Route::middleware(['auth:sanctum', 'active_account'])->group(function (): void {
             Route::post('auth/logout', [AuthController::class, 'logout'])->name('api.v1.logout');
             Route::get('tourist/bookings', [TourBookingController::class, 'index'])->name('api.v1.tourist.bookings.index');
             Route::post('tours/{tour}/bookings', [TourBookingController::class, 'store'])->name('api.v1.tours.bookings.store');

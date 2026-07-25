@@ -60,18 +60,18 @@ class PublicTourExperienceTest extends TestCase
             ->assertDontSee('Ruta del vino');
     }
 
-    public function test_tourist_can_register_and_is_redirected_to_reservations(): void
+    public function test_public_tourist_registration_is_not_available(): void
     {
-        $this->post(route('tourist.register.store'), [
+        $this->post('/registro', [
             'name' => 'Ana Turista',
             'email' => 'ana@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
         ])
-            ->assertRedirect(route('tourist.reservations.index'));
+            ->assertNotFound();
 
-        $this->assertAuthenticated();
-        $this->assertTrue(User::query()->where('email', 'ana@example.com')->first()->hasRole('tourist'));
+        $this->assertGuest();
+        $this->assertDatabaseMissing('users', ['email' => 'ana@example.com']);
     }
 
     public function test_tourist_can_create_booking_and_capacity_is_updated(): void

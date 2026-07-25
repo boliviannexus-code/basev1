@@ -9,6 +9,7 @@ use App\Http\Controllers\Web\BiometricTestController;
 use App\Http\Controllers\Web\CategoryController;
 use App\Http\Controllers\Web\CompanyController;
 use App\Http\Controllers\Web\CourtController;
+use App\Http\Controllers\Web\DatabaseBackupController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\DivisionController;
 use App\Http\Controllers\Web\FingerprintTemplateController;
@@ -61,8 +62,6 @@ Route::domain('{tenant}.'.config('tenancy.base_domain'))->group(function (): voi
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('login', [AuthController::class, 'login'])->name('login.store');
-    Route::get('registro', [TouristAuthController::class, 'showRegister'])->name('tourist.register');
-    Route::post('registro', [TouristAuthController::class, 'register'])->name('tourist.register.store');
 });
 
 Route::middleware('auth')->group(function (): void {
@@ -91,6 +90,13 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
     Route::post('biometrico/identify', [BiometricTestController::class, 'identify'])->name('biometric.identify');
     Route::get('audits', [AuditController::class, 'index'])->middleware('permission:audits.view')->name('audits.index');
     Route::get('audits/{audit}', [AuditController::class, 'show'])->middleware('permission:audits.view')->name('audits.show');
+    Route::prefix('database-backups')->name('database-backups.')->group(function (): void {
+        Route::get('/', [DatabaseBackupController::class, 'index'])->middleware('permission:database-backups.view')->name('index');
+        Route::post('/', [DatabaseBackupController::class, 'store'])->middleware('permission:database-backups.create')->name('store');
+        Route::post('restore', [DatabaseBackupController::class, 'restore'])->middleware('permission:database-backups.restore')->name('restore');
+        Route::get('{backup}/download', [DatabaseBackupController::class, 'download'])->middleware('permission:database-backups.view')->name('download');
+        Route::delete('{backup}', [DatabaseBackupController::class, 'destroy'])->middleware('permission:database-backups.delete')->name('destroy');
+    });
     Route::prefix('companies')->name('companies.')->group(function (): void {
         Route::get('/', [CompanyController::class, 'index'])->middleware('permission:companies.view')->name('index');
         Route::get('create', [CompanyController::class, 'create'])->middleware('permission:companies.create')->name('create');

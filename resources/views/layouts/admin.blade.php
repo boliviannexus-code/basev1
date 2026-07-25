@@ -21,6 +21,7 @@
 </script>
 <div class="page">
     @include('layouts.partials.sidebar')
+    <button class="app-sidebar-backdrop" type="button" data-sidebar-close aria-label="Cerrar menu"></button>
 
     <div class="page-wrapper app-wrapper">
         @include('layouts.partials.navbar')

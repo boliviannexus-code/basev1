@@ -258,8 +258,9 @@ class SportsReportPdfService
     private function kardexHtml(Player $player, array $context): string
     {
         $summary = $context['summary'];
+        $company = $context['company'] ?? $player->company;
         $html = '
-            '.$this->reportHeaderHtml($player->company, '
+            '.$this->reportHeaderHtml($company, '
                 <div style="font-size:8px;color:#64748b;font-weight:bold;">IMPRESION</div>
                 <div style="font-size:8px;line-height:9px;color:#132f4c;">Fecha: '.e(now()->format('d/m/Y H:i')).'</div>
                 <div style="font-size:8px;line-height:9px;color:#132f4c;">Usuario: '.e(auth()->user()?->name ?? '-').'</div>
@@ -279,7 +280,7 @@ class SportsReportPdfService
                     <td style="width:35%;font-size:8px;"><b>Nacimiento:</b> '.e($player->birth_date?->format('d/m/Y') ?? '-').'</td>
                     <td style="width:20%;font-size:8px;"><b>Edad:</b> '.e((string) ($player->age() ?? '-')).'</td>
                     <td style="width:20%;font-size:8px;"><b>Estado:</b> '.e($player->is_active ? 'Activo' : 'Inactivo').'</td>
-                    <td style="width:25%;font-size:8px;"><b>Liga:</b> '.e($player->company?->name ?? '-').'</td>
+                    <td style="width:25%;font-size:8px;"><b>Liga:</b> '.e($company?->name ?? '-').'</td>
                 </tr>
             </table>
             <div style="height:5px;"></div>

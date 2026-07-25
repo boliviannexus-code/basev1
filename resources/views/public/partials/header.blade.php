@@ -15,7 +15,8 @@
         .public-nav a { color:#fff; text-decoration:none; margin-left:18px; font-weight:700; }
         .brand { display:flex; align-items:center; gap:12px; margin-left:0!important; }
         .brand img { width:48px; height:48px; object-fit:contain; background:#fff; border-radius:8px; padding:5px; }
-        .login-link { border:1px solid rgba(255,255,255,.55); padding:9px 14px; border-radius:6px; }
+        .login-link { opacity:.78; padding:6px 8px; border-radius:6px; font-size:13px; font-weight:700; }
+        .login-link:hover { opacity:1; background:rgba(255,255,255,.12); }
         .hero-grid { display:grid; grid-template-columns:minmax(0, 860px); gap:32px; align-items:end; padding:90px 0 70px; }
         .page-hero-copy { padding:54px 0 70px; }
         .eyebrow { color:var(--sun); font-weight:900; text-transform:uppercase; letter-spacing:.08em; }

@@ -46,6 +46,7 @@ if (! function_exists('permission_module_label')) {
             'fingerprint-templates' => 'Huellas',
             'roles' => 'Roles',
             'permissions' => 'Permisos',
+            'database-backups' => 'Respaldos de base de datos',
             'companies' => 'Ligas deportivas',
             'seasons' => 'Gestiones',
             'divisions' => 'Divisiones',

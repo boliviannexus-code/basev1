@@ -35,6 +35,18 @@ body {
     font-weight: 700;
 }
 
+.public-login-link {
+    color: #66756f;
+    font-size: .86rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.public-login-link:hover {
+    color: #17211c;
+    text-decoration: underline;
+}
+
 .public-brand-mark {
     display: grid;
     width: 2.35rem;
@@ -602,6 +614,93 @@ body {
     box-shadow: 0 20px 50px rgba(15, 23, 42, .1);
 }
 
+.auth-login-body {
+    min-height: 100vh;
+    background: #f4f7f5;
+}
+
+.auth-login-shell {
+    display: grid;
+    min-height: 100vh;
+    grid-template-columns: minmax(0, .95fr) minmax(26rem, 1.05fr);
+}
+
+.auth-login-hero {
+    display: flex;
+    align-items: end;
+    padding: clamp(2rem, 6vw, 4rem);
+    background:
+        linear-gradient(180deg, rgba(14, 87, 68, .2), rgba(11, 55, 49, .92)),
+        linear-gradient(135deg, #0f7b5f 0%, #20443d 55%, #f5c542 100%);
+    color: #fff;
+}
+
+.auth-login-hero > div {
+    max-width: 36rem;
+}
+
+.auth-login-mark {
+    display: inline-grid;
+    width: 3.25rem;
+    height: 3.25rem;
+    place-items: center;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, .28);
+    border-radius: .5rem;
+    background: rgba(255, 255, 255, .12);
+    font-size: 1.7rem;
+}
+
+.auth-login-kicker {
+    margin: 0 0 .6rem;
+    font-size: .78rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.auth-login-hero h1 {
+    max-width: 34rem;
+    margin: 0;
+    font-size: clamp(2.4rem, 6vw, 4.6rem);
+    font-weight: 900;
+    line-height: .98;
+    letter-spacing: 0;
+}
+
+.auth-login-hero p:last-child {
+    max-width: 31rem;
+    margin: 1rem 0 0;
+    color: rgba(255, 255, 255, .86);
+    font-size: 1.06rem;
+    line-height: 1.55;
+}
+
+.auth-login-panel {
+    display: grid;
+    place-items: center;
+    padding: 2rem;
+}
+
+.auth-login-card {
+    width: min(100%, 28rem);
+    padding: clamp(1.35rem, 4vw, 2rem);
+    border: 1px solid rgba(23, 33, 28, .1);
+    border-radius: .5rem;
+    background: #fff;
+    box-shadow: 0 22px 60px rgba(15, 23, 42, .12);
+}
+
+@media (max-width: 860px) {
+    .auth-login-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-login-hero {
+        min-height: 18rem;
+    }
+}
+
 .account-shell {
     padding: 2rem 0 4rem;
 }
@@ -771,6 +870,10 @@ body {
 
 .app-navbar .dropdown-menu {
     min-width: 13rem;
+}
+
+.app-sidebar-backdrop {
+    display: none;
 }
 
 .table-card .table {
@@ -1049,8 +1152,8 @@ body {
     background: rgba(var(--tblr-primary-rgb), .1);
 }
 
-.registration-division-content {
-    min-width: 44rem;
+.registration-tournament-content {
+    min-width: 0;
 }
 
 .registration-tournament-heading {
@@ -1061,6 +1164,11 @@ body {
     padding: .75rem .9rem;
     border-left: .25rem solid var(--tblr-primary);
     background: var(--tblr-bg-surface-secondary);
+}
+
+.registration-roster-table th,
+.registration-roster-table td {
+    vertical-align: middle;
 }
 
 .stock-filter-bar {
@@ -1530,6 +1638,48 @@ body {
 
 @media (max-width: 991.98px) {
     .app-sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 1050;
+        width: min(20rem, calc(100vw - 3rem));
+        max-width: 100%;
+        transform: translateX(-100%);
+        transition: transform .18s ease-in-out;
+        box-shadow: 1rem 0 2rem rgba(0, 0, 0, .24);
+    }
+
+    body.app-sidebar-mobile-open {
+        overflow: hidden;
+    }
+
+    body.app-sidebar-mobile-open .app-sidebar {
+        transform: translateX(0);
+    }
+
+    .app-sidebar .container-fluid {
+        height: 100%;
+        align-content: flex-start;
+        overflow-y: auto;
+    }
+
+    .app-sidebar-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1045;
+        display: block;
+        border: 0;
+        background: rgba(15, 23, 42, .48);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .18s ease-in-out;
+    }
+
+    body.app-sidebar-mobile-open .app-sidebar-backdrop {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .app-wrapper {
         width: 100%;
     }
 

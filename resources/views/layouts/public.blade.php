@@ -33,8 +33,7 @@
                     <button class="btn btn-link public-nav-link p-0" type="submit">Cerrar sesion</button>
                 </form>
             @else
-                <a class="public-nav-link" href="{{ route('login') }}">Ingresar</a>
-                <a class="btn btn-primary btn-sm" href="{{ route('tourist.register') }}">Crear cuenta</a>
+                <a class="public-login-link" href="{{ route('login') }}">Ingresar</a>
             @endauth
         </div>
     </nav>

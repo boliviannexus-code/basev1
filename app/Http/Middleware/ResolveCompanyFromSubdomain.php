@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\Company;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\URL;
 use Symfony\Component\HttpFoundation\Response;
 
 class ResolveCompanyFromSubdomain
@@ -22,6 +23,7 @@ class ResolveCompanyFromSubdomain
             abort_unless($company, 404);
 
             app()->instance('tenant.company', $company);
+            URL::forceRootUrl($request->getSchemeAndHttpHost());
         }
 
         return $next($request);
