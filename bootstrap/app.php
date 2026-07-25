@@ -9,10 +9,12 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -79,7 +81,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(function (AuthorizationException $exception, Request $request) {
             if (! $request->is('api/*')) {
-                return null;
+                return redirect()->guest(url('/login'));
             }
 
             return response()->json([
@@ -87,6 +89,20 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => 'No autorizado.',
                 'data' => null,
             ], 403);
+        });
+
+        $exceptions->render(function (HttpExceptionInterface $exception, Request $request) {
+            if ($exception->getStatusCode() !== 403 || $request->is('api/*') || $request->expectsJson()) {
+                return null;
+            }
+
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()
+                ->guest(url('/login'))
+                ->withErrors(['email' => 'Tu sesion no tiene acceso a esa pagina. Ingresa nuevamente.']);
         });
 
         $exceptions->render(function (ModelNotFoundException $exception, Request $request) {
