@@ -5,13 +5,14 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Matchday\ReorderMatchdayDateRequest;
 use App\Http\Requests\Matchday\ScheduleFixtureMatchRequest;
-use App\Http\Requests\Matchday\StoreMatchdayFiscalRequest;
 use App\Http\Requests\Matchday\StoreMatchdayDatesRequest;
+use App\Http\Requests\Matchday\StoreMatchdayFiscalRequest;
 use App\Http\Requests\Matchday\UpdateMatchdayDateRequest;
 use App\Http\Requests\Matchday\UpdateScheduledMatchTimeRequest;
 use App\Models\FixtureMatch;
 use App\Models\Matchday;
 use App\Models\MatchdayDate;
+use App\Models\MatchdayDateFiscal;
 use App\Models\Season;
 use App\Services\MatchdayPdfReportService;
 use App\Services\MatchdayService;
@@ -68,6 +69,13 @@ class MatchdayController extends Controller
         abort_unless($matchday->status === 'finalized', 422, 'Solo se puede imprimir una jornada finalizada.');
 
         return $this->matchdayPdf->fixture($this->matchdays->previewContext($matchday));
+    }
+
+    public function printable(Matchday $matchday): View
+    {
+        abort_unless($matchday->status === 'finalized', 422, 'Solo se puede imprimir una jornada finalizada.');
+
+        return view('matchdays.printable', $this->matchdays->previewContext($matchday));
     }
 
     public function storeDates(StoreMatchdayDatesRequest $request, Matchday $matchday): RedirectResponse
@@ -238,7 +246,7 @@ class MatchdayController extends Controller
         ]);
     }
 
-    public function destroyFiscal(Request $request, MatchdayDate $date, \App\Models\MatchdayDateFiscal $fiscal): RedirectResponse
+    public function destroyFiscal(Request $request, MatchdayDate $date, MatchdayDateFiscal $fiscal): RedirectResponse
     {
         $this->matchdays->deleteFiscal($date, $fiscal);
 

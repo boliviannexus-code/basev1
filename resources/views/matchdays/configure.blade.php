@@ -15,9 +15,13 @@
                 {{ $matchday->status === 'finalized' ? 'Finalizada' : 'Borrador' }}
             </span>
             @if ($matchday->status === 'finalized')
-                <a class="btn btn-outline-primary btn-sm" href="{{ route('matchdays.print', $matchday) }}" target="_blank" rel="noopener">
+                <a class="btn btn-primary btn-sm" href="{{ route('matchdays.printable', $matchday) }}" target="_blank" rel="noopener">
                     <i class="ti ti-printer me-1"></i>
                     Imprimir
+                </a>
+                <a class="btn btn-outline-primary btn-sm" href="{{ route('matchdays.print', $matchday) }}" target="_blank" rel="noopener">
+                    <i class="ti ti-file-type-pdf me-1"></i>
+                    PDF clasico
                 </a>
             @else
                 <a class="btn btn-outline-primary btn-sm" href="{{ route('matchdays.preview', $matchday) }}">

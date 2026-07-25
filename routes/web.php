@@ -200,6 +200,7 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         Route::get('days/{matchday}/configure', [MatchdayController::class, 'configure'])->middleware('permission:matchdays.view')->name('configure');
         Route::get('days/{matchday}/preview', [MatchdayController::class, 'preview'])->middleware('permission:matchdays.view')->name('preview');
         Route::get('days/{matchday}/print', [MatchdayController::class, 'print'])->middleware('permission:matchdays.view')->name('print');
+        Route::get('days/{matchday}/printable', [MatchdayController::class, 'printable'])->middleware('permission:matchdays.view')->name('printable');
         Route::post('days/{matchday}/dates', [MatchdayController::class, 'storeDates'])->middleware('permission:matchdays.update')->name('dates.store');
         Route::patch('days/{matchday}/dates/reorder', [MatchdayController::class, 'reorderDate'])->middleware('permission:matchdays.update')->name('dates.reorder');
         Route::patch('days/{matchday}/finish', [MatchdayController::class, 'finish'])->middleware('permission:matchdays.update')->name('finish');

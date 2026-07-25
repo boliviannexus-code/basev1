@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use OwenIt\Auditing\Contracts\Auditable;
 
@@ -140,19 +141,36 @@ class Company extends Model implements Auditable
 
     public function getLogoDisplayUrlAttribute(): ?string
     {
+        $logoPath = $this->logo_local_path;
+
+        if ($logoPath) {
+            $mimeType = File::mimeType($logoPath) ?: 'image/png';
+
+            return 'data:'.$mimeType.';base64,'.base64_encode(File::get($logoPath));
+        }
+
+        return null;
+    }
+
+    public function getLogoLocalPathAttribute(): ?string
+    {
         if (! $this->logo_path) {
             return null;
         }
 
-        $disk = Storage::disk('public');
+        $storagePath = storage_path('app/public/'.ltrim($this->logo_path, '/'));
 
-        if (! $disk->exists($this->logo_path)) {
-            return $this->logo_url;
+        if (File::exists($storagePath)) {
+            return $storagePath;
         }
 
-        $mimeType = $disk->mimeType($this->logo_path) ?: 'image/png';
+        $publicPath = public_path('storage/'.ltrim($this->logo_path, '/'));
 
-        return 'data:'.$mimeType.';base64,'.base64_encode($disk->get($this->logo_path));
+        if (File::exists($publicPath)) {
+            return $publicPath;
+        }
+
+        return null;
     }
 
     public function publicImageUrl(?string $path): ?string
