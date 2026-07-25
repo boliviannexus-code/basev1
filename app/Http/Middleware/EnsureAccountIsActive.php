@@ -32,7 +32,7 @@ class EnsureAccountIsActive
         $request->session()->regenerateToken();
 
         return redirect()
-            ->route('login')
+            ->to(url('/login'))
             ->withErrors(['email' => 'Tu usuario o liga deportiva se encuentra inactiva.']);
     }
 

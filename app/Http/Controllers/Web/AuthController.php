@@ -48,10 +48,10 @@ class AuthController extends Controller
         $request->session()->regenerate();
 
         if ($request->user()?->hasRole('tourist')) {
-            return redirect()->intended(route('tourist.reservations.index'));
+            return redirect()->intended(url('/mi-cuenta/reservas'));
         }
 
-        return redirect()->intended(route('dashboard'));
+        return redirect()->intended(url('/admin'));
     }
 
     public function logout(Request $request): RedirectResponse
@@ -61,6 +61,6 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        return redirect()->to(url('/login'));
     }
 }

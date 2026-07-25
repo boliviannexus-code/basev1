@@ -47,6 +47,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'active_account' => EnsureAccountIsActive::class,
         ]);
+
+        $middleware->redirectGuestsTo(fn (Request $request): string => url('/login'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(fn (Request $request): bool => $request->is('api/*') || $request->expectsJson());

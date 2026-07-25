@@ -179,12 +179,11 @@ class PublicLeaguePageController extends Controller
 
     private function publicViewData(Company $company): array
     {
-        $baseDomain = config('tenancy.base_domain');
         $whatsappNumber = preg_replace('/\D+/', '', (string) ($company->public_whatsapp ?: $company->phone));
 
         return [
             'company' => $company,
-            'loginUrl' => request()->getScheme().'://'.$baseDomain.'/login',
+            'loginUrl' => url('/login'),
             'socialLinks' => collect([
                 'Facebook' => $company->public_facebook_url,
                 'Instagram' => $company->public_instagram_url,

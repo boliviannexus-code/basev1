@@ -27,7 +27,7 @@
                 <p class="text-muted mb-0">Ingresa tus credenciales para continuar.</p>
             </div>
 
-            <form method="POST" action="{{ route('login.store') }}">
+            <form method="POST" action="{{ url('/login') }}">
                 @csrf
                 <div class="mb-3">
                     <label class="form-label" for="email">Correo electronico</label>
