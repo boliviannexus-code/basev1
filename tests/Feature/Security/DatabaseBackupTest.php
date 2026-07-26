@@ -83,6 +83,41 @@ class DatabaseBackupTest extends TestCase
         $this->assertDatabaseHas('categories', ['name' => 'Dato actual']);
     }
 
+    public function test_database_backup_rejects_truncated_generated_sql_before_truncating_tables(): void
+    {
+        $service = app(DatabaseBackupService::class);
+
+        Category::factory()->create(['name' => 'Dato protegido']);
+        $sql = $service->exportSql();
+        $truncatedSql = str_replace("\n-- NIDO_BACKUP_END\n", "\n", $sql);
+
+        try {
+            $service->restoreUploadedSql(UploadedFile::fake()->createWithContent('respaldo.sql', $truncatedSql));
+            $this->fail('The truncated backup should have been rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('marca final', implode(' ', $exception->errors()['backup']));
+        }
+
+        $this->assertDatabaseHas('categories', ['name' => 'Dato protegido']);
+    }
+
+    public function test_database_backup_rolls_back_when_post_restore_validation_fails(): void
+    {
+        $service = app(DatabaseBackupService::class);
+
+        Category::factory()->create(['name' => 'Dato intacto']);
+        $sql = preg_replace('/^-- NIDO_BACKUP_TABLE: categories \d+ [a-f0-9]{64}$/m', '-- NIDO_BACKUP_TABLE: categories 999 '.str_repeat('a', 64), $service->exportSql());
+
+        try {
+            $service->restoreUploadedSql(UploadedFile::fake()->createWithContent('respaldo.sql', (string) $sql));
+            $this->fail('The invalid backup should have been rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('categories', implode(' ', $exception->errors()['backup']));
+        }
+
+        $this->assertDatabaseHas('categories', ['name' => 'Dato intacto']);
+    }
+
     public function test_database_backup_list_download_upload_restore_and_delete_routes(): void
     {
         Permission::findOrCreate('database-backups.manage');

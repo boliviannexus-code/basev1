@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Reservations\UpdateReservationGroupRequest;
+use App\Models\Country;
 use App\Models\ExchangeRate;
 use App\Models\ReservationChannel;
 use App\Models\ReservationGroup;
 use App\Services\Reservations\ReservationGroupManagementService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -20,41 +22,45 @@ class AdminReservationGroupController extends Controller
         private readonly ReservationGroupManagementService $groups,
     ) {}
 
-    public function show(ReservationGroup $group): View
+    public function show(Request $request, ReservationGroup $group): View
     {
         abort_unless(auth()->user()?->can('reservations.view') || auth()->user()?->can('occupancy.manage'), 403);
         $this->ensureOwnership($group);
 
-        return view('reservations.admin.group-show', [
-            'group' => $group->load([
-                'reservationChannel',
-                'reservations.occupancyBlock' => fn ($query) => $query->withTrashed(),
-                'reservations.space.spaceMode',
-                'reservations.room',
-                'reservations.rooms',
-                'reservations.roomItems.room',
-                'reservations.roomItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
-                'reservations.bedUnitItems.bedUnit.room',
-                'reservations.bedUnitItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
-                'accountStatement.items.extraChargeCategory',
-            ]),
-            'reservationChannels' => ReservationChannel::query()
-                ->where('company_id', $group->company_id)
-                ->where('is_active', true)
-                ->orderBy('sort_order')
-                ->orderBy('name')
-                ->get(['id', 'name']),
-            'currentExchangeRate' => ExchangeRate::currentForCompany($group->company_id),
-            'occupancyUrl' => $this->occupancyUrlForGroup($group),
-        ]);
+        return view(
+            $request->ajax() ? 'reservations.admin.partials.group-show-content' : 'reservations.admin.group-show',
+            $this->viewData($group)
+        );
     }
 
-    public function update(UpdateReservationGroupRequest $request, ReservationGroup $group): RedirectResponse
+    public function edit(Request $request, ReservationGroup $group): View
     {
         abort_unless(auth()->user()?->can('reservations.manage') || auth()->user()?->can('occupancy.manage'), 403);
         $this->ensureOwnership($group);
 
-        $this->groups->update($group, $request->validated());
+        abort_if(in_array($group->status, ['cancelled', 'no_show', 'checked_in'], true), 403);
+
+        return view(
+            $request->ajax() ? 'reservations.admin.partials.group-edit-form' : 'reservations.admin.group-edit',
+            $this->viewData($group)
+        );
+    }
+
+    public function update(UpdateReservationGroupRequest $request, ReservationGroup $group): RedirectResponse|JsonResponse
+    {
+        abort_unless(auth()->user()?->can('reservations.manage') || auth()->user()?->can('occupancy.manage'), 403);
+        $this->ensureOwnership($group);
+
+        $group = $this->groups->update($group, $request->validated());
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Reserva actualizada correctamente.',
+                'refresh_occupancy' => true,
+                'refresh_url' => route('admin.reservation-groups.show', $group),
+            ]);
+        }
 
         return redirect()
             ->route('admin.reservation-groups.show', $group)
@@ -142,5 +148,35 @@ class AdminReservationGroupController extends Controller
             : 'private';
 
         return route('occupancy.index', $params);
+    }
+
+    private function viewData(ReservationGroup $group): array
+    {
+        return [
+            'group' => $group->load([
+                'reservationChannel',
+                'reservations.occupancyBlock' => fn ($query) => $query->withTrashed(),
+                'reservations.space.spaceMode',
+                'reservations.room',
+                'reservations.rooms',
+                'reservations.roomItems.room',
+                'reservations.roomItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
+                'reservations.bedUnitItems.bedUnit.room',
+                'reservations.bedUnitItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
+                'accountStatement.items.extraChargeCategory',
+            ]),
+            'reservationChannels' => ReservationChannel::query()
+                ->where('company_id', $group->company_id)
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'currentExchangeRate' => ExchangeRate::currentForCompany($group->company_id),
+            'countries' => Country::query()
+                ->where('company_id', $group->company_id)
+                ->forCheckInSearch()
+                ->get(['id', 'name', 'iso_code']),
+            'occupancyUrl' => $this->occupancyUrlForGroup($group),
+        ];
     }
 }

@@ -47,6 +47,11 @@ class ReservationGroupManagementService
                 'guest_email' => $data['guest_email'] ?? null,
                 'guest_phone' => $data['guest_phone'] ?? null,
                 'guest_document' => $data['guest_document'] ?? null,
+                'guest_document_type' => $data['document_type'] ?? $group->guest_document_type,
+                'guest_birth_country_id' => $data['birth_country_id'] ?? null,
+                'guest_birth_date' => $data['birth_date'] ?? null,
+                'guests' => $data['total_people'] ?? $group->guests,
+                'notes' => $data['notes'] ?? null,
             ]);
 
             foreach ($data['reservations'] ?? [] as $reservationId => $reservationData) {
@@ -315,9 +320,13 @@ class ReservationGroupManagementService
             'guest_email' => $reservation->reservationGroup->guest_email ?: $this->internalGuestEmail($reservation),
             'guest_phone' => $reservation->reservationGroup->guest_phone,
             'guest_document' => $reservation->reservationGroup->guest_document,
+            'guest_document_type' => $reservation->reservationGroup->guest_document_type,
+            'guest_birth_country_id' => $reservation->reservationGroup->guest_birth_country_id,
+            'guest_birth_date' => $reservation->reservationGroup->guest_birth_date,
             'check_in' => $newCheckIn->toDateString(),
             'check_out' => $newCheckOut->toDateString(),
             'nights' => count($newNights),
+            'guests' => max((int) ($data['guests'] ?? $reservation->guests), 1),
             'price_per_person' => $price,
             'subtotal_amount' => $subtotal,
             'total_amount' => $total,

@@ -122,6 +122,11 @@ class OccupancyGridActionService
                 'url' => $reservation->reservation_group_id
                     ? route('admin.reservation-groups.show', $reservation->reservation_group_id)
                     : route('admin.reservations.show', $reservation),
+                'modal_url' => $reservation->reservation_group_id
+                    ? route('admin.reservation-groups.show', $reservation->reservation_group_id)
+                    : route('admin.reservations.show', $reservation),
+                'modal_title' => 'Reserva '.$reservation->code,
+                'modal_size' => 'xl',
             ];
 
             return $actions;

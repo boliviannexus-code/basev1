@@ -58,7 +58,7 @@
                 <tbody>
                     @foreach ($reservationGroups as $group)
                         <tr>
-                            <td><a class="fw-bold" href="{{ route('admin.reservation-groups.show', $group) }}">{{ $group->code }}</a></td>
+                            <td><a class="fw-bold" href="{{ route('admin.reservation-groups.show', $group) }}" data-modal-url="{{ route('admin.reservation-groups.show', $group) }}" data-modal-title="Reserva {{ $group->code }}" data-modal-size="xl">{{ $group->code }}</a></td>
                             <td>
                                 <div>{{ $group->guest_name }}</div>
                                 <div class="text-muted small">{{ $group->guest_email ?: 'Sin correo' }}</div>
@@ -82,7 +82,7 @@
                                 </span>
                             </td>
                             <td>
-                                <a class="btn btn-outline-primary btn-sm" href="{{ route('admin.reservation-groups.show', $group) }}">
+                                <a class="btn btn-outline-primary btn-sm" href="{{ route('admin.reservation-groups.show', $group) }}" data-modal-url="{{ route('admin.reservation-groups.show', $group) }}" data-modal-title="Reserva {{ $group->code }}" data-modal-size="xl">
                                     Revisar
                                 </a>
                             </td>
@@ -110,7 +110,7 @@
                 @forelse ($reservations as $reservation)
                     <tr>
                         <td>
-                            <a class="fw-bold" href="{{ route('admin.reservations.show', $reservation->id) }}">{{ $reservation->code }}</a>
+                            <a class="fw-bold" href="{{ route('admin.reservations.show', $reservation->id) }}" data-modal-url="{{ route('admin.reservations.show', $reservation->id) }}" data-modal-title="Reserva {{ $reservation->code }}" data-modal-size="xl">{{ $reservation->code }}</a>
                             @if ($reservation->hold_expires_at && $reservation->status === 'pending_payment')
                                 <div class="text-muted small">Expira {{ $reservation->hold_expires_at->diffForHumans() }}</div>
                             @endif
@@ -146,7 +146,7 @@
                             </span>
                         </td>
                         <td>
-                            <a class="btn btn-outline-primary btn-sm" href="{{ route('admin.reservations.show', $reservation->id) }}">
+                            <a class="btn btn-outline-primary btn-sm" href="{{ route('admin.reservations.show', $reservation->id) }}" data-modal-url="{{ route('admin.reservations.show', $reservation->id) }}" data-modal-title="Reserva {{ $reservation->code }}" data-modal-size="xl">
                                 Revisar
                             </a>
                         </td>

@@ -208,6 +208,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware(['company_user'])
         ->group(function (): void {
             Route::get('{group}', [AdminReservationGroupController::class, 'show'])->whereNumber('group')->middleware('permission:reservations.view|occupancy.manage')->name('show');
+            Route::get('{group}/edit', [AdminReservationGroupController::class, 'edit'])->whereNumber('group')->middleware('permission:reservations.manage|occupancy.manage')->name('edit');
             Route::patch('{group}', [AdminReservationGroupController::class, 'update'])->whereNumber('group')->middleware('permission:reservations.manage|occupancy.manage')->name('update');
             Route::get('{group}/payments/create', [ReservationPaymentController::class, 'create'])->whereNumber('group')->middleware('permission:reservations.manage|occupancy.manage')->name('payments.create');
             Route::post('{group}/payments', [ReservationPaymentController::class, 'store'])->whereNumber('group')->middleware('permission:reservations.manage|occupancy.manage')->name('payments.store');

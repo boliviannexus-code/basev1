@@ -103,6 +103,47 @@ class LodgingPaymentTest extends TestCase
         ]);
     }
 
+    public function test_payment_form_only_shows_group_scope_for_multiple_stays_with_group_balance(): void
+    {
+        [$user, $stay,,] = $this->context();
+
+        $this
+            ->actingAs($user)
+            ->get(route('stays.payments.create', $stay))
+            ->assertOk()
+            ->assertSee('Estancia actual')
+            ->assertDontSee('Todo el grupo')
+            ->assertDontSee('Deuda todo el grupo');
+
+        $secondStay = Stay::factory()->create([
+            'company_id' => $stay->company_id,
+            'check_in_group_id' => $stay->check_in_group_id,
+            'holder_guest_id' => $stay->holder_guest_id,
+            'space_id' => $stay->space_id,
+            'people_count' => 1,
+            'check_in_date' => now()->toDateString(),
+            'check_out_date' => now()->addDay()->toDateString(),
+            'nights' => 1,
+            'price_per_night_bob' => 50,
+            'currency' => 'BOB',
+        ]);
+        app(AccountStatementService::class)->createForStay($secondStay);
+
+        $this
+            ->actingAs($user)
+            ->get(route('stays.payments.create', ['stay' => $stay, 'scope' => 'group']))
+            ->assertOk()
+            ->assertSee('Todo el grupo')
+            ->assertSee('Deuda estancia actual')
+            ->assertSee('100.00 BOB')
+            ->assertSee('Deuda todo el grupo')
+            ->assertSee('150.00 BOB')
+            ->assertSee('value="group" data-balance="150.00" selected', false)
+            ->assertSee('id="stay-payment-amount"', false)
+            ->assertSee('max="150.00"', false)
+            ->assertSee('value="150.00"', false);
+    }
+
     public function test_user_can_collect_full_balance_and_check_out_when_departure_is_today(): void
     {
         [$user, $stay,, $method] = $this->context(checkOutDate: now()->toDateString());

@@ -211,6 +211,175 @@ class InternalReservationTest extends TestCase
         ]);
     }
 
+    public function test_reservation_advance_keeps_original_cash_entry_and_credits_stay_on_check_in(): void
+    {
+        $this->travelTo(now()->startOfDay());
+        [$user, $space,, $country, $channel, $paymentMethod] = $this->context();
+
+        $this
+            ->actingAs($user)
+            ->post(route('internal-reservations.store'), [
+                'check_in_type' => 'individual',
+                'document_type' => 'ci',
+                'document_number' => '123456',
+                'first_name' => 'Ana',
+                'last_name' => 'Perez',
+                'birth_country_id' => $country->id,
+                'birth_date' => now()->subYears(30)->toDateString(),
+                'reservation_channel_id' => $channel->id,
+                'total_people' => 1,
+                'check_in_date' => now()->toDateString(),
+                'check_out_date' => now()->addDays(2)->toDateString(),
+                'stays' => [
+                    [
+                        'resource_type' => 'private_space',
+                        'space_id' => $space->id,
+                        'people_count' => 1,
+                        'price_per_night_bob' => 80,
+                        'currency' => 'BOB',
+                        'exchange_rate' => 6.96,
+                        'guests' => [],
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $group = ReservationGroup::query()->firstOrFail();
+        SpaceCashRegister::factory()->create([
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('admin.reservation-groups.payments.store', $group), [
+                'payment_method_id' => $paymentMethod->id,
+                'amount' => 50,
+                'reference' => 'QR-001',
+            ])
+            ->assertRedirect(route('admin.reservation-groups.show', $group));
+
+        $receiptNumber = \App\Models\SpaceCashReservationPayment::query()
+            ->where('reservation_group_id', $group->id)
+            ->value('receipt_number');
+
+        $this
+            ->actingAs($user)
+            ->post(route('admin.reservation-groups.check-in', $group))
+            ->assertRedirect(route('check-ins.create', ['reservation_group_id' => $group->id]));
+
+        $this
+            ->actingAs($user)
+            ->post(route('check-ins.store'), [
+                'reservation_group_id' => $group->id,
+                'confirm_reserved_conversion' => 1,
+                'check_in_type' => 'individual',
+                'document_type' => 'ci',
+                'document_number' => '123456',
+                'first_name' => 'Ana',
+                'last_name' => 'Perez',
+                'birth_country_id' => $country->id,
+                'birth_date' => now()->subYears(30)->toDateString(),
+                'reservation_channel_id' => $channel->id,
+                'total_people' => 1,
+                'check_in_date' => now()->toDateString(),
+                'check_out_date' => now()->addDays(2)->toDateString(),
+                'stays' => [
+                    [
+                        'resource_type' => 'private_space',
+                        'space_id' => $space->id,
+                        'people_count' => 1,
+                        'price_per_night_bob' => 80,
+                        'currency' => 'BOB',
+                        'exchange_rate' => 6.96,
+                        'guests' => [],
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('occupancy.index'));
+
+        $checkIn = CheckInGroup::query()->with('stays.accountStatement.items')->firstOrFail();
+        $stay = $checkIn->stays->first();
+
+        $this->assertSame('110.00', $stay->accountStatement->refresh()->balance);
+        $this->assertDatabaseHas('account_statement_items', [
+            'account_statement_id' => $stay->accountStatement->id,
+            'stay_id' => $stay->id,
+            'type' => 'payment',
+            'total' => -50,
+            'status' => 'active',
+        ]);
+        $this->assertDatabaseMissing('space_cash_lodging_payments', [
+            'company_id' => $user->company_id,
+            'stay_id' => $stay->id,
+            'amount_bob' => 50,
+            'status' => 'active',
+        ]);
+        $this->assertDatabaseHas('space_cash_reservation_payments', [
+            'company_id' => $user->company_id,
+            'reservation_group_id' => $group->id,
+            'receipt_number' => $receiptNumber,
+            'amount_bob' => 50,
+            'status' => 'active',
+        ]);
+    }
+
+    public function test_reservation_advance_ajax_warns_when_payment_method_is_missing(): void
+    {
+        $this->travelTo(now()->startOfDay());
+        [$user, $space,, $country, $channel] = $this->context();
+
+        $this
+            ->actingAs($user)
+            ->post(route('internal-reservations.store'), [
+                'check_in_type' => 'individual',
+                'document_type' => 'ci',
+                'document_number' => '123456',
+                'first_name' => 'Ana',
+                'last_name' => 'Perez',
+                'birth_country_id' => $country->id,
+                'birth_date' => now()->subYears(30)->toDateString(),
+                'reservation_channel_id' => $channel->id,
+                'total_people' => 1,
+                'check_in_date' => now()->addDay()->toDateString(),
+                'check_out_date' => now()->addDays(2)->toDateString(),
+                'stays' => [
+                    [
+                        'resource_type' => 'private_space',
+                        'space_id' => $space->id,
+                        'people_count' => 1,
+                        'price_per_night_bob' => 80,
+                        'currency' => 'BOB',
+                        'exchange_rate' => 6.96,
+                        'guests' => [],
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $group = ReservationGroup::query()->firstOrFail();
+        SpaceCashRegister::factory()->create([
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->postJson(route('admin.reservation-groups.payments.store', $group), [
+                'amount' => 50,
+                'reference' => 'QR-001',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payment_method_id']);
+
+        $this->assertDatabaseMissing('space_cash_reservation_payments', [
+            'company_id' => $user->company_id,
+            'reservation_group_id' => $group->id,
+        ]);
+    }
+
     public function test_staff_can_send_today_reservation_to_prefilled_check_in_form(): void
     {
         $this->travelTo(now()->startOfDay());
@@ -555,7 +724,7 @@ class InternalReservationTest extends TestCase
     public function test_reservation_group_edit_shows_nightly_price_and_nights_in_their_columns(): void
     {
         $this->travelTo(now()->startOfDay());
-        [$user, $space] = $this->context();
+        [$user, $space, , $country] = $this->context();
 
         $group = ReservationGroup::factory()->create([
             'company_id' => $user->company_id,
@@ -593,21 +762,63 @@ class InternalReservationTest extends TestCase
             ->actingAs($user)
             ->get(route('admin.reservation-groups.show', $group))
             ->assertOk()
+            ->assertSee('Modificar reserva')
+            ->assertSee('data-modal-url="'.route('admin.reservation-groups.edit', $group).'"', false)
+            ->assertDontSee('name="reservations['.$reservation->id.'][price_per_night_bob]"', false)
+            ->assertSee('80.00 BOB');
+
+        $this
+            ->actingAs($user)
+            ->get(route('admin.reservation-groups.show', $group), ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertOk()
+            ->assertSee('Datos de reserva')
+            ->assertDontSee('<html', false);
+
+        $this
+            ->actingAs($user)
+            ->get(route('admin.reservation-groups.edit', $group))
+            ->assertOk()
             ->assertSeeInOrder([
-                '<th class="text-end">Precio BOB</th>',
-                '<th class="text-end">Precio USD</th>',
-                '<th class="text-end">Noches</th>',
-                'name="reservations['.$reservation->id.'][price_per_night_bob]"',
-                'value="80.00"',
-                'name="reservations['.$reservation->id.'][price_per_night_usd]"',
+                'Modificar reserva '.$group->code,
+                'Tipo documento',
+                'Numero documento',
+                'Pais de nacimiento',
+                'Fecha de nacimiento',
+                'Noches',
                 'name="reservations['.$reservation->id.'][nights]"',
                 'value="2"',
-            ], false);
+                'Precio noche BOB',
+                'name="reservations['.$reservation->id.'][price_per_night_bob]"',
+                'value="80.00"',
+                'Precio noche USD',
+                'name="reservations['.$reservation->id.'][price_per_night_usd]"',
+            ], false)
+            ->assertSee('Tipo de reserva')
+            ->assertSee('Individual')
+            ->assertSee('Multiple')
+            ->assertSee('Canal de reserva');
+
+        $this
+            ->actingAs($user)
+            ->get(route('admin.reservation-groups.edit', $group), ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertOk()
+            ->assertSee('Tipo documento')
+            ->assertDontSee('<html', false);
 
         $this
             ->actingAs($user)
             ->patch(route('admin.reservation-groups.update', $group), [
                 'reservation_channel_id' => null,
+                'check_in_type' => 'multiple',
+                'document_type' => 'passport',
+                'birth_country_id' => $country->id,
+                'birth_date' => now()->subYears(30)->toDateString(),
+                'first_name' => 'Ana Maria',
+                'last_name' => 'Perez',
+                'total_people' => 3,
+                'check_in_date' => now()->addDays(2)->toDateString(),
+                'check_out_date' => now()->addDays(4)->toDateString(),
+                'notes' => 'Nota actualizada',
                 'guest_name' => 'Ana Perez',
                 'guest_email' => '',
                 'guest_phone' => '',
@@ -617,6 +828,7 @@ class InternalReservationTest extends TestCase
                         'check_in' => now()->addDays(2)->toDateString(),
                         'check_out' => now()->addDays(4)->toDateString(),
                         'nights' => 2,
+                        'guests' => 2,
                         'price_per_night_usd' => 10,
                         'exchange_rate' => 6.96,
                         'currency' => 'BOB',
@@ -627,6 +839,12 @@ class InternalReservationTest extends TestCase
             ->assertSessionDoesntHaveErrors();
 
         $this->assertNull($group->refresh()->guest_email);
+        $this->assertSame('Ana Maria Perez', $group->guest_name);
+        $this->assertSame('passport', $group->guest_document_type);
+        $this->assertSame($country->id, $group->guest_birth_country_id);
+        $this->assertSame(now()->subYears(30)->toDateString(), $group->guest_birth_date->toDateString());
+        $this->assertSame(3, $group->guests);
+        $this->assertSame('Nota actualizada', $group->notes);
         $this->assertSame('69.60', $reservation->refresh()->price_per_person);
         $this->assertSame('139.20', $reservation->subtotal_amount);
         $this->assertSame('ana@example.test', $reservation->refresh()->guest_email);

@@ -69,7 +69,7 @@ class AdminReservationController extends Controller
         ]);
     }
 
-    public function show(int $reservation): View|RedirectResponse
+    public function show(Request $request, int $reservation): View|RedirectResponse
     {
         Gate::authorize('reservations.view');
 
@@ -79,7 +79,7 @@ class AdminReservationController extends Controller
             return redirect()->route('admin.reservation-groups.show', $reservation->reservation_group_id);
         }
 
-        return view('reservations.admin.show', [
+        return view($request->ajax() ? 'reservations.admin.partials.show-content' : 'reservations.admin.show', [
             'reservation' => $reservation,
             'occupancyUrl' => $this->occupancyUrlForReservation($reservation),
         ]);

@@ -2,6 +2,7 @@
     $money = fn ($value, $currency = 'BOB') => number_format((float) $value, 2).' '.$currency;
     $currency = 'BOB';
     $exchangeRate = (float) ($exchangeRate ?? 0);
+    $isMultipleStay = (bool) ($isMultipleStay ?? false);
 @endphp
 
 <form
@@ -31,7 +32,9 @@
             <label class="form-label" for="stay-payment-scope">Cobrar</label>
             <select class="form-select @error('scope', 'stayPayment') is-invalid @enderror" id="stay-payment-scope" name="scope">
                 <option value="stay" data-balance="{{ number_format((float) $stayBalance, 2, '.', '') }}" @selected(old('scope', $scope) === 'stay')>Estancia actual</option>
-                <option value="group" data-balance="{{ number_format((float) $groupBalance, 2, '.', '') }}" @selected(old('scope', $scope) === 'group')>Todo el check-in</option>
+                @if ($isMultipleStay)
+                    <option value="group" data-balance="{{ number_format((float) $groupBalance, 2, '.', '') }}" @selected(old('scope', $scope) === 'group')>Todo el grupo</option>
+                @endif
             </select>
             @error('scope', 'stayPayment')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
@@ -39,6 +42,18 @@
         <div class="col-md-6">
             <label class="form-label">Saldo disponible</label>
             <div class="form-control-plaintext fw-semibold" data-stay-payment-balance-label>{{ $money($balance, $currency) }}</div>
+            @if ($isMultipleStay)
+                <div class="form-hint vstack gap-1 mt-1">
+                    <div class="d-flex justify-content-between gap-3">
+                        <span>Deuda estancia actual</span>
+                        <strong>{{ $money($stayBalance, $currency) }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between gap-3">
+                        <span>Deuda todo el grupo</span>
+                        <strong>{{ $money($groupBalance, $currency) }}</strong>
+                    </div>
+                </div>
+            @endif
         </div>
 
         <div class="col-md-6">

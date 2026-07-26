@@ -16,6 +16,7 @@ class DatabaseBackupService
 {
     private const FORMAT = 'nido.database-backup.v1';
     private const SQL_FORMAT = 'nido.database-sql-backup.v1';
+    private const SQL_END_MARKER = '-- NIDO_BACKUP_END';
     private const DISK = 'local';
     private const DIRECTORY = 'private/database-backups';
 
@@ -187,6 +188,9 @@ class DatabaseBackupService
             }
         }
 
+        $lines[] = '';
+        $lines[] = self::SQL_END_MARKER;
+
         return implode("\n", $lines)."\n";
     }
 
@@ -305,6 +309,8 @@ class DatabaseBackupService
                         }
                     }
                 }
+
+                $this->resetPostgresSequences();
             } finally {
                 Schema::enableForeignKeyConstraints();
             }
@@ -333,22 +339,24 @@ class DatabaseBackupService
         }
 
         $metadata = $this->parseSqlMetadata($sql);
+        $summary = null;
 
-        DB::transaction(function () use ($sql): void {
+        DB::transaction(function () use ($sql, $metadata, &$summary): void {
             DB::unprepared($sql);
+            $this->resetPostgresSequences();
+
+            if ($metadata !== null) {
+                $postRestore = $this->validateCurrentDatabaseAgainstSqlMetadata($metadata);
+
+                if (! $postRestore['valid']) {
+                    throw ValidationException::withMessages(['backup' => $postRestore['errors']]);
+                }
+
+                $summary = $postRestore;
+            }
         });
 
-        if ($metadata !== null) {
-            $postRestore = $this->validateCurrentDatabaseAgainstSqlMetadata($metadata);
-
-            if (! $postRestore['valid']) {
-                throw ValidationException::withMessages(['backup' => $postRestore['errors']]);
-            }
-
-            return $postRestore;
-        }
-
-        return [
+        return $summary ?? [
             'valid' => true,
             'errors' => [],
             'table_count' => null,
@@ -492,6 +500,35 @@ class DatabaseBackupService
         };
     }
 
+    private function resetPostgresSequences(): void
+    {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            return;
+        }
+
+        $sequences = DB::select(
+            "select table_schema, table_name, column_name
+            from information_schema.columns
+            where table_schema = current_schema()
+                and column_default like 'nextval(%'"
+        );
+
+        foreach ($sequences as $sequence) {
+            $table = str_replace("'", "''", (string) $sequence->table_name);
+            $column = str_replace("'", "''", (string) $sequence->column_name);
+            $qualifiedTable = $this->quoteIdentifier((string) $sequence->table_name);
+            $qualifiedColumn = $this->quoteIdentifier((string) $sequence->column_name);
+
+            DB::statement(
+                "select setval(
+                    pg_get_serial_sequence('{$table}', '{$column}'),
+                    coalesce((select max({$qualifiedColumn}) from {$qualifiedTable}), 0) + 1,
+                    false
+                )"
+            );
+        }
+    }
+
     /**
      * @return array<int, string>
      */
@@ -615,11 +652,29 @@ class DatabaseBackupService
             return null;
         }
 
+        if (! str_contains($sql, self::SQL_END_MARKER)) {
+            throw ValidationException::withMessages([
+                'backup' => 'El respaldo SQL generado por el sistema esta incompleto: falta la marca final de verificacion.',
+            ]);
+        }
+
+        if (! preg_match('/^-- NIDO_BACKUP_TABLE_COUNT:\s+(\d+)$/m', $sql, $tableCountMatch)) {
+            throw ValidationException::withMessages([
+                'backup' => 'El respaldo SQL generado por el sistema no indica el total de tablas.',
+            ]);
+        }
+
         preg_match_all('/^-- NIDO_BACKUP_TABLE:\s+(\S+)\s+(\d+)\s+([a-f0-9]{64})$/m', $sql, $matches, PREG_SET_ORDER);
 
         if ($matches === []) {
             throw ValidationException::withMessages([
                 'backup' => 'El respaldo SQL generado por el sistema no contiene metadatos de validacion.',
+            ]);
+        }
+
+        if (count($matches) !== (int) $tableCountMatch[1]) {
+            throw ValidationException::withMessages([
+                'backup' => 'El respaldo SQL generado por el sistema esta incompleto: el total de tablas no coincide con los metadatos.',
             ]);
         }
 

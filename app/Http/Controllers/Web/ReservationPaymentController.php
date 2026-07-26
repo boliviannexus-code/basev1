@@ -9,6 +9,7 @@ use App\Models\ReservationGroup;
 use App\Services\ReservationPaymentService;
 use App\Services\SpaceCashRegisterService;
 use App\Support\PaymentMethodDefaults;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -44,7 +45,7 @@ class ReservationPaymentController extends Controller
         ]);
     }
 
-    public function store(Request $request, ReservationGroup $group): RedirectResponse
+    public function store(Request $request, ReservationGroup $group): RedirectResponse|JsonResponse
     {
         $this->ensureOwnership($group, $request);
         $data = $request->validateWithBag('reservationPayment', [
@@ -54,6 +55,15 @@ class ReservationPaymentController extends Controller
         ]);
 
         $receipt = $this->reservationPayments->recordForGroup($group, $request->user(), $data);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Adelanto de reserva registrado correctamente: '.$receipt,
+                'refresh_occupancy' => true,
+                'refresh_url' => route('admin.reservation-groups.show', $group),
+            ]);
+        }
 
         return redirect()
             ->route('admin.reservation-groups.show', $group)

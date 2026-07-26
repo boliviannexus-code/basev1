@@ -3,8 +3,10 @@
 namespace App\Services\CheckIn;
 
 use App\Models\CheckInGroup;
+use App\Models\ExchangeRate;
 use App\Models\Reservation;
 use App\Models\RoomBedUnit;
+use App\Models\SpaceCashReservationPayment;
 use App\Models\Space;
 use App\Models\SpaceRoom;
 use App\Models\Stay;
@@ -45,6 +47,7 @@ class CheckInService
             ]);
 
             $transferredReservationIds = [];
+            $createdStays = collect();
 
             foreach ($data['stays'] as $stayData) {
                 $stayData = $this->currency->normalizeStayPrices($stayData, $companyId);
@@ -102,6 +105,7 @@ class CheckInService
 
                 $this->availability->markRangeOccupied($companyId, $stay, $user);
                 $this->accounts->createForStay($stay);
+                $createdStays->push($stay->fresh(['accountStatement']));
 
                 if ($reservation = $this->matchingReservation($companyId, $stay, $data)) {
                     if (! in_array($reservation->id, $transferredReservationIds, true)) {
@@ -112,6 +116,7 @@ class CheckInService
             }
 
             if (filled($data['reservation_group_id'] ?? null)) {
+                $this->transferReservationAdvancesToStays($companyId, (int) $data['reservation_group_id'], $createdStays);
                 $this->releaseReservationBlocks((int) $companyId, (int) $data['reservation_group_id']);
             }
 
@@ -149,6 +154,69 @@ class CheckInService
         }
 
         return $query->first();
+    }
+
+    private function transferReservationAdvancesToStays(int $companyId, int $reservationGroupId, $stays): void
+    {
+        $reservationPayments = SpaceCashReservationPayment::query()
+            ->with(['paymentMethod', 'reservationGroup'])
+            ->where('company_id', $companyId)
+            ->where('reservation_group_id', $reservationGroupId)
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->get();
+
+        if ($reservationPayments->isEmpty() || $stays->isEmpty()) {
+            return;
+        }
+
+        foreach ($reservationPayments as $reservationPayment) {
+            $remainingBob = round((float) $reservationPayment->amount_bob, 2);
+
+            foreach ($stays as $stay) {
+                if ($remainingBob <= 0) {
+                    break;
+                }
+
+                $statement = $this->accounts->recalculate($stay->accountStatement ?: $this->accounts->createForStay($stay));
+                $statementCurrency = $statement->currency ?: $stay->currency;
+                $exchangeRate = $this->exchangeRateForStay($stay, $statementCurrency === 'USD');
+                $statementBalanceBob = $statementCurrency === 'USD'
+                    ? round((float) $statement->balance * $exchangeRate, 2)
+                    : round((float) $statement->balance, 2);
+                $portionBob = min($remainingBob, $statementBalanceBob);
+
+                if ($portionBob <= 0) {
+                    continue;
+                }
+
+                $portion = $statementCurrency === 'USD'
+                    ? round($portionBob / $exchangeRate, 2)
+                    : $portionBob;
+                $description = 'Adelanto transferido '.$reservationPayment->receipt_number;
+
+                if ($reservationPayment->paymentMethod?->name) {
+                    $description .= ' - '.$reservationPayment->paymentMethod->name;
+                }
+
+                $this->accounts->recordPayment($stay, $portion, $description, $statementCurrency);
+
+                $remainingBob = round($remainingBob - $portionBob, 2);
+            }
+        }
+    }
+
+    private function exchangeRateForStay(Stay $stay, bool $required): float
+    {
+        $exchangeRate = (float) ($stay->exchange_rate ?: ExchangeRate::currentRateForCompany((int) $stay->company_id));
+
+        if ($exchangeRate <= 0 && $required) {
+            throw ValidationException::withMessages([
+                'exchange_rate' => 'Configura un tipo de cambio valido antes de transferir el adelanto.',
+            ]);
+        }
+
+        return $exchangeRate > 0 ? $exchangeRate : 1;
     }
 
     private function releaseReservationBlocks(int $companyId, int $reservationGroupId): void

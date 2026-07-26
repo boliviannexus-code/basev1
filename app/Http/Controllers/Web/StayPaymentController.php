@@ -30,20 +30,13 @@ class StayPaymentController extends Controller
         $this->ensureOwnership($stay, $request);
         PaymentMethodDefaults::ensureForCompany($request->user()->company_id);
         $stay->loadMissing(['accountStatement', 'checkInGroup.stays.accountStatement', 'holderGuest']);
-        $scope = $request->query('scope', 'stay') === 'group' ? 'group' : 'stay';
-        $stayBalance = $this->lodgingPayments->availableScopeBalance($stay, 'stay');
-        $groupBalance = $this->lodgingPayments->availableScopeBalance($stay, 'group');
+        $isMultipleStay = $stay->checkInGroup?->stays?->count() > 1;
+        $scope = $isMultipleStay && $request->query('scope', 'stay') === 'group' ? 'group' : 'stay';
         $exchangeRate = (float) ($stay->exchange_rate ?: ExchangeRate::currentRateForCompany((int) $request->user()->company_id) ?: 0);
-        $stayCurrency = $stay->accountStatement?->currency ?: $stay->currency;
-        $stayBalanceBob = $stayCurrency === 'USD' && $exchangeRate > 0 ? round($stayBalance * $exchangeRate, 2) : $stayBalance;
-        $groupBalanceBob = (float) $stay->checkInGroup->stays->sum(function (Stay $groupStay) use ($exchangeRate): float {
-            $statement = $groupStay->accountStatement;
-            $balance = (float) ($statement?->balance ?? 0);
-            $currency = $statement?->currency ?: $groupStay->currency;
-            $rate = (float) ($groupStay->exchange_rate ?: $exchangeRate);
-
-            return $currency === 'USD' && $rate > 0 ? round($balance * $rate, 2) : $balance;
-        });
+        $stayBalanceBob = $this->balanceBobForStay($stay);
+        $groupBalanceBob = $isMultipleStay
+            ? $this->balanceBobForGroup($stay, $exchangeRate)
+            : $stayBalanceBob;
 
         return view('stays.payments.create', [
             'stay' => $stay,
@@ -51,6 +44,7 @@ class StayPaymentController extends Controller
             'balance' => $scope === 'group' ? $groupBalanceBob : $stayBalanceBob,
             'stayBalance' => $stayBalanceBob,
             'groupBalance' => $groupBalanceBob,
+            'isMultipleStay' => $isMultipleStay,
             'exchangeRate' => $exchangeRate,
             'canCheckOutToday' => $stay->check_out_date?->isSameDay(CarbonImmutable::today()),
             'openRegister' => $this->cashRegisters->currentForUser($request->user()),
@@ -78,6 +72,12 @@ class StayPaymentController extends Controller
         if ($shouldCheckOut) {
             $data['scope'] = 'stay';
             $this->ensureCanCollectAndCheckOut($stay, $data);
+        }
+
+        if (! $shouldCheckOut && $data['scope'] === 'group' && $stay->checkInGroup()->withCount('stays')->first()?->stays_count <= 1) {
+            throw ValidationException::withMessages([
+                'scope' => 'El cobro de todo el grupo solo esta disponible para estancias multiples.',
+            ])->errorBag('stayPayment');
         }
 
         $payments = DB::transaction(function () use ($stay, $request, $data, $shouldCheckOut): array {
@@ -138,5 +138,18 @@ class StayPaymentController extends Controller
         $exchangeRate = (float) ($stay->exchange_rate ?: ExchangeRate::currentRateForCompany((int) $stay->company_id) ?: 0);
 
         return $currency === 'USD' && $exchangeRate > 0 ? round($balance * $exchangeRate, 2) : $balance;
+    }
+
+    private function balanceBobForGroup(Stay $stay, float $fallbackExchangeRate): float
+    {
+        $stay->loadMissing('checkInGroup.stays.accountStatement');
+
+        return (float) $stay->checkInGroup->stays->sum(function (Stay $groupStay) use ($fallbackExchangeRate): float {
+            $balance = (float) $this->lodgingPayments->availableScopeBalance($groupStay, 'stay');
+            $currency = $groupStay->accountStatement?->currency ?: $groupStay->currency;
+            $exchangeRate = (float) ($groupStay->exchange_rate ?: $fallbackExchangeRate);
+
+            return $currency === 'USD' && $exchangeRate > 0 ? round($balance * $exchangeRate, 2) : $balance;
+        });
     }
 }

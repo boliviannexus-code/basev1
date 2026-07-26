@@ -85,6 +85,8 @@ function openAjaxModal(trigger) {
             initPaymentUsdReferences(ajaxModalBody);
             initRoomChangeForms(ajaxModalBody);
             initReservationMoveForms(ajaxModalBody);
+            initCheckInPriceReferences(ajaxModalBody);
+            initReservationGroupForms(ajaxModalBody);
         })
         .catch((error) => {
             ajaxModal.hide();
@@ -5510,6 +5512,29 @@ function initReservationGroupForms(scope = document) {
             nightsInput?.addEventListener('input', syncCheckOut);
             nightsInput?.addEventListener('change', syncCheckOut);
         });
+
+        const globalCheckIn = form.querySelector('[data-reservation-global-check-in]');
+        const globalCheckOut = form.querySelector('[data-reservation-global-check-out]');
+        const syncGlobalDates = () => {
+            if (!globalCheckIn?.value || !globalCheckOut?.value) {
+                return;
+            }
+
+            const nights = Math.max(Math.round((new Date(`${globalCheckOut.value}T00:00:00`) - new Date(`${globalCheckIn.value}T00:00:00`)) / 86400000), 1);
+
+            form.querySelectorAll('[data-reservation-date-row]').forEach((row) => {
+                const checkIn = row.querySelector('[data-reservation-check-in]');
+                const checkOut = row.querySelector('[data-reservation-check-out]');
+                const nightsInput = row.querySelector('[data-reservation-nights]');
+
+                if (checkIn) checkIn.value = globalCheckIn.value;
+                if (checkOut) checkOut.value = globalCheckOut.value;
+                if (nightsInput) nightsInput.value = String(nights);
+            });
+        };
+
+        globalCheckIn?.addEventListener('change', syncGlobalDates);
+        globalCheckOut?.addEventListener('change', syncGlobalDates);
 
         form.dataset.reservationGroupInitialized = '1';
     });

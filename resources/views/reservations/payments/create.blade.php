@@ -6,6 +6,7 @@
 <form
     method="POST"
     action="{{ route('admin.reservation-groups.payments.store', $group) }}"
+    data-ajax-form
     autocomplete="off"
     novalidate
 >

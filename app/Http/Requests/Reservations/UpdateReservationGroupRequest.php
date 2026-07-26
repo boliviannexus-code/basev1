@@ -27,7 +27,17 @@ class UpdateReservationGroupRequest extends FormRequest
                     ->where('company_id', $companyId)
                     ->where('is_active', true)),
             ],
+            'check_in_type' => ['nullable', Rule::in(['individual', 'multiple'])],
+            'document_type' => ['nullable', Rule::in(['passport', 'dni', 'ci', 'other'])],
+            'birth_country_id' => ['nullable', 'integer', Rule::exists('countries', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'birth_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'total_people' => ['nullable', 'integer', 'min:1'],
+            'check_in_date' => ['nullable', 'date', 'after_or_equal:today'],
+            'check_out_date' => ['nullable', 'date', 'after:check_in_date'],
+            'notes' => ['nullable', 'string', 'max:2000'],
             'guest_name' => ['required', 'string', 'max:255'],
+            'first_name' => ['nullable', 'string', 'max:255'],
+            'last_name' => ['nullable', 'string', 'max:255'],
             'guest_email' => ['nullable', 'email', 'max:255'],
             'guest_phone' => ['nullable', 'string', 'max:255'],
             'guest_document' => ['nullable', 'string', 'max:255'],
@@ -35,6 +45,7 @@ class UpdateReservationGroupRequest extends FormRequest
             'reservations.*.check_in' => ['required', 'date', 'after_or_equal:today'],
             'reservations.*.check_out' => ['required', 'date'],
             'reservations.*.nights' => ['required', 'integer', 'min:1'],
+            'reservations.*.guests' => ['required', 'integer', 'min:1'],
             'reservations.*.price_per_night' => ['nullable', 'numeric', 'min:0'],
             'reservations.*.price_per_night_bob' => ['nullable', 'numeric', 'min:0'],
             'reservations.*.price_per_night_usd' => ['nullable', 'numeric', 'min:0'],
@@ -50,12 +61,22 @@ class UpdateReservationGroupRequest extends FormRequest
         return [
             'reservation_channel_id' => 'canal de reserva',
             'guest_name' => 'huesped titular',
+            'first_name' => 'nombre',
+            'last_name' => 'apellido',
             'guest_email' => 'correo del huesped titular',
             'guest_phone' => 'telefono del huesped titular',
             'guest_document' => 'documento del huesped titular',
+            'document_type' => 'tipo de documento',
+            'birth_country_id' => 'pais de nacimiento',
+            'birth_date' => 'fecha de nacimiento',
+            'total_people' => 'cantidad total de personas',
+            'check_in_date' => 'fecha de ingreso',
+            'check_out_date' => 'fecha de salida',
+            'notes' => 'notas',
             'reservations.*.check_in' => 'fecha de ingreso',
             'reservations.*.check_out' => 'fecha de salida',
             'reservations.*.nights' => 'noches',
+            'reservations.*.guests' => 'personas',
             'reservations.*.price_per_night' => 'precio por noche',
             'reservations.*.price_per_night_bob' => 'precio por noche BOB',
             'reservations.*.price_per_night_usd' => 'precio por noche USD',
@@ -115,20 +136,34 @@ class UpdateReservationGroupRequest extends FormRequest
     {
         $this->merge([
             'reservation_channel_id' => $this->filled('reservation_channel_id') ? (int) $this->input('reservation_channel_id') : null,
-            'guest_name' => $this->filled('guest_name') ? trim((string) $this->input('guest_name')) : null,
+            'check_in_type' => $this->input('check_in_type'),
+            'document_type' => $this->input('document_type', 'ci'),
+            'birth_country_id' => $this->filled('birth_country_id') ? (int) $this->input('birth_country_id') : null,
+            'birth_date' => $this->input('birth_date'),
+            'total_people' => $this->filled('total_people') ? (int) $this->input('total_people') : null,
+            'check_in_date' => $this->input('check_in_date'),
+            'check_out_date' => $this->input('check_out_date'),
+            'notes' => $this->filled('notes') ? trim((string) $this->input('notes')) : null,
+            'first_name' => $this->filled('first_name') ? trim((string) $this->input('first_name')) : null,
+            'last_name' => $this->filled('last_name') ? trim((string) $this->input('last_name')) : null,
+            'guest_name' => $this->guestNameForValidation(),
             'guest_email' => $this->filled('guest_email') ? mb_strtolower(trim((string) $this->input('guest_email'))) : null,
             'guest_phone' => $this->filled('guest_phone') ? trim((string) $this->input('guest_phone')) : null,
             'guest_document' => $this->filled('guest_document') ? trim((string) $this->input('guest_document')) : null,
             'reservations' => collect($this->input('reservations', []))
                 ->map(function ($reservation): array {
                     $reservation = is_array($reservation) ? $reservation : [];
+                    $checkIn = $this->input('check_in_date') ?: ($reservation['check_in'] ?? null);
+                    $checkOut = $this->input('check_out_date') ?: ($reservation['check_out'] ?? null);
+                    $nights = $checkIn && $checkOut
+                        ? $this->nightsBetween((string) $checkIn, (string) $checkOut)
+                        : (filled($reservation['nights'] ?? null) ? max((int) $reservation['nights'], 1) : null);
 
                     return [
-                        'check_in' => $reservation['check_in'] ?? null,
-                        'check_out' => $reservation['check_out'] ?? null,
-                        'nights' => filled($reservation['nights'] ?? null)
-                            ? max((int) $reservation['nights'], 1)
-                            : null,
+                        'check_in' => $checkIn,
+                        'check_out' => $checkOut,
+                        'nights' => $nights,
+                        'guests' => filled($reservation['guests'] ?? null) ? max((int) $reservation['guests'], 1) : 1,
                         'price_per_night' => filled($reservation['price_per_night'] ?? null)
                             ? round((float) $reservation['price_per_night'], 2)
                             : null,
@@ -150,5 +185,23 @@ class UpdateReservationGroupRequest extends FormRequest
                 })
                 ->all(),
         ]);
+    }
+
+    private function guestNameForValidation(): ?string
+    {
+        if ($this->filled('first_name') || $this->filled('last_name')) {
+            return trim(collect([$this->input('first_name'), $this->input('last_name')])->filter()->implode(' '));
+        }
+
+        return $this->filled('guest_name') ? trim((string) $this->input('guest_name')) : null;
+    }
+
+    private function nightsBetween(string $checkIn, string $checkOut): int
+    {
+        try {
+            return max(\Carbon\CarbonImmutable::parse($checkIn)->diffInDays(\Carbon\CarbonImmutable::parse($checkOut)), 1);
+        } catch (\Throwable) {
+            return 1;
+        }
     }
 }

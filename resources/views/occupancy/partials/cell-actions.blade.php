@@ -26,6 +26,11 @@
                     <a
                         class="btn btn-outline-{{ $action['tone'] }} btn-sm occupancy-action-button"
                         href="{{ $action['url'] }}"
+                        @if (! empty($action['modal_url']))
+                            data-modal-url="{{ $action['modal_url'] }}"
+                            data-modal-title="{{ $action['modal_title'] ?? $action['label'] }}"
+                            data-modal-size="{{ $action['modal_size'] ?? 'lg' }}"
+                        @endif
                     >
                         <i class="ti {{ $action['icon'] }} me-1"></i>{{ $action['label'] }}
                     </a>
