@@ -31,6 +31,7 @@ class PermissionCatalog
             'roles' => ['label' => 'Roles', 'description' => 'Perfiles de acceso y asignación de permisos.', 'order' => 220],
             'permissions' => ['label' => 'Permisos técnicos', 'description' => 'Catálogo técnico de permisos del sistema.', 'order' => 230],
             'audits' => ['label' => 'Auditoría', 'description' => 'Historial de cambios y acciones relevantes.', 'order' => 240],
+            'database-backups' => ['label' => 'Respaldos de base de datos', 'description' => 'Exportación, validación y restauración verificada de datos.', 'order' => 250],
         ];
     }
 
@@ -50,6 +51,7 @@ class PermissionCatalog
             'business-intelligence.view' => 'Consultar indicadores avanzados de Business Intelligence.',
             'roles.assign-permissions' => 'Cambiar los permisos que pertenecen a cada rol.',
             'users.assign-roles' => 'Asignar o retirar roles a usuarios.',
+            'database-backups.manage' => 'Exportar respaldos, validarlos y restaurar la base de datos.',
         ];
     }
 

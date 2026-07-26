@@ -552,6 +552,86 @@ class InternalReservationTest extends TestCase
         $this->assertSame(2, ReservationGroup::query()->count());
     }
 
+    public function test_reservation_group_edit_shows_nightly_price_and_nights_in_their_columns(): void
+    {
+        $this->travelTo(now()->startOfDay());
+        [$user, $space] = $this->context();
+
+        $group = ReservationGroup::factory()->create([
+            'company_id' => $user->company_id,
+            'guest_name' => 'Ana Perez',
+            'guest_email' => 'ana@example.test',
+            'check_in' => now()->addDays(2)->toDateString(),
+            'check_out' => now()->addDays(4)->toDateString(),
+            'nights' => 2,
+            'subtotal_amount' => 160,
+            'total_amount' => 160,
+            'balance_amount' => 160,
+        ]);
+        $reservation = $group->reservations()->create([
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'space_id' => $space->id,
+            'code' => 'RSV-TEST-0001',
+            'guest_name' => $group->guest_name,
+            'guest_email' => $group->guest_email,
+            'check_in' => $group->check_in,
+            'check_out' => $group->check_out,
+            'nights' => 2,
+            'guests' => 2,
+            'price_per_person' => 80,
+            'subtotal_amount' => 160,
+            'total_amount' => 160,
+            'advance_amount' => 0,
+            'balance_amount' => 160,
+            'currency' => 'BOB',
+            'status' => 'pending_payment',
+            'payment_status' => 'pending',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('admin.reservation-groups.show', $group))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '<th class="text-end">Precio BOB</th>',
+                '<th class="text-end">Precio USD</th>',
+                '<th class="text-end">Noches</th>',
+                'name="reservations['.$reservation->id.'][price_per_night_bob]"',
+                'value="80.00"',
+                'name="reservations['.$reservation->id.'][price_per_night_usd]"',
+                'name="reservations['.$reservation->id.'][nights]"',
+                'value="2"',
+            ], false);
+
+        $this
+            ->actingAs($user)
+            ->patch(route('admin.reservation-groups.update', $group), [
+                'reservation_channel_id' => null,
+                'guest_name' => 'Ana Perez',
+                'guest_email' => '',
+                'guest_phone' => '',
+                'guest_document' => '',
+                'reservations' => [
+                    $reservation->id => [
+                        'check_in' => now()->addDays(2)->toDateString(),
+                        'check_out' => now()->addDays(4)->toDateString(),
+                        'nights' => 2,
+                        'price_per_night_usd' => 10,
+                        'exchange_rate' => 6.96,
+                        'currency' => 'BOB',
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('admin.reservation-groups.show', $group))
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertNull($group->refresh()->guest_email);
+        $this->assertSame('69.60', $reservation->refresh()->price_per_person);
+        $this->assertSame('139.20', $reservation->subtotal_amount);
+        $this->assertSame('ana@example.test', $reservation->refresh()->guest_email);
+    }
+
     private function context(): array
     {
         Permission::findOrCreate('occupancy.manage');

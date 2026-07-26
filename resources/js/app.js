@@ -82,6 +82,7 @@ function openAjaxModal(trigger) {
             initPackageServiceCarts(ajaxModalBody);
             initExtraChargeForms(ajaxModalBody);
             initStayPaymentForms(ajaxModalBody);
+            initPaymentUsdReferences(ajaxModalBody);
             initRoomChangeForms(ajaxModalBody);
             initReservationMoveForms(ajaxModalBody);
         })
@@ -5313,6 +5314,8 @@ function initStayPaymentForms(scope = document) {
                 const amountValue = Number(amount?.value || 0);
                 checkoutButton.disabled = !canSubmitPayment || !canCheckOutToday || checkoutBalance <= 0 || amountValue < checkoutBalance;
             }
+
+            syncPaymentUsdReference(form);
         };
 
         scopeSelect?.addEventListener('change', () => sync(true));
@@ -5326,6 +5329,38 @@ function initStayPaymentForms(scope = document) {
         sync();
 
         form.dataset.stayPaymentInitialized = '1';
+    });
+}
+
+function syncPaymentUsdReference(form) {
+    const amount = form.querySelector('[data-payment-bob-amount]');
+    const target = form.querySelector('[data-payment-usd-reference]');
+    const rate = Number(amount?.dataset.paymentExchangeRate || 0);
+    const value = Number(amount?.value || 0);
+
+    if (!target) {
+        return;
+    }
+
+    if (!rate || rate <= 0) {
+        target.textContent = 'Sin tipo de cambio vigente para referencia USD.';
+        return;
+    }
+
+    target.textContent = `Referencia USD: ${(value / rate).toFixed(2)} USD`;
+}
+
+function initPaymentUsdReferences(scope = document) {
+    scope.querySelectorAll('[data-payment-bob-amount]').forEach((amount) => {
+        const form = amount.closest('form');
+
+        if (!form || amount.dataset.paymentUsdReferenceInitialized === '1') {
+            return;
+        }
+
+        amount.addEventListener('input', () => syncPaymentUsdReference(form));
+        syncPaymentUsdReference(form);
+        amount.dataset.paymentUsdReferenceInitialized = '1';
     });
 }
 
@@ -5516,6 +5551,7 @@ initCheckInPriceReferences();
 initStayGuestEditors();
 initExtraChargeForms();
 initStayPaymentForms();
+initPaymentUsdReferences();
 initRoomChangeForms();
 initReservationMoveForms();
 initReservationGroupForms();

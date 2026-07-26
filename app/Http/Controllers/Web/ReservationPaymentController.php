@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\ExchangeRate;
 use App\Models\PaymentMethod;
 use App\Models\ReservationGroup;
 use App\Services\ReservationPaymentService;
@@ -25,11 +26,15 @@ class ReservationPaymentController extends Controller
         PaymentMethodDefaults::ensureForCompany($request->user()->company_id);
         $group->loadMissing(['accountStatement.items', 'reservations']);
         $balance = $this->reservationPayments->availableBalance($group);
+        $currency = $group->accountStatement?->currency ?: $group->currency;
+        $exchangeRate = (float) (ExchangeRate::currentRateForCompany((int) $request->user()->company_id) ?: 0);
+        $balanceBob = $currency === 'USD' && $exchangeRate > 0 ? round($balance * $exchangeRate, 2) : $balance;
 
         return view('reservations.payments.create', [
             'group' => $group,
-            'balance' => $balance,
-            'currency' => $group->accountStatement?->currency ?: $group->currency,
+            'balance' => $balanceBob,
+            'currency' => 'BOB',
+            'exchangeRate' => $exchangeRate,
             'openRegister' => $this->cashRegisters->currentForUser($request->user()),
             'paymentMethods' => PaymentMethod::query()
                 ->where('company_id', $request->user()->company_id)

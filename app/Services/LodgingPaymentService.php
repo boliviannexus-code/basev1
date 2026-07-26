@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AccountStatement;
+use App\Models\ExchangeRate;
 use App\Models\PaymentMethod;
 use App\Models\SpaceCashLodgingPayment;
 use App\Models\SpaceCashRegister;
@@ -38,9 +39,9 @@ class LodgingPaymentService
         $this->ensureStayOwnership($selectedStay, $user);
         $cashRegister = $this->openRegisterOrFail($user);
         $paymentMethod = $this->paymentMethodOrFail((int) $data['payment_method_id'], $user);
-        $remaining = round((float) $data['amount'], 2);
+        $remainingBob = round((float) $data['amount'], 2);
 
-        return DB::transaction(function () use ($selectedStay, $user, $data, $cashRegister, $paymentMethod, &$remaining): array {
+        return DB::transaction(function () use ($selectedStay, $user, $data, $cashRegister, $paymentMethod, &$remainingBob): array {
             $payments = [];
             $stays = $selectedStay->checkInGroup
                 ->stays()
@@ -50,23 +51,28 @@ class LodgingPaymentService
                 ->get();
 
             foreach ($stays as $stay) {
-                if ($remaining <= 0) {
+                if ($remainingBob <= 0) {
                     break;
                 }
 
                 $statement = $stay->accountStatement ?: $this->accountStatements->createForStay($stay);
                 $statement = $this->accountStatements->recalculate($statement);
-                $portion = min($remaining, (float) $statement->balance);
+                $statementCurrency = $statement->currency ?: $stay->currency;
+                $exchangeRate = $this->exchangeRateForStay($stay, $statementCurrency === 'USD');
+                $statementBalanceBob = $statementCurrency === 'USD'
+                    ? round((float) $statement->balance * $exchangeRate, 2)
+                    : (float) $statement->balance;
+                $portionBob = min($remainingBob, $statementBalanceBob);
 
-                if ($portion <= 0) {
+                if ($portionBob <= 0) {
                     continue;
                 }
 
-                $payments[] = $this->recordOne($stay, $statement, $user, $cashRegister, $paymentMethod, $portion, $data['reference'] ?? null);
-                $remaining = round($remaining - $portion, 2);
+                $payments[] = $this->recordOne($stay, $statement, $user, $cashRegister, $paymentMethod, $portionBob, $data['reference'] ?? null);
+                $remainingBob = round($remainingBob - $portionBob, 2);
             }
 
-            if ($remaining > 0) {
+            if ($remainingBob > 0) {
                 throw ValidationException::withMessages([
                     'amount' => 'El monto no puede superar el saldo del check-in.',
                 ])->errorBag('stayPayment');
@@ -89,9 +95,14 @@ class LodgingPaymentService
         return (float) $this->accountStatements->recalculate($stay->accountStatement ?: $this->accountStatements->createForStay($stay))->balance;
     }
 
-    private function recordOne(Stay $stay, AccountStatement $statement, User $user, SpaceCashRegister $cashRegister, PaymentMethod $paymentMethod, float $amount, ?string $reference): SpaceCashLodgingPayment
+    private function recordOne(Stay $stay, AccountStatement $statement, User $user, SpaceCashRegister $cashRegister, PaymentMethod $paymentMethod, float $amountBob, ?string $reference): SpaceCashLodgingPayment
     {
         $statement = $this->accountStatements->recalculate($statement);
+        $currency = $statement->currency ?: $stay->currency;
+        $exchangeRate = $this->exchangeRateForStay($stay, $currency === 'USD');
+        $amount = $currency === 'USD'
+            ? round($amountBob / $exchangeRate, 2)
+            : $amountBob;
 
         if ($amount <= 0 || $amount > (float) $statement->balance) {
             throw ValidationException::withMessages([
@@ -99,9 +110,6 @@ class LodgingPaymentService
             ])->errorBag('stayPayment');
         }
 
-        $currency = $statement->currency ?: $stay->currency;
-        $exchangeRate = $currency === 'USD' ? (float) ($stay->exchange_rate ?: 1) : 1;
-        $amountBob = round($currency === 'USD' ? $amount * $exchangeRate : $amount, 2);
         $receiptNumber = $this->nextReceiptNumber($cashRegister);
 
         $item = $this->accountStatements->recordPayment($stay, $amount, 'Pago hospedaje '.$receiptNumber.' - '.$paymentMethod->name, $currency);
@@ -117,8 +125,8 @@ class LodgingPaymentService
             'payment_method_id' => $paymentMethod->id,
             'receipt_number' => $receiptNumber,
             'reference' => $reference,
-            'amount_original' => $amount,
-            'currency_original' => $currency,
+            'amount_original' => $amountBob,
+            'currency_original' => 'BOB',
             'exchange_rate' => $exchangeRate,
             'amount_bob' => $amountBob,
             'status' => 'active',
@@ -130,6 +138,23 @@ class LodgingPaymentService
     private function nextReceiptNumber(SpaceCashRegister $cashRegister): string
     {
         return $this->spaceCashRegisters->nextReceiptNumber($cashRegister->user);
+    }
+
+    private function exchangeRateForStay(Stay $stay, bool $required): float
+    {
+        $exchangeRate = (float) ($stay->exchange_rate ?: ExchangeRate::currentRateForCompany((int) $stay->company_id));
+
+        if ($exchangeRate <= 0) {
+            if (! $required) {
+                return 1;
+            }
+
+            throw ValidationException::withMessages([
+                'amount' => 'Configura un tipo de cambio vigente para mostrar referencia en dolares.',
+            ])->errorBag('stayPayment');
+        }
+
+        return $exchangeRate;
     }
 
     private function openRegisterOrFail(User $user): SpaceCashRegister

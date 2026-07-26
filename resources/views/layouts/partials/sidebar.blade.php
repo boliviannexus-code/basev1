@@ -1,6 +1,6 @@
 @php
     $organizationOpen = request()->routeIs('companies.*', 'company.public-profile.*');
-    $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*');
+    $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'database-backups.*');
     $globalAdminOpen = request()->routeIs('admin.accommodation-catalogs.*', 'admin.spaces.*');
     $spacesOpen = request()->routeIs('spaces.*', 'availability.*', 'occupancy.*', 'admin.reservations.*', 'accommodation-packages.*', 'package-services.*');
     $cashOpen = request()->routeIs('space-cash.*');
@@ -16,7 +16,8 @@
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('roles.view')
         || auth()->user()?->can('permissions.view')
-        || auth()->user()?->can('audits.view');
+        || auth()->user()?->can('audits.view')
+        || auth()->user()?->can('database-backups.manage');
     $canCash = auth()->user()?->company_id !== null
         && (auth()->user()?->can('space-cash.access')
             || auth()->user()?->can('occupancy.manage')
@@ -351,6 +352,15 @@
                                         <a class="nav-link" href="{{ route('audits.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-list-search"></i></span>
                                             <span class="nav-link-title">Auditoria</span>
+                                        </a>
+                                    </li>
+                                @endcan
+
+                                @can('database-backups.manage')
+                                    <li class="nav-item {{ request()->routeIs('database-backups.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('database-backups.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-database-export"></i></span>
+                                            <span class="nav-link-title">Respaldos</span>
                                         </a>
                                     </li>
                                 @endcan

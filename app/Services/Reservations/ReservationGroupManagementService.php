@@ -11,6 +11,7 @@ use App\Models\Space;
 use App\Models\SpaceRoom;
 use App\Models\Stay;
 use App\Services\CheckIn\AccountStatementService;
+use App\Services\CheckIn\CurrencyConversionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class ReservationGroupManagementService
 {
     public function __construct(
         private readonly AccountStatementService $accountStatements,
+        private readonly CurrencyConversionService $currency,
     ) {}
 
     public function update(ReservationGroup $group, array $data): ReservationGroup
@@ -282,7 +284,8 @@ class ReservationGroupManagementService
         $newNights = $this->nightDates($newCheckIn, $newCheckOut);
         $toAdd = array_values(array_diff($newNights, $oldNights));
         $toCancel = array_values(array_diff($oldNights, $newNights));
-        $price = round((float) $data['price_per_night'], 2);
+        $data = $this->currency->normalizeStayPrices($data, (int) $reservation->company_id);
+        $price = round((float) $data['price_per_night_bob'], 2);
 
         if ($price < 0) {
             throw ValidationException::withMessages([
@@ -309,7 +312,7 @@ class ReservationGroupManagementService
         $reservation->update([
             'reservation_channel_id' => $reservation->reservationGroup->reservation_channel_id,
             'guest_name' => $reservation->reservationGroup->guest_name,
-            'guest_email' => $reservation->reservationGroup->guest_email,
+            'guest_email' => $reservation->reservationGroup->guest_email ?: $this->internalGuestEmail($reservation),
             'guest_phone' => $reservation->reservationGroup->guest_phone,
             'guest_document' => $reservation->reservationGroup->guest_document,
             'check_in' => $newCheckIn->toDateString(),
@@ -597,6 +600,12 @@ class ReservationGroupManagementService
             ->filter()
             ->unique('id')
             ->values();
+    }
+
+    private function internalGuestEmail(Reservation $reservation): string
+    {
+        return $reservation->guest_email
+            ?: 'reserva-'.$reservation->reservation_group_id.'-'.$reservation->space_id.'@internal.local';
     }
 
     private function appendSystemNote(?string $current, string $note): string

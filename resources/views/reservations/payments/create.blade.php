@@ -1,5 +1,6 @@
 @php
     $money = fn ($value, $targetCurrency = 'BOB') => number_format((float) $value, 2).' '.$targetCurrency;
+    $exchangeRate = (float) ($exchangeRate ?? 0);
 @endphp
 
 <form
@@ -38,8 +39,15 @@
         </div>
 
         <div class="col-md-6">
-            <label class="form-label" for="reservation-payment-amount">Monto</label>
-            <input class="form-control text-end @error('amount', 'reservationPayment') is-invalid @enderror" id="reservation-payment-amount" name="amount" type="number" min="0.01" step="0.01" max="{{ number_format((float) $balance, 2, '.', '') }}" value="{{ old('amount', number_format((float) $balance, 2, '.', '')) }}" required>
+            <label class="form-label" for="reservation-payment-amount">Monto BOB</label>
+            <input class="form-control text-end @error('amount', 'reservationPayment') is-invalid @enderror" id="reservation-payment-amount" name="amount" type="number" min="0.01" step="0.01" max="{{ number_format((float) $balance, 2, '.', '') }}" value="{{ old('amount', number_format((float) $balance, 2, '.', '')) }}" data-payment-bob-amount data-payment-exchange-rate="{{ $exchangeRate }}" required>
+            <div class="form-hint" data-payment-usd-reference>
+                @if ($exchangeRate > 0)
+                    Referencia USD: {{ $money((float) old('amount', $balance) / $exchangeRate, 'USD') }}
+                @else
+                    Sin tipo de cambio vigente para referencia USD.
+                @endif
+            </div>
             @error('amount', 'reservationPayment')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
 

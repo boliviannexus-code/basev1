@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\ExchangeRate;
 use App\Models\PaymentMethod;
 use App\Models\Stay;
 use App\Services\CheckIn\CheckOutService;
@@ -32,13 +33,25 @@ class StayPaymentController extends Controller
         $scope = $request->query('scope', 'stay') === 'group' ? 'group' : 'stay';
         $stayBalance = $this->lodgingPayments->availableScopeBalance($stay, 'stay');
         $groupBalance = $this->lodgingPayments->availableScopeBalance($stay, 'group');
+        $exchangeRate = (float) ($stay->exchange_rate ?: ExchangeRate::currentRateForCompany((int) $request->user()->company_id) ?: 0);
+        $stayCurrency = $stay->accountStatement?->currency ?: $stay->currency;
+        $stayBalanceBob = $stayCurrency === 'USD' && $exchangeRate > 0 ? round($stayBalance * $exchangeRate, 2) : $stayBalance;
+        $groupBalanceBob = (float) $stay->checkInGroup->stays->sum(function (Stay $groupStay) use ($exchangeRate): float {
+            $statement = $groupStay->accountStatement;
+            $balance = (float) ($statement?->balance ?? 0);
+            $currency = $statement?->currency ?: $groupStay->currency;
+            $rate = (float) ($groupStay->exchange_rate ?: $exchangeRate);
+
+            return $currency === 'USD' && $rate > 0 ? round($balance * $rate, 2) : $balance;
+        });
 
         return view('stays.payments.create', [
             'stay' => $stay,
             'scope' => $scope,
-            'balance' => $scope === 'group' ? $groupBalance : $stayBalance,
-            'stayBalance' => $stayBalance,
-            'groupBalance' => $groupBalance,
+            'balance' => $scope === 'group' ? $groupBalanceBob : $stayBalanceBob,
+            'stayBalance' => $stayBalanceBob,
+            'groupBalance' => $groupBalanceBob,
+            'exchangeRate' => $exchangeRate,
             'canCheckOutToday' => $stay->check_out_date?->isSameDay(CarbonImmutable::today()),
             'openRegister' => $this->cashRegisters->currentForUser($request->user()),
             'paymentMethods' => PaymentMethod::query()
@@ -101,7 +114,7 @@ class StayPaymentController extends Controller
             ])->errorBag('stayPayment');
         }
 
-        $balance = round($this->lodgingPayments->availableScopeBalance($stay, $data['scope']), 2);
+        $balance = round($this->balanceBobForStay($stay), 2);
         $amount = round((float) $data['amount'], 2);
 
         if ($amount < $balance) {
@@ -115,5 +128,15 @@ class StayPaymentController extends Controller
                 'amount' => 'Para cobrar y hacer check-out, el cobro no puede superar el saldo de la estancia.',
             ])->errorBag('stayPayment');
         }
+    }
+
+    private function balanceBobForStay(Stay $stay): float
+    {
+        $stay->loadMissing('accountStatement');
+        $balance = (float) ($stay->accountStatement?->balance ?? $this->lodgingPayments->availableScopeBalance($stay, 'stay'));
+        $currency = $stay->accountStatement?->currency ?: $stay->currency;
+        $exchangeRate = (float) ($stay->exchange_rate ?: ExchangeRate::currentRateForCompany((int) $stay->company_id) ?: 0);
+
+        return $currency === 'USD' && $exchangeRate > 0 ? round($balance * $exchangeRate, 2) : $balance;
     }
 }

@@ -205,7 +205,8 @@
                         <th>Recurso</th>
                         <th>Ingreso</th>
                         <th>Salida</th>
-                        <th class="text-end">Precio noche</th>
+                        <th class="text-end">Precio BOB</th>
+                        <th class="text-end">Precio USD</th>
                         <th class="text-end">Noches</th>
                         <th class="text-end">Total</th>
                         <th>Estado</th>
@@ -220,7 +221,7 @@
                                 && $group->status !== 'checked_in'
                                 && ! in_array($reservation->status, ['cancelled', 'no_show'], true);
                         @endphp
-                        <tr data-reservation-date-row>
+                        <tr data-reservation-date-row data-check-in-price-reference-row>
                             <td>
                                 <div class="fw-semibold">{{ $resourceLabel($reservation) }}</div>
                                 <div class="text-muted small">{{ $reservation->code }}</div>
@@ -247,7 +248,40 @@
                                     @disabled(! $canEditReservation)
                                 >
                             </td>
-                            <td class="text-end" style="min-width: 7rem;">
+                            @php
+                                $exchangeRate = old("reservations.{$reservation->id}.exchange_rate", $currentExchangeRate?->rate);
+                                $priceBob = old("reservations.{$reservation->id}.price_per_night_bob", number_format((float) $reservation->price_per_person, 2, '.', ''));
+                                $priceUsd = old("reservations.{$reservation->id}.price_per_night_usd", filled($exchangeRate) && (float) $exchangeRate > 0 ? number_format((float) $reservation->price_per_person / (float) $exchangeRate, 2, '.', '') : '');
+                            @endphp
+                            <td class="text-end" style="min-width: 9rem;">
+                                <input type="hidden" name="reservations[{{ $reservation->id }}][currency]" value="BOB">
+                                <input type="hidden" name="reservations[{{ $reservation->id }}][exchange_rate]" value="{{ $exchangeRate }}" data-reference-exchange-rate>
+                                <input
+                                    class="form-control form-control-sm text-end @error("reservations.{$reservation->id}.price_per_night_bob") is-invalid @enderror"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    name="reservations[{{ $reservation->id }}][price_per_night_bob]"
+                                    value="{{ $priceBob }}"
+                                    data-reference-price-bob
+                                    @disabled(! $canEditReservation)
+                                >
+                                @error("reservations.{$reservation->id}.price_per_night_bob")<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </td>
+                            <td class="text-end" style="min-width: 9rem;">
+                                <input
+                                    class="form-control form-control-sm text-end @error("reservations.{$reservation->id}.price_per_night_usd") is-invalid @enderror"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    name="reservations[{{ $reservation->id }}][price_per_night_usd]"
+                                    value="{{ $priceUsd }}"
+                                    data-reference-price-usd
+                                    @disabled(! $canEditReservation)
+                                >
+                                @error("reservations.{$reservation->id}.price_per_night_usd")<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </td>
+                            <td class="text-end" style="min-width: 10rem;">
                                 <input
                                     class="form-control form-control-sm text-end"
                                     type="number"
@@ -258,20 +292,6 @@
                                     data-reservation-nights
                                     @disabled(! $canEditReservation)
                                 >
-                            </td>
-                            <td class="text-end" style="min-width: 10rem;">
-                                <div class="input-group input-group-sm">
-                                    <input
-                                        class="form-control text-end"
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        name="reservations[{{ $reservation->id }}][price_per_night]"
-                                        value="{{ old("reservations.{$reservation->id}.price_per_night", number_format((float) $reservation->price_per_person, 2, '.', '')) }}"
-                                        @disabled(! $canEditReservation)
-                                    >
-                                    <span class="input-group-text">{{ $reservation->currency }}</span>
-                                </div>
                             </td>
                             <td class="text-end fw-semibold">{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</td>
                             <td><span class="badge bg-{{ in_array($reservation->status, ['confirmed', 'checked_in'], true) ? 'success' : ($reservation->status === 'no_show' ? 'danger' : ($reservation->status === 'cancelled' ? 'secondary' : 'warning')) }}-lt">{{ $statusLabels[$reservation->status] ?? str($reservation->status)->replace('_', ' ') }}</span></td>

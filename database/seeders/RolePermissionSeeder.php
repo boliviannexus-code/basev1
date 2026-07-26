@@ -69,6 +69,7 @@ class RolePermissionSeeder extends Seeder
             'point-of-sales.create',
             'point-of-sales.update',
             'point-of-sales.delete',
+            'database-backups.manage',
         ];
 
         foreach ($permissions as $permission) {

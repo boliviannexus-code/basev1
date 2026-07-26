@@ -35,7 +35,11 @@ class UpdateReservationGroupRequest extends FormRequest
             'reservations.*.check_in' => ['required', 'date', 'after_or_equal:today'],
             'reservations.*.check_out' => ['required', 'date'],
             'reservations.*.nights' => ['required', 'integer', 'min:1'],
-            'reservations.*.price_per_night' => ['required', 'numeric', 'min:0'],
+            'reservations.*.price_per_night' => ['nullable', 'numeric', 'min:0'],
+            'reservations.*.price_per_night_bob' => ['nullable', 'numeric', 'min:0'],
+            'reservations.*.price_per_night_usd' => ['nullable', 'numeric', 'min:0'],
+            'reservations.*.exchange_rate' => ['nullable', 'numeric', 'min:0.0001'],
+            'reservations.*.currency' => ['nullable', Rule::in(['BOB'])],
             'reservations.*.night_prices' => ['nullable', 'array'],
             'reservations.*.night_prices.*' => ['nullable', 'numeric', 'min:0'],
         ];
@@ -53,6 +57,9 @@ class UpdateReservationGroupRequest extends FormRequest
             'reservations.*.check_out' => 'fecha de salida',
             'reservations.*.nights' => 'noches',
             'reservations.*.price_per_night' => 'precio por noche',
+            'reservations.*.price_per_night_bob' => 'precio por noche BOB',
+            'reservations.*.price_per_night_usd' => 'precio por noche USD',
+            'reservations.*.exchange_rate' => 'tipo de cambio',
             'reservations.*.night_prices.*' => 'precio de noche',
         ];
     }
@@ -79,6 +86,17 @@ class UpdateReservationGroupRequest extends FormRequest
                     $validator->errors()->add("reservations.{$reservationId}.check_out", 'La fecha de salida debe ser posterior a la fecha de ingreso.');
                 }
 
+                $hasBob = filled($reservationData['price_per_night_bob'] ?? null) || filled($reservationData['price_per_night'] ?? null);
+                $hasUsd = filled($reservationData['price_per_night_usd'] ?? null);
+
+                if (! $hasBob && ! $hasUsd) {
+                    $validator->errors()->add("reservations.{$reservationId}.price_per_night_bob", 'Ingresa el precio por noche en BOB o USD.');
+                }
+
+                if ((! $hasBob || ! $hasUsd) && ! filled($reservationData['exchange_rate'] ?? null)) {
+                    $validator->errors()->add("reservations.{$reservationId}.exchange_rate", 'Configura un tipo de cambio vigente para guardar BOB y USD.');
+                }
+
                 foreach ($reservationData['night_prices'] ?? [] as $date => $price) {
                     if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $date)) {
                         $validator->errors()->add("reservations.{$reservationId}.night_prices.{$date}", 'Fecha de noche invalida.');
@@ -98,7 +116,7 @@ class UpdateReservationGroupRequest extends FormRequest
         $this->merge([
             'reservation_channel_id' => $this->filled('reservation_channel_id') ? (int) $this->input('reservation_channel_id') : null,
             'guest_name' => $this->filled('guest_name') ? trim((string) $this->input('guest_name')) : null,
-            'guest_email' => $this->filled('guest_email') ? trim((string) $this->input('guest_email')) : null,
+            'guest_email' => $this->filled('guest_email') ? mb_strtolower(trim((string) $this->input('guest_email'))) : null,
             'guest_phone' => $this->filled('guest_phone') ? trim((string) $this->input('guest_phone')) : null,
             'guest_document' => $this->filled('guest_document') ? trim((string) $this->input('guest_document')) : null,
             'reservations' => collect($this->input('reservations', []))
@@ -114,6 +132,16 @@ class UpdateReservationGroupRequest extends FormRequest
                         'price_per_night' => filled($reservation['price_per_night'] ?? null)
                             ? round((float) $reservation['price_per_night'], 2)
                             : null,
+                        'price_per_night_bob' => filled($reservation['price_per_night_bob'] ?? null)
+                            ? round((float) $reservation['price_per_night_bob'], 2)
+                            : (filled($reservation['price_per_night'] ?? null) ? round((float) $reservation['price_per_night'], 2) : null),
+                        'price_per_night_usd' => filled($reservation['price_per_night_usd'] ?? null)
+                            ? round((float) $reservation['price_per_night_usd'], 2)
+                            : null,
+                        'exchange_rate' => filled($reservation['exchange_rate'] ?? null)
+                            ? round((float) $reservation['exchange_rate'], 4)
+                            : null,
+                        'currency' => 'BOB',
                         'night_prices' => collect($reservation['night_prices'] ?? [])
                             ->filter(fn ($value, $date): bool => filled($date) && filled($value))
                             ->mapWithKeys(fn ($value, $date): array => [(string) $date => round((float) $value, 2)])

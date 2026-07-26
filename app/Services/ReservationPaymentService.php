@@ -7,6 +7,7 @@ use App\Models\ReservationGroup;
 use App\Models\SpaceCashRegister;
 use App\Models\SpaceCashReservationPayment;
 use App\Models\User;
+use App\Models\ExchangeRate;
 use App\Services\CheckIn\AccountStatementService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -22,11 +23,16 @@ class ReservationPaymentService
     {
         $this->ensureGroupOwnership($group, $user);
         $paymentMethod = $this->paymentMethodOrFail((int) $data['payment_method_id'], $user);
-        $amount = round((float) $data['amount'], 2);
+        $amountBob = round((float) $data['amount'], 2);
 
-        return DB::transaction(function () use ($group, $user, $data, $paymentMethod, $amount): string {
+        return DB::transaction(function () use ($group, $user, $data, $paymentMethod, $amountBob): string {
             $cashRegister = $this->openRegisterOrFail($user, true);
             $statement = $this->accountStatements->recalculate($group->accountStatement ?: $this->accountStatements->createForReservationGroup($group));
+            $currency = $statement->currency ?: $group->currency;
+            $exchangeRate = $this->exchangeRateForCompany((int) $group->company_id, $currency === 'USD');
+            $amount = $currency === 'USD'
+                ? round($amountBob / $exchangeRate, 2)
+                : $amountBob;
 
             if ($amount <= 0 || $amount > (float) $statement->balance) {
                 throw ValidationException::withMessages([
@@ -42,8 +48,6 @@ class ReservationPaymentService
 
             $item = $this->accountStatements->recordReservationPayment($group, $amount, $description, $statement->currency);
             $statement = $this->accountStatements->recalculate($statement->refresh());
-            $currency = $statement->currency ?: $group->currency;
-            $exchangeRate = $currency === 'USD' ? 1 : 1;
 
             SpaceCashReservationPayment::query()->create([
                 'company_id' => $group->company_id,
@@ -55,10 +59,10 @@ class ReservationPaymentService
                 'payment_method_id' => $paymentMethod->id,
                 'receipt_number' => $receiptNumber,
                 'reference' => $data['reference'] ?? null,
-                'amount_original' => $amount,
-                'currency_original' => $currency,
+                'amount_original' => $amountBob,
+                'currency_original' => 'BOB',
                 'exchange_rate' => $exchangeRate,
-                'amount_bob' => $amount,
+                'amount_bob' => $amountBob,
                 'status' => 'active',
             ]);
 
@@ -110,6 +114,23 @@ class ReservationPaymentService
         }
 
         return $cashRegister;
+    }
+
+    private function exchangeRateForCompany(int $companyId, bool $required): float
+    {
+        $exchangeRate = ExchangeRate::currentRateForCompany($companyId);
+
+        if (! $exchangeRate || $exchangeRate <= 0) {
+            if (! $required) {
+                return 1;
+            }
+
+            throw ValidationException::withMessages([
+                'amount' => 'Configura un tipo de cambio vigente para mostrar referencia en dolares.',
+            ])->errorBag('reservationPayment');
+        }
+
+        return (float) $exchangeRate;
     }
 
     private function paymentMethodOrFail(int $id, User $user): PaymentMethod

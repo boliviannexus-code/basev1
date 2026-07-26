@@ -16,6 +16,7 @@ use App\Http\Controllers\Web\CheckInController;
 use App\Http\Controllers\Web\CompanyController;
 use App\Http\Controllers\Web\CompanyPublicProfileController;
 use App\Http\Controllers\Web\CountryController;
+use App\Http\Controllers\Web\DatabaseBackupController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\ExchangeRateController;
 use App\Http\Controllers\Web\ExtraChargeCategoryController;
@@ -87,6 +88,17 @@ Route::middleware('auth')->group(function (): void {
         });
     Route::get('audits', [AuditController::class, 'index'])->middleware('permission:audits.view')->name('audits.index');
     Route::get('audits/{audit}', [AuditController::class, 'show'])->middleware('permission:audits.view')->name('audits.show');
+    Route::prefix('database-backups')
+        ->name('database-backups.')
+        ->middleware('permission:database-backups.manage')
+        ->group(function (): void {
+            Route::get('/', [DatabaseBackupController::class, 'index'])->name('index');
+            Route::post('/', [DatabaseBackupController::class, 'store'])->name('store');
+            Route::post('restore-upload', [DatabaseBackupController::class, 'restoreUpload'])->name('restore-upload');
+            Route::get('{backup}/download', [DatabaseBackupController::class, 'download'])->where('backup', '[A-Za-z0-9_.-]+\.sql')->name('download');
+            Route::post('{backup}/restore', [DatabaseBackupController::class, 'restoreStored'])->where('backup', '[A-Za-z0-9_.-]+\.sql')->name('restore');
+            Route::delete('{backup}', [DatabaseBackupController::class, 'destroy'])->where('backup', '[A-Za-z0-9_.-]+\.sql')->name('destroy');
+        });
     Route::prefix('company/public-profile')
         ->name('company.public-profile.')
         ->middleware(['company_user', 'permission:company-public-profile.manage'])

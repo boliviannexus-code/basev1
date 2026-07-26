@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Reservations\UpdateReservationGroupRequest;
+use App\Models\ExchangeRate;
 use App\Models\ReservationChannel;
 use App\Models\ReservationGroup;
 use App\Services\Reservations\ReservationGroupManagementService;
@@ -43,6 +44,7 @@ class AdminReservationGroupController extends Controller
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'currentExchangeRate' => ExchangeRate::currentForCompany($group->company_id),
             'occupancyUrl' => $this->occupancyUrlForGroup($group),
         ]);
     }
