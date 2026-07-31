@@ -33,6 +33,11 @@ class UserService
 
         $data = $this->applyCompanyAssignmentRules($data);
         $data['password'] = Hash::make($data['password']);
+        if (filled($data['transaction_pin'] ?? null)) {
+            $data['transaction_pin'] = Hash::make((string) $data['transaction_pin']);
+        } else {
+            unset($data['transaction_pin']);
+        }
         $data['is_active'] = array_key_exists('is_active', $data) ? (bool) $data['is_active'] : true;
 
         $user = $this->users->create($data);
@@ -49,6 +54,11 @@ class UserService
         unset($data['roles'], $data['password']);
 
         $data = $this->applyCompanyAssignmentRules($data);
+        if (filled($data['transaction_pin'] ?? null)) {
+            $data['transaction_pin'] = Hash::make((string) $data['transaction_pin']);
+        } else {
+            unset($data['transaction_pin']);
+        }
         $data['is_active'] = array_key_exists('is_active', $data) ? (bool) $data['is_active'] : $user->is_active;
 
         if ($user->is_active && ! $data['is_active']) {

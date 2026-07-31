@@ -163,7 +163,7 @@ class LodgingPaymentService
 
         if (! $cashRegister) {
             throw ValidationException::withMessages([
-                'amount' => 'Debes iniciar caja antes de registrar un cobro.',
+                'transaction_pin' => 'El usuario dueño del codigo debe tener una caja abierta.',
             ])->errorBag('stayPayment');
         }
 

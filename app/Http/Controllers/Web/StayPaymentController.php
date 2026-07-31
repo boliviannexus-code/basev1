@@ -7,10 +7,12 @@ use App\Models\ExchangeRate;
 use App\Models\PaymentMethod;
 use App\Models\Stay;
 use App\Services\CheckIn\CheckOutService;
+use App\Services\EconomicTransactionAuthorizer;
 use App\Services\LodgingPaymentService;
 use App\Services\SpaceCashRegisterService;
 use App\Support\PaymentMethodDefaults;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +25,7 @@ class StayPaymentController extends Controller
         private readonly SpaceCashRegisterService $cashRegisters,
         private readonly LodgingPaymentService $lodgingPayments,
         private readonly CheckOutService $checkOuts,
+        private readonly EconomicTransactionAuthorizer $transactionAuthorizer,
     ) {}
 
     public function create(Request $request, Stay $stay): View
@@ -56,7 +59,7 @@ class StayPaymentController extends Controller
         ]);
     }
 
-    public function store(Request $request, Stay $stay): RedirectResponse
+    public function store(Request $request, Stay $stay): RedirectResponse|JsonResponse
     {
         $this->ensureOwnership($stay, $request);
         $data = $request->validateWithBag('stayPayment', [
@@ -65,7 +68,9 @@ class StayPaymentController extends Controller
             'payment_method_id' => ['required', 'integer'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'reference' => ['nullable', 'string', 'max:255'],
+            'transaction_pin' => ['required', 'digits:4'],
         ]);
+        $cashOwner = $this->transactionAuthorizer->userForPin($request->user(), $data['transaction_pin'], 'stayPayment');
 
         $shouldCheckOut = ($data['action'] ?? 'collect') === 'collect_checkout';
 
@@ -80,10 +85,10 @@ class StayPaymentController extends Controller
             ])->errorBag('stayPayment');
         }
 
-        $payments = DB::transaction(function () use ($stay, $request, $data, $shouldCheckOut): array {
+        $payments = DB::transaction(function () use ($stay, $request, $data, $shouldCheckOut, $cashOwner): array {
             $payments = $data['scope'] === 'group'
-                ? $this->lodgingPayments->recordForGroup($stay, $request->user(), $data)
-                : $this->lodgingPayments->recordForStay($stay, $request->user(), $data);
+                ? $this->lodgingPayments->recordForGroup($stay, $cashOwner, $data)
+                : $this->lodgingPayments->recordForStay($stay, $cashOwner, $data);
 
             if ($shouldCheckOut) {
                 $this->checkOuts->complete($stay->fresh(['checkInGroup']), $request->user());
@@ -93,12 +98,22 @@ class StayPaymentController extends Controller
         });
 
         $receipts = collect($payments)->pluck('receipt_number')->implode(', ');
+        $message = $shouldCheckOut
+            ? 'Cobro registrado y check-out realizado correctamente: '.$receipts
+            : 'Cobro registrado correctamente: '.$receipts;
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'refresh_occupancy' => true,
+                'redirect_url' => route('occupancy.index'),
+            ]);
+        }
 
         return redirect()
             ->route('occupancy.index')
-            ->with('success', $shouldCheckOut
-                ? 'Cobro registrado y check-out realizado correctamente: '.$receipts
-                : 'Cobro registrado correctamente: '.$receipts);
+            ->with('success', $message);
     }
 
     private function ensureOwnership(Stay $stay, Request $request): void

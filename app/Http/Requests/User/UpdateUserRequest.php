@@ -22,6 +22,7 @@ class UpdateUserRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'company_id' => ['nullable', 'exists:companies,id'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userId)],
+            'transaction_pin' => ['nullable', 'digits:4', 'confirmed'],
             'roles' => ['nullable', 'array'],
             'roles.*' => ['exists:roles,name'],
             'is_active' => ['sometimes', 'boolean'],

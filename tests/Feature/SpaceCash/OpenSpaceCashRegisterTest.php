@@ -8,6 +8,7 @@ use App\Models\PaymentMethod;
 use App\Models\SpaceCashRegister;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -102,7 +103,10 @@ class OpenSpaceCashRegisterTest extends TestCase
                 'extra_charge_category_id' => $category->id,
                 'responsible_name' => 'Maria Caja',
                 'detail' => 'Lavado de sabanas',
+                'payment_method_id' => $this->paymentMethod($user->company_id)->id,
+                'quantity' => 1,
                 'amount' => 25,
+                'transaction_pin' => '1234',
             ])
             ->assertRedirect(route('space-cash.index'));
 
@@ -141,7 +145,9 @@ class OpenSpaceCashRegisterTest extends TestCase
                 'responsible_name' => 'Maria Caja',
                 'detail' => 'Lavanderia sin huesped',
                 'reference' => 'REC-22',
+                'quantity' => 1,
                 'amount' => 30,
+                'transaction_pin' => '1234',
             ])
             ->assertRedirect(route('space-cash.index'));
 
@@ -158,12 +164,51 @@ class OpenSpaceCashRegisterTest extends TestCase
         ]);
     }
 
-    private function userWithSpaceCashAccess(?int $companyId = null): User
+    public function test_direct_income_uses_pin_owner_cash_register_even_from_another_session(): void
+    {
+        $company = Company::factory()->create();
+        $sessionUser = $this->userWithSpaceCashAccess($company->id, '1234');
+        $cashOwner = $this->userWithSpaceCashAccess($company->id, '9876');
+        $category = $this->expenseCategory($company->id);
+        $paymentMethod = $this->paymentMethod($company->id);
+        $cashRegister = SpaceCashRegister::factory()->create([
+            'company_id' => $company->id,
+            'user_id' => $cashOwner->id,
+            'opening_amount' => 10,
+            'status' => 'open',
+        ]);
+
+        $this
+            ->actingAs($sessionUser)
+            ->post(route('space-cash.incomes.store'), [
+                'extra_charge_category_id' => $category->id,
+                'payment_method_id' => $paymentMethod->id,
+                'responsible_name' => 'Recepcion',
+                'detail' => 'Ingreso con codigo de caja',
+                'quantity' => 1,
+                'reference' => 'PIN-OWNER',
+                'amount' => 30,
+                'transaction_pin' => '9876',
+            ])
+            ->assertRedirect(route('space-cash.index'));
+
+        $this->assertDatabaseHas('space_cash_incomes', [
+            'space_cash_register_id' => $cashRegister->id,
+            'user_id' => $cashOwner->id,
+            'reference' => 'PIN-OWNER',
+            'amount' => '30.00',
+        ]);
+    }
+
+    private function userWithSpaceCashAccess(?int $companyId = null, string $transactionPin = '1234'): User
     {
         Permission::findOrCreate('space-cash.access');
 
         $companyId ??= Company::factory()->create()->id;
-        $user = User::factory()->create(['company_id' => $companyId]);
+        $user = User::factory()->create([
+            'company_id' => $companyId,
+            'transaction_pin' => Hash::make($transactionPin),
+        ]);
         $user->givePermissionTo('space-cash.access');
 
         return $user;
@@ -178,6 +223,15 @@ class OpenSpaceCashRegisterTest extends TestCase
             'currency' => 'BOB',
             'is_active' => true,
             'sort_order' => 1,
+        ]);
+    }
+
+    private function paymentMethod(int $companyId): PaymentMethod
+    {
+        return PaymentMethod::query()->create([
+            'company_id' => $companyId,
+            'name' => 'Efectivo',
+            'is_active' => true,
         ]);
     }
 }

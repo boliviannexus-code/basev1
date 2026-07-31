@@ -243,6 +243,63 @@ class WeeklyOccupancyTest extends TestCase
             ->assertJsonValidationErrors('start_date');
     }
 
+    public function test_occupied_availability_status_allows_occupancy_grid_operations(): void
+    {
+        Carbon::setTestNow('2026-06-03 10:00:00');
+
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user, $company] = $this->companyUser();
+            $space = $this->privateSpace($company);
+
+            AvailabilityStatus::query()->create([
+                'company_id' => $company->id,
+                'space_id' => $space->id,
+                'space_room_id' => null,
+                'date' => '2026-06-03',
+                'status' => 'occupied',
+                'source' => 'manual',
+            ]);
+
+            $rows = $this
+                ->actingAs($user)
+                ->getJson(route('occupancy.week-data', ['week_start' => '2026-06-01']))
+                ->assertOk()
+                ->json('rows');
+
+            $cell = collect(collect($rows)->firstWhere('space_id', $space->id)['cells'])->firstWhere('date', '2026-06-03');
+
+            $this->assertSame('occupied', $cell['status']);
+            $this->assertFalse($cell['closed_by_availability']);
+            $this->assertFalse($cell['blocked_by_availability']);
+            $this->assertSame(['create_block', 'maintenance', 'owner_use', 'unavailable'], $cell['actions']);
+
+            $actions = $this
+                ->actingAs($user)
+                ->getJson(route('occupancy.cell-actions', [
+                    'space_id' => $space->id,
+                    'date' => '2026-06-03',
+                ]))
+                ->assertOk()
+                ->json('actions');
+
+            $this->assertSame(['check_in', 'reservation', 'block'], collect($actions)->pluck('key')->all());
+
+            $this
+                ->actingAs($user)
+                ->postJson(route('occupancy.blocks.store'), [
+                    'space_id' => $space->id,
+                    'type' => 'manual_block',
+                    'title' => 'Bloqueo',
+                    'start_date' => '2026-06-03',
+                    'end_date' => '2026-06-03',
+                ])
+                ->assertCreated();
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_can_create_update_and_delete_private_block(): void
     {
         $this->seed(AccommodationCatalogSeeder::class);

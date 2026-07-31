@@ -17,8 +17,8 @@ use Laravel\Sanctum\HasApiTokens;
 use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['company_id', 'name', 'email', 'password', 'is_active'])]
-#[Hidden(['password', 'remember_token'])]
+#[Fillable(['company_id', 'name', 'email', 'password', 'transaction_pin', 'is_active'])]
+#[Hidden(['password', 'transaction_pin', 'remember_token'])]
 class User extends Authenticatable implements Auditable
 {
     /** @use HasFactory<UserFactory> */
@@ -40,6 +40,7 @@ class User extends Authenticatable implements Auditable
             'email_verified_at' => 'datetime',
             'is_active' => 'boolean',
             'password' => 'hashed',
+            'transaction_pin' => 'hashed',
         ];
     }
 

@@ -6,11 +6,13 @@ use App\Models\Branch;
 use App\Models\CashRegister;
 use App\Models\Company;
 use App\Models\ExtraChargeCategory;
+use App\Models\PaymentMethod;
 use App\Models\PointOfSale;
 use App\Models\Sale;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -22,6 +24,7 @@ class CashRegisterExpenseTest extends TestCase
     {
         $user = $this->userWithPosAccess();
         $category = $this->expenseCategory($user->company_id);
+        $paymentMethod = $this->paymentMethod($user->company_id);
         [$pointOfSale, $branch] = $this->assignedPointOfSale($user);
         $cashRegister = CashRegister::factory()->create([
             'point_of_sale_id' => $pointOfSale->id,
@@ -35,9 +38,12 @@ class CashRegisterExpenseTest extends TestCase
             ->actingAs($user)
             ->post(route('pos.expenses.store'), [
                 'extra_charge_category_id' => $category->id,
+                'payment_method_id' => $paymentMethod->id,
                 'responsible_name' => 'Maria Caja',
                 'detail' => 'Compra de bolsas',
+                'quantity' => 1,
                 'amount' => 25.50,
+                'transaction_pin' => '1234',
             ])
             ->assertRedirect(route('pos.index'));
 
@@ -57,6 +63,7 @@ class CashRegisterExpenseTest extends TestCase
     {
         $user = $this->userWithPosAccess();
         $category = $this->expenseCategory($user->company_id);
+        $paymentMethod = $this->paymentMethod($user->company_id);
         [$pointOfSale, $branch] = $this->assignedPointOfSale($user);
         CashRegister::factory()->create([
             'point_of_sale_id' => $pointOfSale->id,
@@ -70,9 +77,12 @@ class CashRegisterExpenseTest extends TestCase
             ->actingAs($user)
             ->post(route('pos.expenses.store'), [
                 'extra_charge_category_id' => $category->id,
+                'payment_method_id' => $paymentMethod->id,
                 'responsible_name' => 'Maria Caja',
                 'detail' => 'Compra de bolsas',
+                'quantity' => 1,
                 'amount' => 21,
+                'transaction_pin' => '1234',
             ])
             ->assertSessionHasErrors(['amount'], null, 'cashExpense');
 
@@ -83,6 +93,7 @@ class CashRegisterExpenseTest extends TestCase
     {
         $user = $this->userWithPosAccess();
         $category = $this->expenseCategory($user->company_id);
+        $paymentMethod = $this->paymentMethod($user->company_id);
         [$pointOfSale, $branch, $warehouse] = $this->assignedPointOfSale($user);
         $cashRegister = CashRegister::factory()->create([
             'point_of_sale_id' => $pointOfSale->id,
@@ -115,9 +126,12 @@ class CashRegisterExpenseTest extends TestCase
             ->actingAs($user)
             ->post(route('pos.expenses.store'), [
                 'extra_charge_category_id' => $category->id,
+                'payment_method_id' => $paymentMethod->id,
                 'responsible_name' => 'Maria Caja',
                 'detail' => 'Taxi de reparto',
+                'quantity' => 1,
                 'amount' => 20,
+                'transaction_pin' => '1234',
             ])
             ->assertRedirect(route('pos.index'));
 
@@ -132,16 +146,20 @@ class CashRegisterExpenseTest extends TestCase
     {
         $user = $this->userWithPosAccess();
         $category = $this->expenseCategory($user->company_id);
+        $paymentMethod = $this->paymentMethod($user->company_id);
 
         $this
             ->actingAs($user)
             ->post(route('pos.expenses.store'), [
                 'extra_charge_category_id' => $category->id,
+                'payment_method_id' => $paymentMethod->id,
                 'responsible_name' => 'Maria Caja',
                 'detail' => 'Compra de bolsas',
+                'quantity' => 1,
                 'amount' => 5,
+                'transaction_pin' => '1234',
             ])
-            ->assertSessionHasErrors(['amount'], null, 'cashExpense');
+            ->assertSessionHasErrors(['transaction_pin'], null, 'cashExpense');
     }
 
     private function assignedPointOfSale(User $user): array
@@ -159,7 +177,10 @@ class CashRegisterExpenseTest extends TestCase
         Permission::findOrCreate('pos.access');
 
         $company = Company::factory()->create();
-        $user = User::factory()->create(['company_id' => $company->id]);
+        $user = User::factory()->create([
+            'company_id' => $company->id,
+            'transaction_pin' => Hash::make('1234'),
+        ]);
         $user->givePermissionTo('pos.access');
 
         return $user;
@@ -174,6 +195,15 @@ class CashRegisterExpenseTest extends TestCase
             'currency' => 'BOB',
             'is_active' => true,
             'sort_order' => 1,
+        ]);
+    }
+
+    private function paymentMethod(int $companyId): PaymentMethod
+    {
+        return PaymentMethod::query()->create([
+            'company_id' => $companyId,
+            'name' => 'Efectivo',
+            'is_active' => true,
         ]);
     }
 }

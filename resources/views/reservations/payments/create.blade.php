@@ -7,20 +7,15 @@
     method="POST"
     action="{{ route('admin.reservation-groups.payments.store', $group) }}"
     data-ajax-form
+    data-requires-transaction-pin
     autocomplete="off"
     novalidate
 >
     @csrf
 
-    @if (! $openRegister)
-        <div class="alert alert-warning">
-            Debes iniciar caja de espacios antes de registrar un adelanto de reserva.
-        </div>
-    @else
-        <div class="alert alert-info">
-            Caja de espacios abierta: <strong>{{ $openRegister->user?->name }}</strong>
-        </div>
-    @endif
+    <div class="alert alert-info">
+        El adelanto se consolidara en la caja abierta del usuario dueño del codigo de caja.
+    </div>
 
     <div class="row g-3">
         <div class="col-md-6">
@@ -61,7 +56,7 @@
 
     <div class="d-flex justify-content-end gap-2 mt-4">
         <button class="btn btn-link link-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
-        <button class="btn btn-success" type="submit" @disabled(! $openRegister || $paymentMethods->isEmpty() || (float) $balance <= 0)>
+        <button class="btn btn-success" type="submit" @disabled($paymentMethods->isEmpty() || (float) $balance <= 0)>
             <i class="ti ti-cash-register me-1"></i>Registrar adelanto
         </button>
     </div>

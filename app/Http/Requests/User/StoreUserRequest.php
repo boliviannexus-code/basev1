@@ -20,6 +20,7 @@ class StoreUserRequest extends FormRequest
             'company_id' => ['nullable', 'exists:companies,id'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'transaction_pin' => ['nullable', 'digits:4', 'confirmed'],
             'roles' => ['nullable', 'array'],
             'roles.*' => ['exists:roles,name'],
             'is_active' => ['sometimes', 'boolean'],

@@ -187,12 +187,12 @@ class OccupancyValidationService
             ->contains(function (Carbon $date) use ($availabilityStatuses): bool {
                 $availabilityStatus = $availabilityStatuses->get($date->toDateString());
 
-                return in_array($availabilityStatus?->status, ['closed', 'reserved', 'occupied'], true);
+                return in_array($availabilityStatus?->status, ['closed', 'reserved'], true);
             });
 
         if ($hasBlockedDate) {
             throw ValidationException::withMessages([
-                'start_date' => 'No se puede operar sobre fechas cerradas, reservadas u ocupadas desde Disponibilidad.',
+                'start_date' => 'No se puede operar sobre fechas cerradas o reservadas desde Disponibilidad.',
             ]);
         }
     }

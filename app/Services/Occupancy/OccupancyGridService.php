@@ -280,7 +280,7 @@ class OccupancyGridService
                     );
                 $reservation = $this->reservationForBlock($block);
                 $hasPartialBedBlock = $bedUnitId === null && $roomId !== null && ! $block && $this->hasBedUnitBlockForDate($blocks, $spaceId, $roomId, $date['date']);
-                $blockedByAvailability = ! $stay && ! $block && (in_array($availabilityStatus?->status, ['closed', 'reserved', 'occupied'], true) || $hasPartialBedBlock);
+                $blockedByAvailability = ! $stay && ! $block && (in_array($availabilityStatus?->status, ['closed', 'reserved'], true) || $hasPartialBedBlock);
                 $isFullRoomAvailability = $bedUnitId === null
                     && $roomId !== null
                     && $availabilityStatus?->room_bed_unit_id === null

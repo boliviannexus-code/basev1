@@ -46,6 +46,19 @@
         </div>
     @endif
 
+    <div class="col-md-3">
+        <label class="form-label" for="user-transaction-pin">Codigo de caja</label>
+        <input class="form-control {{ ($errors ?? null)?->has('transaction_pin') ? 'is-invalid' : '' }}" id="user-transaction-pin" name="transaction_pin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password">
+        <div class="form-hint">{{ $isCreate ? 'Opcional. 4 digitos para validar transacciones.' : 'Dejar vacio para conservarlo.' }}</div>
+        <div class="invalid-feedback" data-error-for="transaction_pin">{{ ($errors ?? null)?->first('transaction_pin') }}</div>
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label" for="user-transaction-pin-confirmation">Confirmar codigo</label>
+        <input class="form-control" id="user-transaction-pin-confirmation" name="transaction_pin_confirmation" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password">
+        <div class="invalid-feedback" data-error-for="transaction_pin_confirmation"></div>
+    </div>
+
     <div class="col-12">
         <input type="hidden" name="is_active" value="0">
         <div class="form-check form-switch">

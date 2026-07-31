@@ -8,8 +8,10 @@ use App\Models\PaymentMethod;
 use App\Models\SpaceCashExpense;
 use App\Models\SpaceCashIncome;
 use App\Models\SpaceCashRegister;
+use App\Services\EconomicTransactionAuthorizer;
 use App\Services\SpaceCashRegisterService;
 use App\Support\PaymentMethodDefaults;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +22,7 @@ class SpaceCashController extends Controller
 {
     public function __construct(
         private readonly SpaceCashRegisterService $cashRegisters,
+        private readonly EconomicTransactionAuthorizer $transactionAuthorizer,
     ) {}
 
     public function index(Request $request): View
@@ -58,7 +61,7 @@ class SpaceCashController extends Controller
         return redirect()->route('space-cash.index')->with('success', 'Caja de espacios cerrada correctamente.');
     }
 
-    public function storeExpense(Request $request): RedirectResponse
+    public function storeExpense(Request $request): RedirectResponse|JsonResponse
     {
         ExtraChargeCategory::ensureDefaultsForCompany((int) $request->user()->company_id);
 
@@ -69,7 +72,9 @@ class SpaceCashController extends Controller
             'detail' => ['nullable', 'string', 'max:255'],
             'quantity' => ['required', 'numeric', 'min:0.5', 'multiple_of:0.5'],
             'amount' => ['required', 'numeric', 'min:0.01'],
+            'transaction_pin' => ['required', 'digits:4'],
         ]);
+        $cashOwner = $this->transactionAuthorizer->userForPin($request->user(), $data['transaction_pin'], 'spaceCashExpense');
         $category = $this->expenseCategories((int) $request->user()->company_id)
             ->firstWhere('id', (int) $data['extra_charge_category_id']);
 
@@ -88,11 +93,11 @@ class SpaceCashController extends Controller
             ])->errorBag('spaceCashExpense');
         }
 
-        $cashRegister = $this->cashRegisters->currentForUser($request->user());
+        $cashRegister = $this->cashRegisters->currentForUser($cashOwner);
 
         if (! $cashRegister) {
             throw ValidationException::withMessages([
-                'amount' => 'Debes iniciar caja de espacios antes de registrar egresos.',
+                'transaction_pin' => 'El usuario dueño del codigo debe tener una caja de espacios abierta.',
             ])->errorBag('spaceCashExpense');
         }
 
@@ -107,7 +112,7 @@ class SpaceCashController extends Controller
         SpaceCashExpense::query()->create([
             'company_id' => $request->user()->company_id,
             'space_cash_register_id' => $cashRegister->id,
-            'user_id' => $request->user()->id,
+            'user_id' => $cashOwner->id,
             'extra_charge_category_id' => $category->id,
             'payment_method_id' => $paymentMethod->id,
             'responsible_name' => $data['responsible_name'],
@@ -117,10 +122,18 @@ class SpaceCashController extends Controller
             'spent_at' => now(),
         ]);
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Egreso registrado correctamente.',
+                'redirect_url' => route('space-cash.index'),
+            ]);
+        }
+
         return redirect()->route('space-cash.index')->with('success', 'Egreso registrado correctamente.');
     }
 
-    public function storeIncome(Request $request): RedirectResponse
+    public function storeIncome(Request $request): RedirectResponse|JsonResponse
     {
         PaymentMethodDefaults::ensureForCompany($request->user()->company_id);
         ExtraChargeCategory::ensureDefaultsForCompany((int) $request->user()->company_id);
@@ -133,7 +146,9 @@ class SpaceCashController extends Controller
             'quantity' => ['required', 'numeric', 'min:0.5', 'multiple_of:0.5'],
             'reference' => ['nullable', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0.01'],
+            'transaction_pin' => ['required', 'digits:4'],
         ]);
+        $cashOwner = $this->transactionAuthorizer->userForPin($request->user(), $data['transaction_pin'], 'spaceCashIncome');
 
         $companyId = (int) $request->user()->company_id;
         $category = $this->expenseCategories($companyId)
@@ -154,22 +169,22 @@ class SpaceCashController extends Controller
             ])->errorBag('spaceCashIncome');
         }
 
-        $cashRegister = $this->cashRegisters->currentForUser($request->user());
+        $cashRegister = $this->cashRegisters->currentForUser($cashOwner);
 
         if (! $cashRegister) {
             throw ValidationException::withMessages([
-                'amount' => 'Debes iniciar caja de espacios antes de registrar ingresos.',
+                'transaction_pin' => 'El usuario dueño del codigo debe tener una caja de espacios abierta.',
             ])->errorBag('spaceCashIncome');
         }
 
-        DB::transaction(function () use ($request, $cashRegister, $category, $paymentMethod, $data): void {
+        DB::transaction(function () use ($request, $cashOwner, $cashRegister, $category, $paymentMethod, $data): void {
             SpaceCashIncome::query()->create([
                 'company_id' => $request->user()->company_id,
                 'space_cash_register_id' => $cashRegister->id,
-                'user_id' => $request->user()->id,
+                'user_id' => $cashOwner->id,
                 'extra_charge_category_id' => $category->id,
                 'payment_method_id' => $paymentMethod->id,
-                'receipt_number' => $this->cashRegisters->nextReceiptNumber($request->user()),
+                'receipt_number' => $this->cashRegisters->nextReceiptNumber($cashOwner),
                 'responsible_name' => $data['responsible_name'] ?? null,
                 'detail' => $data['detail'] ?? $category->name,
                 'quantity' => round((float) $data['quantity'], 2),
@@ -178,6 +193,14 @@ class SpaceCashController extends Controller
                 'received_at' => now(),
             ]);
         });
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Ingreso registrado correctamente.',
+                'redirect_url' => route('space-cash.index'),
+            ]);
+        }
 
         return redirect()->route('space-cash.index')->with('success', 'Ingreso registrado correctamente.');
     }

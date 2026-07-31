@@ -8,6 +8,7 @@ use App\Models\ExtraChargeCategory;
 use App\Models\PaymentMethod;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -37,8 +38,10 @@ class CashRegisterIncomeTest extends TestCase
                 'extra_charge_category_id' => $category->id,
                 'payment_method_id' => $paymentMethod->id,
                 'detail' => 'Lavado express sin huesped',
+                'quantity' => 1,
                 'amount' => 35.50,
                 'reference' => 'REC-10',
+                'transaction_pin' => '1234',
             ])
             ->assertRedirect(route('pos.index'));
 
@@ -83,9 +86,11 @@ class CashRegisterIncomeTest extends TestCase
                 'extra_charge_category_id' => $category->id,
                 'payment_method_id' => $paymentMethod->id,
                 'detail' => 'Lavado express sin huesped',
+                'quantity' => 1,
                 'amount' => 35.50,
+                'transaction_pin' => '1234',
             ])
-            ->assertSessionHasErrors(['amount'], null, 'cashIncome');
+            ->assertSessionHasErrors(['transaction_pin'], null, 'cashIncome');
 
         $this->assertDatabaseCount('sales', 0);
     }
@@ -112,7 +117,9 @@ class CashRegisterIncomeTest extends TestCase
                 'extra_charge_category_id' => $category->id,
                 'payment_method_id' => $paymentMethod->id,
                 'detail' => 'Categoria ajena',
+                'quantity' => 1,
                 'amount' => 10,
+                'transaction_pin' => '1234',
             ])
             ->assertSessionHasErrors(['extra_charge_category_id'], null, 'cashIncome');
 
@@ -124,7 +131,10 @@ class CashRegisterIncomeTest extends TestCase
         Permission::findOrCreate('pos.access');
 
         $company = Company::factory()->create();
-        $user = User::factory()->create(['company_id' => $company->id]);
+        $user = User::factory()->create([
+            'company_id' => $company->id,
+            'transaction_pin' => Hash::make('1234'),
+        ]);
         $user->givePermissionTo('pos.access');
 
         return $user;

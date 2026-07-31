@@ -12,17 +12,20 @@ use App\Models\Product;
 use App\Models\Presentation;
 use App\Models\Sale;
 use App\Services\CashRegisterService;
+use App\Services\EconomicTransactionAuthorizer;
 use App\Support\PaymentMethodDefaults;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 
 class PosController extends Controller
 {
     public function __construct(
         private readonly CashRegisterService $cashRegisters,
+        private readonly EconomicTransactionAuthorizer $transactionAuthorizer,
     ) {}
 
     public function index(Request $request): View
@@ -67,7 +70,7 @@ class PosController extends Controller
         return redirect()->route('pos.index')->with('success', 'Caja cerrada correctamente.');
     }
 
-    public function storeExpense(Request $request): RedirectResponse
+    public function storeExpense(Request $request): RedirectResponse|JsonResponse
     {
         ExtraChargeCategory::ensureDefaultsForCompany((int) $request->user()->company_id);
 
@@ -78,7 +81,9 @@ class PosController extends Controller
             'detail' => ['nullable', 'string', 'max:255'],
             'quantity' => ['required', 'numeric', 'min:0.5', 'multiple_of:0.5'],
             'amount' => ['required', 'numeric', 'min:0.01'],
+            'transaction_pin' => ['required', 'digits:4'],
         ]);
+        $cashOwner = $this->transactionAuthorizer->userForPin($request->user(), $data['transaction_pin'], 'cashExpense');
         $category = $this->expenseCategories((int) $request->user()->company_id)
             ->firstWhere('id', (int) $data['extra_charge_category_id']);
 
@@ -99,11 +104,11 @@ class PosController extends Controller
             ])->errorBag('cashExpense');
         }
 
-        $cashRegister = $this->cashRegisters->currentForUser($request->user());
+        $cashRegister = $this->cashRegisters->currentForUser($cashOwner);
 
         if (! $cashRegister) {
             throw ValidationException::withMessages([
-                'amount' => 'Debes iniciar caja antes de registrar egresos.',
+                'transaction_pin' => 'El usuario dueño del codigo debe tener una caja abierta.',
             ])->errorBag('cashExpense');
         }
 
@@ -119,7 +124,7 @@ class PosController extends Controller
             'company_id' => $request->user()->company_id,
             'cash_register_id' => $cashRegister->id,
             'point_of_sale_id' => null,
-            'user_id' => $request->user()->id,
+            'user_id' => $cashOwner->id,
             'extra_charge_category_id' => $category->id,
             'payment_method_id' => $paymentMethod->id,
             'responsible_name' => $data['responsible_name'],
@@ -129,10 +134,18 @@ class PosController extends Controller
             'spent_at' => now(),
         ]);
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Egreso registrado correctamente.',
+                'redirect_url' => route('pos.index'),
+            ]);
+        }
+
         return redirect()->route('pos.index')->with('success', 'Egreso registrado correctamente.');
     }
 
-    public function storeIncome(Request $request): RedirectResponse
+    public function storeIncome(Request $request): RedirectResponse|JsonResponse
     {
         ExtraChargeCategory::ensureDefaultsForCompany((int) $request->user()->company_id);
 
@@ -144,7 +157,9 @@ class PosController extends Controller
             'quantity' => ['required', 'numeric', 'min:0.5', 'multiple_of:0.5'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'reference' => ['nullable', 'string', 'max:255'],
+            'transaction_pin' => ['required', 'digits:4'],
         ]);
+        $cashOwner = $this->transactionAuthorizer->userForPin($request->user(), $data['transaction_pin'], 'cashIncome');
 
         $companyId = (int) $request->user()->company_id;
         $category = $this->expenseCategories($companyId)
@@ -167,11 +182,11 @@ class PosController extends Controller
             ])->errorBag('cashIncome');
         }
 
-        $cashRegister = $this->cashRegisters->currentForUser($request->user());
+        $cashRegister = $this->cashRegisters->currentForUser($cashOwner);
 
         if (! $cashRegister) {
             throw ValidationException::withMessages([
-                'amount' => 'Debes iniciar caja antes de registrar ingresos.',
+                'transaction_pin' => 'El usuario dueño del codigo debe tener una caja abierta.',
             ])->errorBag('cashIncome');
         }
 
@@ -179,13 +194,13 @@ class PosController extends Controller
         $quantity = round((float) $data['quantity'], 2);
         $unitPrice = round($amount / $quantity, 2);
 
-        DB::transaction(function () use ($request, $cashRegister, $category, $paymentMethod, $data, $amount, $quantity, $unitPrice): void {
-            $receiptNumber = $this->cashRegisters->nextReceiptNumber($request->user(), 'EXT');
+        DB::transaction(function () use ($cashOwner, $cashRegister, $category, $paymentMethod, $data, $amount, $quantity, $unitPrice): void {
+            $receiptNumber = $this->cashRegisters->nextReceiptNumber($cashOwner, 'EXT');
 
             $sale = Sale::query()->create([
                 'branch_id' => $cashRegister->branch_id,
                 'warehouse_id' => null,
-                'user_id' => $request->user()->id,
+                'user_id' => $cashOwner->id,
                 'cash_register_id' => $cashRegister->id,
                 'point_of_sale_id' => $cashRegister->point_of_sale_id,
                 'customer_id' => null,
@@ -222,6 +237,14 @@ class PosController extends Controller
                 'reference' => $data['reference'] ?? null,
             ]);
         });
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Ingreso registrado correctamente.',
+                'redirect_url' => route('pos.index'),
+            ]);
+        }
 
         return redirect()->route('pos.index')->with('success', 'Ingreso registrado correctamente.');
     }

@@ -7,6 +7,7 @@ use App\Models\ExchangeRate;
 use App\Models\PaymentMethod;
 use App\Models\ReservationGroup;
 use App\Services\ReservationPaymentService;
+use App\Services\EconomicTransactionAuthorizer;
 use App\Services\SpaceCashRegisterService;
 use App\Support\PaymentMethodDefaults;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +20,7 @@ class ReservationPaymentController extends Controller
     public function __construct(
         private readonly SpaceCashRegisterService $cashRegisters,
         private readonly ReservationPaymentService $reservationPayments,
+        private readonly EconomicTransactionAuthorizer $transactionAuthorizer,
     ) {}
 
     public function create(Request $request, ReservationGroup $group): View
@@ -52,16 +54,18 @@ class ReservationPaymentController extends Controller
             'payment_method_id' => ['required', 'integer'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'reference' => ['nullable', 'string', 'max:255'],
+            'transaction_pin' => ['required', 'digits:4'],
         ]);
 
-        $receipt = $this->reservationPayments->recordForGroup($group, $request->user(), $data);
+        $cashOwner = $this->transactionAuthorizer->userForPin($request->user(), $data['transaction_pin'], 'reservationPayment');
+        $receipt = $this->reservationPayments->recordForGroup($group, $cashOwner, $data);
 
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
                 'message' => 'Adelanto de reserva registrado correctamente: '.$receipt,
                 'refresh_occupancy' => true,
-                'refresh_url' => route('admin.reservation-groups.show', $group),
+                'redirect_url' => route('admin.reservation-groups.show', $group),
             ]);
         }
 

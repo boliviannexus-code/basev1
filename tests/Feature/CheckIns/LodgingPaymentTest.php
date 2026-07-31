@@ -12,6 +12,7 @@ use App\Models\Stay;
 use App\Models\User;
 use App\Services\CheckIn\AccountStatementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -30,6 +31,7 @@ class LodgingPaymentTest extends TestCase
                 'payment_method_id' => $method->id,
                 'amount' => 40,
                 'reference' => 'QR-001',
+                'transaction_pin' => '1234',
             ])
             ->assertRedirect(route('occupancy.index'));
 
@@ -60,8 +62,9 @@ class LodgingPaymentTest extends TestCase
                 'scope' => 'stay',
                 'payment_method_id' => $method->id,
                 'amount' => 40,
+                'transaction_pin' => '1234',
             ])
-            ->assertSessionHasErrors(['amount'], null, 'stayPayment');
+            ->assertSessionHasErrors(['transaction_pin'], null, 'stayPayment');
     }
 
     public function test_group_payment_distributes_amount_across_stays(): void
@@ -87,6 +90,7 @@ class LodgingPaymentTest extends TestCase
                 'scope' => 'group',
                 'payment_method_id' => $method->id,
                 'amount' => 130,
+                'transaction_pin' => '1234',
             ])
             ->assertRedirect(route('occupancy.index'));
 
@@ -153,7 +157,7 @@ class LodgingPaymentTest extends TestCase
             'holder_guest_id' => $stay->holder_guest_id,
             'space_id' => Space::factory()->create(['company_id' => $stay->company_id])->id,
             'people_count' => 1,
-            'check_in_date' => now()->toDateString(),
+            'check_in_date' => now()->subDay()->toDateString(),
             'check_out_date' => now()->toDateString(),
             'nights' => 1,
             'price_per_night_bob' => 50,
@@ -168,6 +172,7 @@ class LodgingPaymentTest extends TestCase
                 'action' => 'collect_checkout',
                 'payment_method_id' => $method->id,
                 'amount' => 100,
+                'transaction_pin' => '1234',
             ])
             ->assertRedirect(route('occupancy.index'))
             ->assertSessionHas('success');
@@ -190,6 +195,7 @@ class LodgingPaymentTest extends TestCase
                 'action' => 'collect_checkout',
                 'payment_method_id' => $method->id,
                 'amount' => 100,
+                'transaction_pin' => '1234',
             ])
             ->assertSessionHasErrors(['action'], null, 'stayPayment');
 
@@ -209,6 +215,7 @@ class LodgingPaymentTest extends TestCase
                 'action' => 'collect_checkout',
                 'payment_method_id' => $method->id,
                 'amount' => 90,
+                'transaction_pin' => '1234',
             ])
             ->assertSessionHasErrors(['amount'], null, 'stayPayment');
 
@@ -219,7 +226,10 @@ class LodgingPaymentTest extends TestCase
     public function test_two_users_can_collect_same_stay_into_their_own_cash_registers(): void
     {
         [$firstUser, $stay, $firstCashRegister, $method] = $this->context();
-        $secondUser = User::factory()->create(['company_id' => $firstUser->company_id]);
+        $secondUser = User::factory()->create([
+            'company_id' => $firstUser->company_id,
+            'transaction_pin' => Hash::make('9876'),
+        ]);
         $secondUser->givePermissionTo(['occupancy.manage', 'space-cash.access']);
         $secondCashRegister = SpaceCashRegister::factory()->create([
             'company_id' => $secondUser->company_id,
@@ -234,6 +244,7 @@ class LodgingPaymentTest extends TestCase
                 'scope' => 'stay',
                 'payment_method_id' => $method->id,
                 'amount' => 40,
+                'transaction_pin' => '1234',
             ])
             ->assertRedirect(route('occupancy.index'));
 
@@ -243,6 +254,7 @@ class LodgingPaymentTest extends TestCase
                 'scope' => 'stay',
                 'payment_method_id' => $method->id,
                 'amount' => 30,
+                'transaction_pin' => '9876',
             ])
             ->assertRedirect(route('occupancy.index'));
 
@@ -268,9 +280,15 @@ class LodgingPaymentTest extends TestCase
         Permission::findOrCreate('occupancy.manage');
         Permission::findOrCreate('space-cash.access');
         $checkOutDate ??= now()->addDay()->toDateString();
+        $checkInDate = $checkOutDate === now()->toDateString()
+            ? now()->subDay()->toDateString()
+            : now()->toDateString();
 
         $company = Company::factory()->create();
-        $user = User::factory()->create(['company_id' => $company->id]);
+        $user = User::factory()->create([
+            'company_id' => $company->id,
+            'transaction_pin' => Hash::make('1234'),
+        ]);
         $user->givePermissionTo(['occupancy.manage', 'space-cash.access']);
         $cashRegister = $openRegister
             ? SpaceCashRegister::factory()->create([
@@ -291,7 +309,7 @@ class LodgingPaymentTest extends TestCase
             'company_id' => $company->id,
             'main_guest_id' => $guest->id,
             'total_people' => 1,
-            'check_in_date' => now()->toDateString(),
+            'check_in_date' => $checkInDate,
             'check_out_date' => $checkOutDate,
         ]);
         $stay = Stay::factory()->create([
@@ -300,7 +318,7 @@ class LodgingPaymentTest extends TestCase
             'holder_guest_id' => $guest->id,
             'space_id' => $space->id,
             'people_count' => 1,
-            'check_in_date' => now()->toDateString(),
+            'check_in_date' => $checkInDate,
             'check_out_date' => $checkOutDate,
             'nights' => 1,
             'price_per_night_bob' => 100,

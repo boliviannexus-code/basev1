@@ -10,22 +10,18 @@
     action="{{ route('stays.payments.store', $stay) }}"
     autocomplete="off"
     novalidate
+    data-ajax-form
+    data-requires-transaction-pin
     data-stay-payment-form
     data-can-check-out-today="{{ $canCheckOutToday ? '1' : '0' }}"
-    data-can-submit-payment="{{ $openRegister && $paymentMethods->isNotEmpty() ? '1' : '0' }}"
+    data-can-submit-payment="{{ $paymentMethods->isNotEmpty() ? '1' : '0' }}"
     data-checkout-balance="{{ number_format((float) $stayBalance, 2, '.', '') }}"
 >
     @csrf
 
-    @if (! $openRegister)
-        <div class="alert alert-warning">
-            Debes iniciar caja de espacios antes de registrar un cobro de estancia.
-        </div>
-    @else
-        <div class="alert alert-info">
-            Caja de espacios abierta: <strong>{{ $openRegister->user?->name }}</strong>
-        </div>
-    @endif
+    <div class="alert alert-info">
+        El cobro se consolidara en la caja abierta del usuario dueño del codigo de caja.
+    </div>
 
     <div class="row g-3">
         <div class="col-md-6">
@@ -91,10 +87,10 @@
 
     <div class="d-flex justify-content-end gap-2 mt-4">
         <button class="btn btn-link link-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
-        <button class="btn btn-outline-success" type="submit" name="action" value="collect" @disabled(! $openRegister || $paymentMethods->isEmpty() || (float) $balance <= 0)>
+        <button class="btn btn-outline-success" type="submit" name="action" value="collect" @disabled($paymentMethods->isEmpty() || (float) $balance <= 0)>
             <i class="ti ti-cash-register me-1"></i>Registrar cobro
         </button>
-        <button class="btn btn-success" type="submit" name="action" value="collect_checkout" data-stay-payment-checkout-button @disabled(! $openRegister || $paymentMethods->isEmpty() || ! $canCheckOutToday || (float) $stayBalance <= 0)>
+        <button class="btn btn-success" type="submit" name="action" value="collect_checkout" data-stay-payment-checkout-button @disabled($paymentMethods->isEmpty() || ! $canCheckOutToday || (float) $stayBalance <= 0)>
             <i class="ti ti-logout me-1"></i>Cobrar y check-out
         </button>
     </div>

@@ -418,7 +418,7 @@
 
         <div class="modal modal-blur fade" id="cashIncomeModal" tabindex="-1" aria-labelledby="cashIncomeModalTitle" aria-hidden="true" @if ($errors->cashIncome->any()) data-show-cash-income-modal @endif>
             <div class="modal-dialog modal-dialog-centered">
-                <form class="modal-content" method="POST" action="{{ route('pos.incomes.store') }}" autocomplete="off" novalidate>
+                <form class="modal-content" method="POST" action="{{ route('pos.incomes.store') }}" autocomplete="off" novalidate data-ajax-form data-requires-transaction-pin>
                     @csrf
 
                     <div class="modal-header">
@@ -531,7 +531,7 @@
 
         <div class="modal modal-blur fade" id="cashExpenseModal" tabindex="-1" aria-labelledby="cashExpenseModalTitle" aria-hidden="true" @if ($errors->cashExpense->any()) data-show-cash-expense-modal @endif>
             <div class="modal-dialog modal-dialog-centered">
-                <form class="modal-content" method="POST" action="{{ route('pos.expenses.store') }}" autocomplete="off" novalidate>
+                <form class="modal-content" method="POST" action="{{ route('pos.expenses.store') }}" autocomplete="off" novalidate data-ajax-form data-requires-transaction-pin>
                     @csrf
 
                     <div class="modal-header">

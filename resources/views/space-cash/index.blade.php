@@ -147,7 +147,7 @@
 
         <div class="modal modal-blur fade space-cash-entry-modal" id="spaceCashIncomeModal" tabindex="-1" aria-hidden="true" @if ($errors->spaceCashIncome->any()) data-show-cash-income-modal @endif>
             <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-                <form class="modal-content" method="POST" action="{{ route('space-cash.incomes.store') }}" autocomplete="off" novalidate>
+                <form class="modal-content" method="POST" action="{{ route('space-cash.incomes.store') }}" autocomplete="off" novalidate data-ajax-form data-requires-transaction-pin>
                     @csrf
                     <div class="modal-header">
                         <h2 class="modal-title">Registrar ingreso</h2>
@@ -212,7 +212,7 @@
 
         <div class="modal modal-blur fade space-cash-entry-modal" id="spaceCashExpenseModal" tabindex="-1" aria-hidden="true" @if ($errors->spaceCashExpense->any()) data-show-cash-expense-modal @endif>
             <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-                <form class="modal-content" method="POST" action="{{ route('space-cash.expenses.store') }}" autocomplete="off" novalidate>
+                <form class="modal-content" method="POST" action="{{ route('space-cash.expenses.store') }}" autocomplete="off" novalidate data-ajax-form data-requires-transaction-pin>
                     @csrf
                     <div class="modal-header">
                         <h2 class="modal-title">Registrar egreso</h2>

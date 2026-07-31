@@ -17,6 +17,7 @@ use App\Models\Space;
 use App\Models\SpaceMode;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -144,6 +145,7 @@ class InternalReservationTest extends TestCase
                 'payment_method_id' => $paymentMethod->id,
                 'amount' => 50,
                 'reference' => 'QR-001',
+                'transaction_pin' => '1234',
             ])
             ->assertRedirect(route('admin.reservation-groups.show', $group));
 
@@ -202,8 +204,9 @@ class InternalReservationTest extends TestCase
                 'payment_method_id' => $paymentMethod->id,
                 'amount' => 50,
                 'reference' => 'QR-001',
+                'transaction_pin' => '1234',
             ])
-            ->assertSessionHasErrors(['amount'], null, 'reservationPayment');
+            ->assertSessionHasErrors(['transaction_pin'], null, 'reservationPayment');
 
         $this->assertDatabaseMissing('space_cash_reservation_payments', [
             'company_id' => $user->company_id,
@@ -257,6 +260,7 @@ class InternalReservationTest extends TestCase
                 'payment_method_id' => $paymentMethod->id,
                 'amount' => 50,
                 'reference' => 'QR-001',
+                'transaction_pin' => '1234',
             ])
             ->assertRedirect(route('admin.reservation-groups.show', $group));
 
@@ -855,7 +859,10 @@ class InternalReservationTest extends TestCase
         Permission::findOrCreate('occupancy.manage');
         Permission::findOrCreate('reservations.manage');
         $company = Company::factory()->create();
-        $user = User::factory()->create(['company_id' => $company->id]);
+        $user = User::factory()->create([
+            'company_id' => $company->id,
+            'transaction_pin' => Hash::make('1234'),
+        ]);
         $user->givePermissionTo('occupancy.manage', 'reservations.manage');
         $country = Country::factory()->create([
             'company_id' => $company->id,

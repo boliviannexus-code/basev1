@@ -194,6 +194,16 @@ function showFormErrors(form, errors) {
     });
 }
 
+function firstValidationMessage(errors) {
+    const firstMessages = Object.values(errors ?? {})[0];
+
+    if (Array.isArray(firstMessages) && firstMessages.length > 0) {
+        return firstMessages[0];
+    }
+
+    return null;
+}
+
 function setSubmitting(form, submitting) {
     const submit = form.querySelector('[type="submit"]');
     const spinner = form.querySelector('[data-submit-spinner]');
@@ -234,14 +244,99 @@ async function refreshContainer(url) {
     }
 }
 
-async function submitAjaxForm(form) {
+function formDataForSubmit(form, submitter = null) {
+    if (submitter) {
+        try {
+            return new FormData(form, submitter);
+        } catch (error) {
+            const data = new FormData(form);
+
+            if (submitter.name && !data.has(submitter.name)) {
+                data.append(submitter.name, submitter.value);
+            }
+
+            return data;
+        }
+    }
+
+    return new FormData(form);
+}
+
+function setTransactionPin(form, pin) {
+    form.querySelectorAll('input[name="transaction_pin"]').forEach((input) => input.remove());
+
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'transaction_pin';
+    input.value = pin;
+    input.dataset.transactionPinInput = '1';
+    form.append(input);
+}
+
+function clearTransactionPin(form) {
+    form.querySelectorAll('[data-transaction-pin-input]').forEach((input) => input.remove());
+    delete form.dataset.transactionPinAuthorized;
+}
+
+async function requestTransactionPin(form) {
+    const parentModal = form.closest('.modal');
+    const result = await Swal.fire({
+        target: parentModal ?? document.body,
+        icon: 'question',
+        title: form.dataset.transactionPinTitle ?? 'Autorizar transaccion',
+        text: form.dataset.transactionPinText ?? 'Ingresa el codigo secreto de caja para registrar esta transaccion.',
+        input: 'text',
+        inputPlaceholder: '4 digitos',
+        inputAttributes: {
+            inputmode: 'numeric',
+            maxlength: 4,
+            autocomplete: 'one-time-code',
+            autocorrect: 'off',
+            autocapitalize: 'off',
+            spellcheck: 'false',
+            'data-lpignore': 'true',
+            'data-1p-ignore': 'true',
+            'data-bwignore': 'true',
+            'data-form-type': 'other',
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Autorizar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#198754',
+        didOpen: () => {
+            const input = Swal.getInput();
+
+            if (input) {
+                input.style.webkitTextSecurity = 'disc';
+                input.style.textSecurity = 'disc';
+                input.focus();
+            }
+        },
+        preConfirm: (value) => {
+            const pin = String(value ?? '').trim();
+
+            if (!/^\d{4}$/.test(pin)) {
+                Swal.showValidationMessage('Ingresa un codigo de 4 digitos.');
+
+                return false;
+            }
+
+            return pin;
+        },
+    });
+
+    return result.isConfirmed ? result.value : null;
+}
+
+async function submitAjaxForm(form, submitter = null) {
     clearFormErrors(form);
     setSubmitting(form, true);
 
     try {
-        const response = await fetch(form.action, {
+        const actionUrl = form.getAttribute('action') ?? form.action;
+        const response = await fetch(actionUrl, {
             method: form.method.toUpperCase(),
-            body: new FormData(form),
+            body: formDataForSubmit(form, submitter),
             headers: {
                 Accept: 'application/json',
                 'X-CSRF-TOKEN': csrfToken,
@@ -249,17 +344,30 @@ async function submitAjaxForm(form) {
             },
         });
 
-        const payload = await response.json();
+        const contentType = response.headers.get('content-type') ?? '';
+        const payload = contentType.includes('application/json')
+            ? await response.json()
+            : { success: response.ok, message: await response.text() };
 
         if (response.status === 422) {
-            showFormErrors(form, payload.errors ?? payload.data ?? {});
-            Swal.fire({ icon: 'error', title: 'Validacion', text: payload.message ?? 'Revisa los datos ingresados.' });
+            const errors = payload.errors ?? payload.data ?? {};
+            showFormErrors(form, errors);
+            Swal.fire({
+                icon: 'error',
+                title: 'No se pudo autorizar',
+                text: firstValidationMessage(errors) ?? payload.message ?? 'Revisa los datos ingresados.',
+            });
 
             return;
         }
 
         if (!response.ok || payload.success === false) {
-            throw new Error(payload.message ?? 'No se pudo completar la operacion.');
+            const message = String(payload.message ?? 'No se pudo completar la operacion.')
+                .replace(/<[^>]*>/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            throw new Error(message || 'No se pudo completar la operacion.');
         }
 
         bootstrap.Modal.getInstance(form.closest('.modal'))?.hide();
@@ -270,11 +378,17 @@ async function submitAjaxForm(form) {
         if (payload.refresh_occupancy) {
             window.dispatchEvent(new CustomEvent('occupancy:refresh'));
         }
+        if (payload.redirect_url) {
+            window.location.href = payload.redirect_url;
+
+            return;
+        }
         await refreshContainer(payload.refresh_url ?? form.dataset.refreshUrl);
         toast.fire({ icon: 'success', title: payload.message ?? 'Operacion realizada correctamente.' });
     } catch (error) {
         Swal.fire({ icon: 'error', title: 'Error', text: error.message });
     } finally {
+        clearTransactionPin(form);
         setSubmitting(form, false);
     }
 }
@@ -1431,7 +1545,7 @@ function initCategoryAmountSync(scope = document) {
 }
 
 function reportUrlFromForm(form) {
-    const url = new URL(form.action, window.location.origin);
+    const url = new URL(form.getAttribute('action') ?? form.action, window.location.origin);
     const formData = new FormData(form);
 
     formData.forEach((value, key) => {
@@ -3426,7 +3540,7 @@ function initOccupancyWeekGrid() {
         setSubmitting(formElement, true);
 
         try {
-            const response = await fetch(formElement.action, {
+            const response = await fetch(formElement.getAttribute('action') ?? formElement.action, {
                 method: 'POST',
                 body: new FormData(formElement),
                 headers: {
@@ -3523,7 +3637,7 @@ function initOccupancyWeekGrid() {
             Swal.fire({
                 icon: 'info',
                 title: 'Gestionada desde Disponibilidad',
-                text: 'Esta fecha esta cerrada, reservada u ocupada desde Disponibilidad. Ajustala ahi primero para operar en Ocupabilidad.',
+                text: 'Esta fecha esta cerrada o reservada desde Disponibilidad. Ajustala ahi primero para operar en Ocupabilidad.',
             });
 
             return;
@@ -5722,12 +5836,37 @@ document.addEventListener('change', (event) => {
     }
 });
 
-document.addEventListener('submit', (event) => {
+document.addEventListener('submit', async (event) => {
+    const transactionPinForm = event.target.closest('[data-requires-transaction-pin]');
     const ajaxForm = event.target.closest('[data-ajax-form]');
     const deleteForm = event.target.closest('[data-confirm-delete]');
     const confirmForm = event.target.closest('[data-confirm-submit]');
     const voidPurchaseForm = event.target.closest('[data-confirm-void-purchase]');
     const voidSaleForm = event.target.closest('[data-confirm-void-sale]');
+    const submitter = event.submitter ?? null;
+
+    if (transactionPinForm && transactionPinForm.dataset.transactionPinAuthorized !== '1') {
+        event.preventDefault();
+
+        const pin = await requestTransactionPin(transactionPinForm);
+
+        if (!pin) {
+            return;
+        }
+
+        setTransactionPin(transactionPinForm, pin);
+        transactionPinForm.dataset.transactionPinAuthorized = '1';
+
+        if (ajaxForm) {
+            submitAjaxForm(transactionPinForm, submitter);
+
+            return;
+        }
+
+        transactionPinForm.requestSubmit(submitter);
+
+        return;
+    }
 
     if (voidPurchaseForm) {
         event.preventDefault();
@@ -5766,6 +5905,6 @@ document.addEventListener('submit', (event) => {
             return;
         }
 
-        submitAjaxForm(ajaxForm);
+        submitAjaxForm(ajaxForm, submitter);
     }
 });

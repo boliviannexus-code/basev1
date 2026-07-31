@@ -373,7 +373,7 @@ class ReservationMoveService
             ->where('company_id', $space->company_id)
             ->where('space_id', $space->id)
             ->whereIn('date', $this->nightDates(CarbonImmutable::parse($checkIn), CarbonImmutable::parse($checkOut)))
-            ->whereIn('status', ['closed', 'reserved', 'occupied'])
+            ->whereIn('status', ['closed', 'reserved'])
             ->where(function (Builder $query) use ($room, $bedUnit): void {
                 if ($bedUnit) {
                     $query->where('room_bed_unit_id', $bedUnit->id)
