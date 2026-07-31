@@ -64,6 +64,14 @@ class CashRegisterService
             ->first();
     }
 
+    public function companyHasOpenRegister(int $companyId): bool
+    {
+        return CashRegister::query()
+            ->where('company_id', $companyId)
+            ->where('status', 'open')
+            ->exists();
+    }
+
     public function nextReceiptNumber(User $user, string $channel = 'HOS'): string
     {
         if (! $user->company_id) {

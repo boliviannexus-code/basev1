@@ -200,6 +200,41 @@ class OpenSpaceCashRegisterTest extends TestCase
         ]);
     }
 
+    public function test_expense_uses_pin_owner_cash_register_even_from_another_session(): void
+    {
+        $company = Company::factory()->create();
+        $sessionUser = $this->userWithSpaceCashAccess($company->id, '1234');
+        $cashOwner = $this->userWithSpaceCashAccess($company->id, '9876');
+        $category = $this->expenseCategory($company->id);
+        $paymentMethod = $this->paymentMethod($company->id);
+        $cashRegister = SpaceCashRegister::factory()->create([
+            'company_id' => $company->id,
+            'user_id' => $cashOwner->id,
+            'opening_amount' => 100,
+            'status' => 'open',
+        ]);
+
+        $this
+            ->actingAs($sessionUser)
+            ->post(route('space-cash.expenses.store'), [
+                'extra_charge_category_id' => $category->id,
+                'payment_method_id' => $paymentMethod->id,
+                'responsible_name' => 'Recepcion',
+                'detail' => 'Egreso con codigo de caja',
+                'quantity' => 1,
+                'amount' => 30,
+                'transaction_pin' => '9876',
+            ])
+            ->assertRedirect(route('space-cash.index'));
+
+        $this->assertDatabaseHas('space_cash_expenses', [
+            'space_cash_register_id' => $cashRegister->id,
+            'user_id' => $cashOwner->id,
+            'detail' => 'Egreso con codigo de caja',
+            'amount' => '30.00',
+        ]);
+    }
+
     private function userWithSpaceCashAccess(?int $companyId = null, string $transactionPin = '1234'): User
     {
         Permission::findOrCreate('space-cash.access');

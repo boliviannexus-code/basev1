@@ -61,7 +61,7 @@ class OccupancyGridActionService
             'availability_status' => $availabilityStatus,
             'occupancy_state' => $occupancyState,
             'reservation' => $reservation,
-            'actions' => $pendingCheckOutStay ? [] : $this->actionsForDate($date, $availabilityStatus, $occupancyState, $stay, $reservation),
+            'actions' => $this->actionsForDate($date, $availabilityStatus, $occupancyState, $stay ?: $pendingCheckOutStay, $reservation),
         ];
     }
 
@@ -83,6 +83,10 @@ class OccupancyGridActionService
     public function actionsForDate(Carbon $date, ?AvailabilityStatus $availabilityStatus = null, ?array $occupancyState = null, ?Stay $stay = null, ?Reservation $reservation = null): array
     {
         $today = today();
+
+        if (($occupancyState['status'] ?? null) === 'pending_check_out') {
+            return $this->pendingCheckOutActions($date, $availabilityStatus);
+        }
 
         if ($stay) {
             return $this->stayActions($stay);
@@ -149,6 +153,34 @@ class OccupancyGridActionService
 
         return [
             ...$actions,
+            [
+                'key' => self::ACTION_RESERVATION,
+                'label' => 'Reserva',
+                'icon' => 'ti-calendar-plus',
+                'tone' => 'success',
+            ],
+            [
+                'key' => self::ACTION_BLOCK,
+                'label' => 'Bloqueo',
+                'icon' => 'ti-lock',
+                'tone' => 'secondary',
+            ],
+        ];
+    }
+
+    private function pendingCheckOutActions(Carbon $date, ?AvailabilityStatus $availabilityStatus = null): array
+    {
+        if (! $date->isSameDay(today()) || in_array($availabilityStatus?->status, ['closed', 'reserved'], true)) {
+            return [];
+        }
+
+        return [
+            [
+                'key' => self::ACTION_CHECK_OUT,
+                'label' => 'Check-out',
+                'icon' => 'ti-logout',
+                'tone' => 'warning',
+            ],
             [
                 'key' => self::ACTION_RESERVATION,
                 'label' => 'Reserva',

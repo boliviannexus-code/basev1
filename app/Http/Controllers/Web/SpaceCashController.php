@@ -33,6 +33,7 @@ class SpaceCashController extends Controller
 
         return view('space-cash.index', [
             'openRegister' => $openRegister,
+            'companyHasOpenRegister' => $this->cashRegisters->companyHasOpenRegister((int) $request->user()->company_id),
             'cashSummary' => $openRegister ? $this->cashRegisters->cashSummary($openRegister) : [],
             'expenseCategories' => $this->expenseCategories((int) $request->user()->company_id),
             'paymentMethods' => $this->paymentMethods((int) $request->user()->company_id),

@@ -5,7 +5,7 @@
 @section('page-subtitle', 'Apertura y cierre de caja por usuario')
 
 @section('content')
-    @if ($openRegister)
+    @if ($openRegister || ($companyHasOpenRegister ?? false))
         @php
             $posCustomers = $customers->map(function ($customer): array {
                 return [
@@ -17,6 +17,11 @@
             })->values();
             $cashPaymentMethod = $paymentMethods->firstWhere('name', 'Efectivo') ?? $paymentMethods->first();
         @endphp
+        @unless ($openRegister)
+            <div class="alert alert-info">
+                No tienes una caja abierta en tu sesion. Puedes registrar ingresos o egresos usando el codigo de caja de un usuario que si tenga caja abierta.
+            </div>
+        @endunless
 
         <form
             class="pos-sale-form"
@@ -41,15 +46,15 @@
                                 </div>
                                 <div class="pos-session-item">
                                     <span>Usuario</span>
-                                    <strong>{{ $openRegister->user?->name }}</strong>
+                                    <strong>{{ $openRegister?->user?->name ?? 'Segun codigo de caja' }}</strong>
                                 </div>
                                 <div class="pos-session-item">
                                     <span>Apertura</span>
-                                    <strong>{{ $openRegister->opened_at?->format('Y-m-d H:i') }}</strong>
+                                    <strong>{{ $openRegister?->opened_at?->format('Y-m-d H:i') ?? '-' }}</strong>
                                 </div>
                                 <div class="pos-session-item">
                                     <span>Base caja</span>
-                                    <strong>{{ money_format_decimal($openRegister->opening_amount) }}</strong>
+                                    <strong>{{ money_format_decimal($openRegister?->opening_amount ?? 0) }}</strong>
                                 </div>
                                 <div class="btn-group pos-mode-switch" role="group" aria-label="Modo de venta">
                                     <button class="btn btn-primary btn-sm" type="button" data-pos-mode-toggle="normal">
@@ -239,10 +244,12 @@
                         <div class="card-header py-2">
                             <h3 class="card-title mb-0">Cobro</h3>
                             <div class="card-actions">
-                                <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#cashCloseModal">
-                                    <i class="ti ti-lock"></i>
-                                    Cerrar caja
-                                </button>
+                                @if ($openRegister)
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#cashCloseModal">
+                                        <i class="ti ti-lock"></i>
+                                        Cerrar caja
+                                    </button>
+                                @endif
                                 <button class="btn btn-outline-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#cashIncomeModal">
                                     <i class="ti ti-cash-plus"></i>
                                     Ingreso
@@ -541,7 +548,11 @@
 
                     <div class="modal-body">
                         <div class="alert alert-info mb-3">
-                            Disponible en efectivo: <strong>{{ money_format_decimal($cashSummary['available'] ?? 0) }}</strong>
+                            @if ($openRegister)
+                                Disponible en efectivo: <strong>{{ money_format_decimal($cashSummary['available'] ?? 0) }}</strong>
+                            @else
+                                El efectivo disponible se validara con la caja del usuario dueño del codigo.
+                            @endif
                         </div>
 
                         <div class="mb-3">
@@ -628,7 +639,7 @@
                                 name="amount"
                                 type="number"
                                 min="0.01"
-                                max="{{ number_format((float) ($cashSummary['available'] ?? 0), 2, '.', '') }}"
+                                @if ($openRegister) max="{{ number_format((float) ($cashSummary['available'] ?? 0), 2, '.', '') }}" @endif
                                 step="0.01"
                                 value="{{ old('amount') }}"
                                 required
@@ -648,6 +659,7 @@
             </div>
         </div>
 
+        @if ($openRegister)
         <div class="modal modal-blur fade" id="cashCloseModal" tabindex="-1" aria-labelledby="cashCloseModalTitle" aria-hidden="true" @if ($errors->cashClose->any()) data-show-cash-close-modal @endif>
             <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
                 <form class="modal-content" method="POST" action="{{ route('pos.close') }}" autocomplete="off" novalidate>
@@ -934,6 +946,7 @@
                 </form>
             </div>
         </div>
+        @endif
     @else
         <div class="card form-panel">
             <div class="card-header">

@@ -5,7 +5,12 @@
 @section('page-subtitle', 'Caja independiente para cobros de estancias y reservas')
 
 @section('content')
-    @if ($openRegister)
+    @if ($openRegister || ($companyHasOpenRegister ?? false))
+        @unless ($openRegister)
+            <div class="alert alert-info">
+                No tienes una caja de espacios abierta en tu sesion. Puedes registrar ingresos o egresos usando el codigo de caja de un usuario que si tenga caja abierta.
+            </div>
+        @endunless
         <div class="row g-3 mb-3">
             <div class="col-sm-6 col-xl">
                 <x-ui.stat-card label="Base inicial" :value="money_format_decimal($cashSummary['opening'] ?? 0)" icon="ti ti-cash" />
@@ -52,10 +57,12 @@
                                 <i class="ti ti-cash-banknote-off"></i>
                                 Egreso
                             </button>
-                            <button class="btn btn-primary btn-sm text-nowrap" type="button" data-bs-toggle="modal" data-bs-target="#spaceCashCloseModal">
-                                <i class="ti ti-lock"></i>
-                                Cerrar caja
-                            </button>
+                            @if ($openRegister)
+                                <button class="btn btn-primary btn-sm text-nowrap" type="button" data-bs-toggle="modal" data-bs-target="#spaceCashCloseModal">
+                                    <i class="ti ti-lock"></i>
+                                    Cerrar caja
+                                </button>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -219,7 +226,13 @@
                         <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="alert alert-info py-2 mb-2">Disponible en efectivo: <strong>{{ money_format_decimal($cashSummary['available'] ?? 0) }}</strong></div>
+                        <div class="alert alert-info py-2 mb-2">
+                            @if ($openRegister)
+                                Disponible en efectivo: <strong>{{ money_format_decimal($cashSummary['available'] ?? 0) }}</strong>
+                            @else
+                                El efectivo disponible se validara con la caja del usuario dueño del codigo.
+                            @endif
+                        </div>
                         <div class="space-cash-entry-grid">
                             <div class="space-cash-field">
                                 <label class="form-label" for="space_cash_expense_category">Categoria</label>
@@ -271,26 +284,28 @@
             </div>
         </div>
 
-        <div class="modal modal-blur fade" id="spaceCashCloseModal" tabindex="-1" aria-hidden="true" @if ($errors->spaceCashClose->any()) data-show-cash-close-modal @endif>
-            <div class="modal-dialog modal-dialog-centered">
-                <form class="modal-content" method="POST" action="{{ route('space-cash.close') }}" autocomplete="off" novalidate>
-                    @csrf
-                    <div class="modal-header">
-                        <h2 class="modal-title">Cerrar caja de espacios</h2>
-                        <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-                    </div>
-                    <div class="modal-body">
-                        <label class="form-label" for="space_cash_closing_amount">Efectivo contado</label>
-                        <input class="form-control form-control-lg text-end @error('closing_amount', 'spaceCashClose') is-invalid @enderror" id="space_cash_closing_amount" name="closing_amount" type="number" min="0" step="0.01" value="{{ old('closing_amount', number_format((float) ($cashSummary['available'] ?? 0), 2, '.', '')) }}" required>
-                        @error('closing_amount', 'spaceCashClose')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-link link-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
-                        <button class="btn btn-primary" type="submit">Confirmar cierre</button>
-                    </div>
-                </form>
+        @if ($openRegister)
+            <div class="modal modal-blur fade" id="spaceCashCloseModal" tabindex="-1" aria-hidden="true" @if ($errors->spaceCashClose->any()) data-show-cash-close-modal @endif>
+                <div class="modal-dialog modal-dialog-centered">
+                    <form class="modal-content" method="POST" action="{{ route('space-cash.close') }}" autocomplete="off" novalidate>
+                        @csrf
+                        <div class="modal-header">
+                            <h2 class="modal-title">Cerrar caja de espacios</h2>
+                            <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                        </div>
+                        <div class="modal-body">
+                            <label class="form-label" for="space_cash_closing_amount">Efectivo contado</label>
+                            <input class="form-control form-control-lg text-end @error('closing_amount', 'spaceCashClose') is-invalid @enderror" id="space_cash_closing_amount" name="closing_amount" type="number" min="0" step="0.01" value="{{ old('closing_amount', number_format((float) ($cashSummary['available'] ?? 0), 2, '.', '')) }}" required>
+                            @error('closing_amount', 'spaceCashClose')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-link link-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
+                            <button class="btn btn-primary" type="submit">Confirmar cierre</button>
+                        </div>
+                    </form>
+                </div>
             </div>
-        </div>
+        @endif
     @else
         <div class="card form-panel">
             <div class="card-header"><h3 class="card-title">Abrir caja de espacios</h3></div>

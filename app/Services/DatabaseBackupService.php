@@ -397,7 +397,7 @@ class DatabaseBackupService
     }
 
     /**
-     * @param array<string, array{count: int, checksum: string}> $metadata
+     * @param array<string, array{count: int, checksum: string, columns?: array<int, string>}> $metadata
      * @return array<string, mixed>
      */
     private function validateCurrentDatabaseAgainstSqlMetadata(array $metadata): array
@@ -410,8 +410,24 @@ class DatabaseBackupService
                 continue;
             }
 
-            $rows = DB::table($table)
-                ->orderBy($this->firstSortableColumn($table))
+            $columns = $tableMetadata['columns'] ?? null;
+            $query = DB::table($table)->orderBy($this->firstSortableColumn($table));
+
+            if (is_array($columns) && $columns !== []) {
+                $missingColumns = array_diff($columns, Schema::getColumnListing($table));
+
+                foreach ($missingColumns as $column) {
+                    $errors[] = "La columna {$table}.{$column} no existe despues de restaurar.";
+                }
+
+                if ($missingColumns !== []) {
+                    continue;
+                }
+
+                $query->select($columns);
+            }
+
+            $rows = $query
                 ->get()
                 ->map(fn (object $row): array => $this->normalizeRow((array) $row))
                 ->all();
@@ -644,7 +660,7 @@ class DatabaseBackupService
     }
 
     /**
-     * @return array<string, array{count: int, checksum: string}>|null
+     * @return array<string, array{count: int, checksum: string, columns?: array<int, string>}>|null
      */
     private function parseSqlMetadata(string $sql): ?array
     {
@@ -679,15 +695,58 @@ class DatabaseBackupService
         }
 
         $metadata = [];
+        $insertColumns = $this->parseSqlInsertColumns($sql);
 
         foreach ($matches as $match) {
             $metadata[$match[1]] = [
                 'count' => (int) $match[2],
                 'checksum' => $match[3],
             ];
+
+            if (isset($insertColumns[$match[1]])) {
+                $metadata[$match[1]]['columns'] = $insertColumns[$match[1]];
+            }
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    private function parseSqlInsertColumns(string $sql): array
+    {
+        preg_match_all('/INSERT INTO\s+((?:"[^"]+"|`[^`]+`|[A-Za-z0-9_]+))\s*\((.*?)\)\s+VALUES/is', $sql, $matches, PREG_SET_ORDER);
+
+        $columnsByTable = [];
+
+        foreach ($matches as $match) {
+            $table = $this->unquoteIdentifier($match[1]);
+
+            if (isset($columnsByTable[$table])) {
+                continue;
+            }
+
+            $columnsByTable[$table] = collect(explode(',', $match[2]))
+                ->map(fn (string $column): string => $this->unquoteIdentifier(trim($column)))
+                ->filter()
+                ->values()
+                ->all();
+        }
+
+        return $columnsByTable;
+    }
+
+    private function unquoteIdentifier(string $identifier): string
+    {
+        $identifier = trim($identifier);
+
+        if ((str_starts_with($identifier, '"') && str_ends_with($identifier, '"'))
+            || (str_starts_with($identifier, '`') && str_ends_with($identifier, '`'))) {
+            return str_replace(substr($identifier, 0, 1).substr($identifier, 0, 1), substr($identifier, 0, 1), substr($identifier, 1, -1));
+        }
+
+        return $identifier;
     }
 
     /**

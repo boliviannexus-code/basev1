@@ -62,6 +62,14 @@ class SpaceCashRegisterService
             ->first();
     }
 
+    public function companyHasOpenRegister(int $companyId): bool
+    {
+        return SpaceCashRegister::query()
+            ->where('company_id', $companyId)
+            ->where('status', 'open')
+            ->exists();
+    }
+
     public function nextReceiptNumber(User $user): string
     {
         if (! $user->company_id) {

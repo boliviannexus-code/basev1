@@ -37,6 +37,7 @@ class PosController extends Controller
 
         return view('pos.index', [
             'openRegister' => $openRegister,
+            'companyHasOpenRegister' => $this->cashRegisters->companyHasOpenRegister((int) $user->company_id),
             'cashSummary' => $openRegister ? $this->cashRegisters->cashSummary($openRegister) : [],
             'products' => Product::query()->with('measurementUnit')->where('company_id', $user->company_id)->where('is_active', true)->orderBy('name')->get(),
             'paymentMethods' => PaymentMethod::query()->where('company_id', $user->company_id)->where('is_active', true)->orderBy('name')->get(),

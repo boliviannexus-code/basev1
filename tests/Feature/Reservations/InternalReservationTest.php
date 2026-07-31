@@ -214,6 +214,69 @@ class InternalReservationTest extends TestCase
         ]);
     }
 
+    public function test_reservation_advance_uses_pin_owner_cash_register_from_another_session(): void
+    {
+        $this->travelTo(now()->startOfDay());
+        [$sessionUser, $space,, $country, $channel, $paymentMethod] = $this->context();
+
+        $this
+            ->actingAs($sessionUser)
+            ->post(route('internal-reservations.store'), [
+                'check_in_type' => 'individual',
+                'document_type' => 'ci',
+                'document_number' => '123456',
+                'first_name' => 'Ana',
+                'last_name' => 'Perez',
+                'birth_country_id' => $country->id,
+                'birth_date' => now()->subYears(30)->toDateString(),
+                'reservation_channel_id' => $channel->id,
+                'total_people' => 1,
+                'check_in_date' => now()->addDay()->toDateString(),
+                'check_out_date' => now()->addDays(2)->toDateString(),
+                'stays' => [
+                    [
+                        'resource_type' => 'private_space',
+                        'space_id' => $space->id,
+                        'people_count' => 1,
+                        'price_per_night_bob' => 80,
+                        'currency' => 'BOB',
+                        'exchange_rate' => 6.96,
+                        'guests' => [],
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $group = ReservationGroup::query()->firstOrFail();
+        $cashOwner = User::factory()->create([
+            'company_id' => $sessionUser->company_id,
+            'transaction_pin' => Hash::make('9876'),
+        ]);
+        $cashRegister = SpaceCashRegister::factory()->create([
+            'company_id' => $cashOwner->company_id,
+            'user_id' => $cashOwner->id,
+            'status' => 'open',
+        ]);
+
+        $this
+            ->actingAs($sessionUser)
+            ->post(route('admin.reservation-groups.payments.store', $group), [
+                'payment_method_id' => $paymentMethod->id,
+                'amount' => 50,
+                'reference' => 'PIN-OWNER',
+                'transaction_pin' => '9876',
+            ])
+            ->assertRedirect(route('admin.reservation-groups.show', $group));
+
+        $this->assertDatabaseHas('space_cash_reservation_payments', [
+            'space_cash_register_id' => $cashRegister->id,
+            'user_id' => $cashOwner->id,
+            'reservation_group_id' => $group->id,
+            'reference' => 'PIN-OWNER',
+            'amount_bob' => 50,
+        ]);
+    }
+
     public function test_reservation_advance_keeps_original_cash_entry_and_credits_stay_on_check_in(): void
     {
         $this->travelTo(now()->startOfDay());

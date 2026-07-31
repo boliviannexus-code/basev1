@@ -275,6 +275,40 @@ class LodgingPaymentTest extends TestCase
         $this->assertSame('30.00', $stay->accountStatement->refresh()->balance);
     }
 
+    public function test_session_user_can_collect_stay_payment_into_pin_owner_cash_register(): void
+    {
+        [$sessionUser, $stay,, $method] = $this->context(openRegister: false);
+        $cashOwner = User::factory()->create([
+            'company_id' => $sessionUser->company_id,
+            'transaction_pin' => Hash::make('9876'),
+        ]);
+        $cashOwner->givePermissionTo(['occupancy.manage', 'space-cash.access']);
+        $cashRegister = SpaceCashRegister::factory()->create([
+            'company_id' => $cashOwner->company_id,
+            'user_id' => $cashOwner->id,
+            'opening_amount' => 15,
+            'status' => 'open',
+        ]);
+
+        $this
+            ->actingAs($sessionUser)
+            ->post(route('stays.payments.store', $stay), [
+                'scope' => 'stay',
+                'payment_method_id' => $method->id,
+                'amount' => 40,
+                'transaction_pin' => '9876',
+            ])
+            ->assertRedirect(route('occupancy.index'));
+
+        $this->assertDatabaseHas('space_cash_lodging_payments', [
+            'space_cash_register_id' => $cashRegister->id,
+            'user_id' => $cashOwner->id,
+            'stay_id' => $stay->id,
+            'amount_original' => '40.00',
+            'receipt_number' => 'ESP-'.$cashOwner->id.'-000001',
+        ]);
+    }
+
     private function context(bool $openRegister = true, ?string $checkOutDate = null): array
     {
         Permission::findOrCreate('occupancy.manage');

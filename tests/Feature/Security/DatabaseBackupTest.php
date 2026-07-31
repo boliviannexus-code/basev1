@@ -9,6 +9,8 @@ use App\Models\User;
 use App\Services\DatabaseBackupService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
@@ -118,6 +120,56 @@ class DatabaseBackupTest extends TestCase
         $this->assertDatabaseHas('categories', ['name' => 'Dato intacto']);
     }
 
+    public function test_database_backup_restores_sql_generated_before_new_nullable_user_columns(): void
+    {
+        if (! Schema::hasColumn('users', 'transaction_pin')) {
+            $this->markTestSkipped('La tabla users no tiene columnas nuevas para simular un respaldo anterior.');
+        }
+
+        $service = app(DatabaseBackupService::class);
+        User::factory()->create(['name' => 'Usuario respaldo antiguo']);
+
+        $columns = array_values(array_diff(Schema::getColumnListing('users'), ['transaction_pin']));
+        $rows = DB::table('users')
+            ->select($columns)
+            ->orderBy($columns[0])
+            ->get()
+            ->map(fn (object $row): array => $this->normalizeBackupRow((array) $row))
+            ->all();
+
+        $quotedColumns = collect($columns)
+            ->map(fn (string $column): string => $this->quoteBackupIdentifier($column))
+            ->implode(', ');
+        $values = collect($rows)
+            ->map(fn (array $row): string => '('.collect($columns)
+                ->map(fn (string $column): string => $this->quoteBackupValue($row[$column] ?? null))
+                ->implode(', ').')')
+            ->implode(",\n");
+
+        $sql = implode("\n", [
+            '-- NIDO_BACKUP_FORMAT: nido.database-sql-backup.v1',
+            '-- NIDO_BACKUP_GENERATED_AT: 2026-07-31T00:00:00+00:00',
+            '-- NIDO_BACKUP_CONNECTION: '.DB::connection()->getDriverName(),
+            '-- NIDO_BACKUP_TABLE_COUNT: 1',
+            '-- NIDO_BACKUP_TABLE: users '.count($rows).' '.$this->backupChecksum($rows),
+            '',
+            'DELETE FROM '.$this->quoteBackupIdentifier('users').';',
+            'INSERT INTO '.$this->quoteBackupIdentifier('users').' ('.$quotedColumns.") VALUES\n".$values.';',
+            '',
+            '-- NIDO_BACKUP_END',
+        ])."\n";
+
+        User::query()->delete();
+
+        $summary = $service->restoreUploadedSql(UploadedFile::fake()->createWithContent('respaldo-antiguo.sql', $sql));
+
+        $this->assertTrue($summary['valid']);
+        $this->assertDatabaseHas('users', [
+            'name' => 'Usuario respaldo antiguo',
+            'transaction_pin' => null,
+        ]);
+    }
+
     public function test_database_backup_list_download_upload_restore_and_delete_routes(): void
     {
         Permission::findOrCreate('database-backups.manage');
@@ -189,5 +241,57 @@ class DatabaseBackupTest extends TestCase
             ->get(route('database-backups.index'))
             ->assertOk()
             ->assertSee('Respaldos de base de datos');
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function normalizeBackupRow(array $row): array
+    {
+        ksort($row);
+
+        return array_map(static function (mixed $value): mixed {
+            if ($value instanceof \DateTimeInterface) {
+                return $value->format('Y-m-d H:i:s');
+            }
+
+            return is_resource($value) ? stream_get_contents($value) : $value;
+        }, $row);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     */
+    private function backupChecksum(array $rows): string
+    {
+        usort($rows, static function (array $left, array $right): int {
+            return json_encode($left, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)
+                <=> json_encode($right, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        });
+
+        return hash('sha256', json_encode($rows, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+    }
+
+    private function quoteBackupIdentifier(string $identifier): string
+    {
+        if (in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            return '`'.str_replace('`', '``', $identifier).'`';
+        }
+
+        return '"'.str_replace('"', '""', $identifier).'"';
+    }
+
+    private function quoteBackupValue(mixed $value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'TRUE' : 'FALSE';
+        }
+
+        return DB::connection()->getPdo()->quote((string) $value);
     }
 }
