@@ -472,7 +472,7 @@ class WeeklyOccupancyTest extends TestCase
         }
     }
 
-    public function test_pending_checkout_today_allows_reservation_and_block_but_not_check_in(): void
+    public function test_pending_checkout_today_allows_reservation_and_block_but_not_check_in_or_check_out(): void
     {
         Carbon::setTestNow('2026-06-10 10:00:00');
 
@@ -509,8 +509,9 @@ class WeeklyOccupancyTest extends TestCase
 
             $actionKeys = collect($actions)->pluck('key')->all();
 
-            $this->assertSame(['check_out', 'reservation', 'block'], $actionKeys);
+            $this->assertSame(['reservation', 'block'], $actionKeys);
             $this->assertNotContains('check_in', $actionKeys);
+            $this->assertNotContains('check_out', $actionKeys);
 
             $this
                 ->actingAs($user)
@@ -531,6 +532,68 @@ class WeeklyOccupancyTest extends TestCase
                     'end_date' => '2026-06-10',
                 ])
                 ->assertCreated();
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_reservation_over_pending_checkout_shows_reservation_actions(): void
+    {
+        Carbon::setTestNow('2026-06-10 10:00:00');
+
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user, $company] = $this->companyUser();
+            $space = $this->privateSpace($company);
+            $guest = Guest::factory()->create(['company_id' => $company->id]);
+            $group = CheckInGroup::factory()->create([
+                'company_id' => $company->id,
+                'main_guest_id' => $guest->id,
+                'check_in_date' => '2026-06-09',
+                'check_out_date' => '2026-06-10',
+                'status' => 'checked_in',
+            ]);
+            Stay::factory()->create([
+                'company_id' => $company->id,
+                'check_in_group_id' => $group->id,
+                'holder_guest_id' => $guest->id,
+                'space_id' => $space->id,
+                'check_in_date' => '2026-06-09',
+                'check_out_date' => '2026-06-10',
+                'status' => 'occupied',
+            ]);
+            $block = OccupancyBlock::factory()->create([
+                'company_id' => $company->id,
+                'space_id' => $space->id,
+                'type' => 'unavailable',
+                'title' => 'Reserva siguiente',
+                'start_date' => '2026-06-10',
+                'end_date' => '2026-06-10',
+            ]);
+            $reservation = Reservation::factory()->confirmed()->create([
+                'company_id' => $company->id,
+                'space_id' => $space->id,
+                'occupancy_block_id' => $block->id,
+                'guest_name' => 'Reserva Hoy',
+                'check_in' => '2026-06-10',
+                'check_out' => '2026-06-11',
+            ]);
+
+            $response = $this
+                ->actingAs($user)
+                ->getJson(route('occupancy.cell-actions', [
+                    'space_id' => $space->id,
+                    'date' => '2026-06-10',
+                ]))
+                ->assertOk();
+
+            $actionKeys = collect($response->json('actions'))->pluck('key')->all();
+
+            $this->assertSame(['move_reservation', 'extra_charge', 'view_reservation'], $actionKeys);
+            $this->assertNotContains('reservation', $actionKeys);
+            $this->assertNotContains('block', $actionKeys);
+            $this->assertSame('reserved', $response->json('occupancy_state.status'));
+            $this->assertSame($reservation->id, $response->json('occupancy_state.reservation_id'));
         } finally {
             Carbon::setTestNow();
         }

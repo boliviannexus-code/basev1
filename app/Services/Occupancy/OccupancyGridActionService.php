@@ -48,12 +48,13 @@ class OccupancyGridActionService
         $pendingCheckOutStay = $stay ? null : $this->pendingCheckOutStay($companyId, $space, $room, $bedUnit, $date);
         $reservation = $this->reservationForBlock($block);
         $occupancyState = $this->occupancyState($block, $availabilityStatus, $stay ?: $pendingCheckOutStay, $reservation, $pendingCheckOutStay !== null);
+        $contextStay = $pendingCheckOutStay && $reservation ? null : ($stay ?: $pendingCheckOutStay);
 
         return [
             'space' => $space,
             'room' => $room,
             'bed_unit' => $bedUnit,
-            'stay' => $stay ?: $pendingCheckOutStay,
+            'stay' => $contextStay,
             'date' => $date,
             'resource_id' => $bedUnit?->id ?? $room?->id ?? $space->id,
             'resource_name' => $bedUnit ? $this->roomLabel($room).' / '.$bedUnit->label : ($room ? $this->roomLabel($room) : $this->spaceLabel($space)),
@@ -61,7 +62,7 @@ class OccupancyGridActionService
             'availability_status' => $availabilityStatus,
             'occupancy_state' => $occupancyState,
             'reservation' => $reservation,
-            'actions' => $this->actionsForDate($date, $availabilityStatus, $occupancyState, $stay ?: $pendingCheckOutStay, $reservation),
+            'actions' => $this->actionsForDate($date, $availabilityStatus, $occupancyState, $contextStay, $reservation),
         ];
     }
 
@@ -84,6 +85,10 @@ class OccupancyGridActionService
     {
         $today = today();
 
+        if (($occupancyState['status'] ?? null) === 'pending_check_out' && $reservation) {
+            return $this->reservationActions($reservation);
+        }
+
         if (($occupancyState['status'] ?? null) === 'pending_check_out') {
             return $this->pendingCheckOutActions($date, $availabilityStatus);
         }
@@ -93,47 +98,7 @@ class OccupancyGridActionService
         }
 
         if ($reservation) {
-            $actions = [
-                [
-                    'key' => 'move_reservation',
-                    'label' => 'Mover reserva',
-                    'icon' => 'ti-switch-horizontal',
-                    'tone' => 'primary',
-                    'disabled' => ! $reservation->shouldBlockAvailability(),
-                ],
-                [
-                    'key' => self::ACTION_EXTRA_CHARGE,
-                    'label' => 'Agregar cargo extra',
-                    'icon' => 'ti-plus',
-                    'tone' => 'primary',
-                ],
-            ];
-
-            if ($reservation->reservation_group_id) {
-                $actions[] = [
-                    'key' => 'collect_reservation_payment',
-                    'label' => 'Cobrar',
-                    'icon' => 'ti-cash-register',
-                    'tone' => 'success',
-                ];
-            }
-
-            $actions[] = [
-                'key' => 'view_reservation',
-                'label' => 'Ver reserva',
-                'icon' => 'ti-calendar-check',
-                'tone' => 'success',
-                'url' => $reservation->reservation_group_id
-                    ? route('admin.reservation-groups.show', $reservation->reservation_group_id)
-                    : route('admin.reservations.show', $reservation),
-                'modal_url' => $reservation->reservation_group_id
-                    ? route('admin.reservation-groups.show', $reservation->reservation_group_id)
-                    : route('admin.reservations.show', $reservation),
-                'modal_title' => 'Reserva '.$reservation->code,
-                'modal_size' => 'xl',
-            ];
-
-            return $actions;
+            return $this->reservationActions($reservation);
         }
 
         if ($date->lt($today) || in_array($availabilityStatus?->status, ['closed', 'reserved'], true)) {
@@ -176,12 +141,6 @@ class OccupancyGridActionService
 
         return [
             [
-                'key' => self::ACTION_CHECK_OUT,
-                'label' => 'Check-out',
-                'icon' => 'ti-logout',
-                'tone' => 'warning',
-            ],
-            [
                 'key' => self::ACTION_RESERVATION,
                 'label' => 'Reserva',
                 'icon' => 'ti-calendar-plus',
@@ -194,6 +153,51 @@ class OccupancyGridActionService
                 'tone' => 'secondary',
             ],
         ];
+    }
+
+    private function reservationActions(Reservation $reservation): array
+    {
+        $actions = [
+            [
+                'key' => 'move_reservation',
+                'label' => 'Mover reserva',
+                'icon' => 'ti-switch-horizontal',
+                'tone' => 'primary',
+                'disabled' => ! $reservation->shouldBlockAvailability(),
+            ],
+            [
+                'key' => self::ACTION_EXTRA_CHARGE,
+                'label' => 'Agregar cargo extra',
+                'icon' => 'ti-plus',
+                'tone' => 'primary',
+            ],
+        ];
+
+        if ($reservation->reservation_group_id) {
+            $actions[] = [
+                'key' => 'collect_reservation_payment',
+                'label' => 'Cobrar',
+                'icon' => 'ti-cash-register',
+                'tone' => 'success',
+            ];
+        }
+
+        $actions[] = [
+            'key' => 'view_reservation',
+            'label' => 'Ver reserva',
+            'icon' => 'ti-calendar-check',
+            'tone' => 'success',
+            'url' => $reservation->reservation_group_id
+                ? route('admin.reservation-groups.show', $reservation->reservation_group_id)
+                : route('admin.reservations.show', $reservation),
+            'modal_url' => $reservation->reservation_group_id
+                ? route('admin.reservation-groups.show', $reservation->reservation_group_id)
+                : route('admin.reservations.show', $reservation),
+            'modal_title' => 'Reserva '.$reservation->code,
+            'modal_size' => 'xl',
+        ];
+
+        return $actions;
     }
 
     private function stayActions(Stay $stay): array
@@ -421,6 +425,10 @@ class OccupancyGridActionService
 
     private function occupancyState(?OccupancyBlock $block, ?AvailabilityStatus $availabilityStatus, ?Stay $stay = null, ?Reservation $reservation = null, bool $pendingCheckOut = false): array
     {
+        if ($pendingCheckOut && $reservation && $block) {
+            return $this->blockOccupancyState($block, $reservation);
+        }
+
         if ($pendingCheckOut && $stay) {
             return [
                 'status' => 'pending_check_out',
@@ -477,6 +485,11 @@ class OccupancyGridActionService
             ];
         }
 
+        return $this->blockOccupancyState($block, $reservation);
+    }
+
+    private function blockOccupancyState(OccupancyBlock $block, ?Reservation $reservation = null): array
+    {
         $meta = $reservation
             ? OccupancyGridService::STATUS_META['reserved']
             : (OccupancyGridService::STATUS_META[$block->type] ?? OccupancyGridService::STATUS_META['manual_block']);

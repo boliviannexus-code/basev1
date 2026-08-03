@@ -86,6 +86,26 @@ class OpenSpaceCashRegisterTest extends TestCase
         ]);
     }
 
+    public function test_user_can_view_space_cash_when_only_another_user_has_open_register(): void
+    {
+        $company = Company::factory()->create();
+        $sessionUser = $this->userWithSpaceCashAccess($company->id);
+        $cashOwner = $this->userWithSpaceCashAccess($company->id);
+
+        SpaceCashRegister::factory()->create([
+            'company_id' => $company->id,
+            'user_id' => $cashOwner->id,
+            'status' => 'open',
+        ]);
+
+        $this
+            ->actingAs($sessionUser)
+            ->get(route('space-cash.index'))
+            ->assertOk()
+            ->assertSee('No tienes una caja de espacios abierta en tu sesion')
+            ->assertSee('Caja con codigo de otro usuario');
+    }
+
     public function test_user_can_register_space_cash_expense_with_extra_charge_category(): void
     {
         $user = $this->userWithSpaceCashAccess();

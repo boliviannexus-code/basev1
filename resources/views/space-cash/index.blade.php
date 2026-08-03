@@ -37,15 +37,15 @@
                 <div class="row g-3 align-items-center">
                     <div class="col-md-3 col-xl-3">
                         <div class="text-body-secondary">Empresa</div>
-                        <div class="fw-semibold">{{ $openRegister->company?->name }}</div>
+                        <div class="fw-semibold">{{ $openRegister?->company?->name ?? auth()->user()?->company?->name ?? 'Empresa' }}</div>
                     </div>
                     <div class="col-md-3 col-xl-3">
                         <div class="text-body-secondary">Usuario</div>
-                        <div class="fw-semibold">{{ $openRegister->user?->name }}</div>
+                        <div class="fw-semibold">{{ $openRegister?->user?->name ?? 'Caja con codigo de otro usuario' }}</div>
                     </div>
                     <div class="col-md-3 col-xl-2">
                         <div class="text-body-secondary">Apertura</div>
-                        <div class="fw-semibold">{{ $openRegister->opened_at?->format('Y-m-d H:i') }}</div>
+                        <div class="fw-semibold">{{ $openRegister?->opened_at?->format('Y-m-d H:i') ?? '-' }}</div>
                     </div>
                     <div class="col-md-12 col-xl-4">
                         <div class="d-flex flex-wrap flex-md-nowrap gap-2 justify-content-xl-end">
