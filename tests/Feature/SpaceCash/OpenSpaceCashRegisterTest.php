@@ -103,6 +103,7 @@ class OpenSpaceCashRegisterTest extends TestCase
             ->get(route('space-cash.index'))
             ->assertOk()
             ->assertSee('No tienes una caja de espacios abierta en tu sesion')
+            ->assertSee('Abrir mi caja de espacios')
             ->assertSee('Caja con codigo de otro usuario');
     }
 

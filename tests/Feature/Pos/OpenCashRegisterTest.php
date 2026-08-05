@@ -100,6 +100,26 @@ class OpenCashRegisterTest extends TestCase
             ->assertDontSee('Seleccionar punto de venta');
     }
 
+    public function test_user_can_see_open_form_when_another_user_has_an_open_cash_register(): void
+    {
+        $company = Company::factory()->create();
+        $sessionUser = $this->userWithPosAccess($company->id);
+        $cashOwner = $this->userWithPosAccess($company->id);
+
+        CashRegister::factory()->create([
+            'company_id' => $company->id,
+            'user_id' => $cashOwner->id,
+            'status' => 'open',
+        ]);
+
+        $this
+            ->actingAs($sessionUser)
+            ->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('No tienes una caja abierta en tu sesion')
+            ->assertSee('Abrir mi caja');
+    }
+
     private function userWithPosAccess(?int $companyId = null): User
     {
         Permission::findOrCreate('pos.access');

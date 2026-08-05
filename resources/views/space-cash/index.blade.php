@@ -10,6 +10,7 @@
             <div class="alert alert-info">
                 No tienes una caja de espacios abierta en tu sesion. Puedes registrar ingresos o egresos usando el codigo de caja de un usuario que si tenga caja abierta.
             </div>
+            @include('space-cash.partials.open-register-form', ['title' => 'Abrir mi caja de espacios', 'class' => 'mb-3'])
         @endunless
         <div class="row g-3 mb-3">
             <div class="col-sm-6 col-xl">
@@ -307,28 +308,6 @@
             </div>
         @endif
     @else
-        <div class="card form-panel">
-            <div class="card-header"><h3 class="card-title">Abrir caja de espacios</h3></div>
-            <div class="card-body">
-                <form method="POST" action="{{ route('space-cash.open') }}" autocomplete="off" novalidate>
-                    @csrf
-                    <div class="row g-3">
-                        <div class="col-md-8">
-                            <label class="form-label">Caja</label>
-                            <div class="form-control-plaintext fw-semibold">{{ auth()->user()?->company?->name ?? 'Empresa' }} · {{ auth()->user()?->name }}</div>
-                            <div class="text-body-secondary small">Esta caja registra cobros de estados de cuenta de estancias y reservas.</div>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label" for="space_cash_opening_amount">Monto inicial</label>
-                            <input class="form-control text-end @error('opening_amount') is-invalid @enderror" id="space_cash_opening_amount" name="opening_amount" type="number" min="0" step="0.01" value="{{ old('opening_amount', '0.00') }}" required>
-                            @error('opening_amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                    </div>
-                    <div class="d-flex justify-content-end mt-4">
-                        <button class="btn btn-primary" type="submit">Abrir caja</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+        @include('space-cash.partials.open-register-form')
     @endif
 @endsection
