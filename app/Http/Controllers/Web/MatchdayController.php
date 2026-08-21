@@ -100,6 +100,15 @@ class MatchdayController extends Controller
             ->with('success', 'Jornada finalizada correctamente.');
     }
 
+    public function reopen(Matchday $matchday): RedirectResponse
+    {
+        $this->matchdays->reopen($matchday);
+
+        return redirect()
+            ->route('matchdays.configure', $matchday)
+            ->with('success', 'Jornada reabierta. Ya puedes agregar fechas o partidos y luego finalizarla nuevamente.');
+    }
+
     public function updateDate(UpdateMatchdayDateRequest $request, MatchdayDate $date): RedirectResponse
     {
         $this->matchdays->updateDate(

@@ -110,7 +110,24 @@ class MatchReportController extends Controller
             $data[$field] = (bool) ($data[$field] ?? false);
         }
 
-        $data = array_merge($data, $this->initialResultState($data));
+        $existingReport = MatchReport::query()
+            ->where('fixture_match_id', $fixtureMatch->id)
+            ->first();
+        $initialState = $this->initialResultState($data);
+
+        if ($existingReport?->status === 'started' && $initialState['status'] === 'started') {
+            $initialState = [
+                'status' => 'started',
+                'home_score' => $existingReport->home_score,
+                'away_score' => $existingReport->away_score,
+                'home_points' => $existingReport->home_points,
+                'away_points' => $existingReport->away_points,
+                'wo_side' => null,
+                'wo_reason' => null,
+            ];
+        }
+
+        $data = array_merge($data, $initialState);
 
         $report = MatchReport::query()->updateOrCreate(
             ['fixture_match_id' => $fixtureMatch->id],

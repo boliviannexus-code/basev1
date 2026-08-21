@@ -65,7 +65,7 @@
             <div class="card">
                 <div class="card-body py-3">
                     <div class="text-body-secondary small">Clasificacion</div>
-                    <div class="fw-semibold">{{ $generation->config['qualifiers_per_series'] ?? 0 }} por serie</div>
+                    <div class="fw-semibold">{{ isset($generation->config['qualifiers_per_series']) ? $generation->config['qualifiers_per_series'].' por serie' : 'Por definir' }}</div>
                 </div>
             </div>
         </div>
@@ -73,7 +73,7 @@
             <div class="card">
                 <div class="card-body py-3">
                     <div class="text-body-secondary small">Segunda fase</div>
-                    <div class="fw-semibold">{{ ['knockout' => 'Llaves', 'league' => 'Liguilla', 'accumulative' => 'Acumulativo'][$generation->config['second_phase_mode'] ?? 'knockout'] ?? '-' }}</div>
+                    <div class="fw-semibold">{{ ['knockout' => 'Llaves', 'league' => 'Liguilla', 'accumulative' => 'Acumulativo'][$generation->config['second_phase_mode'] ?? ''] ?? 'Por definir' }}</div>
                 </div>
             </div>
         </div>

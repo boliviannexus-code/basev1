@@ -102,7 +102,7 @@ class FixturePdfReportService
             'knockout' => 'Llaves',
             'league' => 'Liguilla',
             'accumulative' => 'Acumulativo',
-        ][$generation->config['second_phase_mode'] ?? 'knockout'] ?? '-';
+        ][$generation->config['second_phase_mode'] ?? ''] ?? 'Por definir';
 
         $html = '
             <h1 style="font-size:18px;color:#1d4f91;margin:0;">Fixture generado</h1>

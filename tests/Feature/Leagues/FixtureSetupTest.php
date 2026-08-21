@@ -112,10 +112,8 @@ class FixtureSetupTest extends TestCase
                 'category' => $tournament->category,
             ]))
             ->assertOk()
-            ->assertSee('Asistente de configuracion global')
-            ->assertSee('Resumen del campeonato')
-            ->assertSee('Campeon')
-            ->assertSee('Forma en que se definira al ganador')
+            ->assertSee('Generar primera fase')
+            ->assertSee('La clasificacion y la modalidad de segunda fase se definiran por separado')
             ->assertSee('Serie A: 2 equipos')
             ->assertSee('Serie B: 2 equipos')
             ->assertDontSee('Ver equipos')
@@ -123,17 +121,8 @@ class FixtureSetupTest extends TestCase
             ->assertDontSee('EQUIPO BETA')
             ->assertSee('Solo ida')
             ->assertSee('Ida y vuelta')
-            ->assertSee('Clasificacion')
-            ->assertSee('Clasificados por serie')
-            ->assertSee('A. Llaves')
-            ->assertSee('B. Liguilla')
-            ->assertSee('C. Acumulativo')
-            ->assertSee('Llaves por etapa')
-            ->assertSee('Cada etapa tiene su propia modalidad')
-            ->assertSee('Partido por tercer lugar')
-            ->assertSee('Semifinal y final')
-            ->assertSee('Mejor tercero o mejores terceros')
-            ->assertSee('Se generaran partidos independientes');
+            ->assertSee('Generar y guardar primera fase')
+            ->assertDontSee('Clasificados por serie');
     }
 
     public function test_fixture_flow_requires_view_permission(): void
@@ -178,7 +167,7 @@ class FixtureSetupTest extends TestCase
         $this->assertStringStartsWith('%PDF', $pdfResponse->getContent());
     }
 
-    public function test_fixture_can_be_generated_with_group_matches_and_knockout_placeholders(): void
+    public function test_first_and_second_phase_can_be_generated_independently(): void
     {
         [$company, , $user] = $this->leagueUser(['fixtures.view', 'fixtures.generate']);
         $tournament = $this->tournamentFor($company);
@@ -204,6 +193,27 @@ class FixtureSetupTest extends TestCase
                 'category' => $tournament->category,
             ]), [
                 'first_phase_rounds' => 1,
+            ]);
+
+        $generation = FixtureGeneration::query()->firstOrFail();
+
+        $response->assertRedirect(route('fixtures.report', $generation));
+        $this->assertSame(2, $generation->matches_count);
+        $this->assertSame(2, FixtureMatch::query()->where('phase', 'group')->count());
+        $this->assertSame(0, FixtureMatch::query()->where('phase', 'knockout')->count());
+        $this->assertSame('pending', $generation->config['second_phase_status']);
+
+        $this
+            ->actingAs($user)
+            ->get(route('fixtures.configure', ['tournament' => $tournament, 'category' => $tournament->category]))
+            ->assertOk()
+            ->assertSee('Primera fase guardada')
+            ->assertSee('Definir clasificacion y segunda fase')
+            ->assertSee('Clasificados por serie');
+
+        $secondPhaseResponse = $this
+            ->actingAs($user)
+            ->post(route('fixtures.second-phase.generate', $generation), [
                 'qualifiers_per_series' => 2,
                 'second_phase_mode' => 'knockout',
                 'fill_rule' => 'best_thirds',
@@ -214,10 +224,10 @@ class FixtureSetupTest extends TestCase
                 ],
             ]);
 
-        $generation = FixtureGeneration::query()->firstOrFail();
-
-        $response->assertRedirect(route('fixtures.report', $generation));
+        $secondPhaseResponse->assertRedirect(route('fixtures.report', $generation));
+        $generation->refresh();
         $this->assertSame(5, $generation->matches_count);
+        $this->assertSame('configured', $generation->config['second_phase_status']);
         $this->assertSame(2, FixtureMatch::query()->where('phase', 'group')->count());
         $this->assertSame(3, FixtureMatch::query()->where('phase', 'knockout')->count());
         $this->assertDatabaseHas('fixture_matches', [
@@ -265,7 +275,8 @@ class FixtureSetupTest extends TestCase
             ->actingAs($user)
             ->get(route('fixtures.configure', ['tournament' => $tournament, 'category' => $tournament->category]))
             ->assertOk()
-            ->assertSee('Ver fixture generado');
+            ->assertSee('Ver fixture generado')
+            ->assertSee('La primera y segunda fase ya estan definidas');
     }
 
     private function tournamentFor(Company $company): Tournament

@@ -47,9 +47,18 @@
                         </td>
                         <td>{{ $matchday->fixture_matches_count }} partido(s)</td>
                         <td class="text-end">
-                            <a class="btn btn-outline-primary btn-sm" href="{{ route('matchdays.configure', $matchday) }}">
-                                Configurar
-                            </a>
+                            <div class="d-inline-flex gap-1">
+                                @if ($matchday->status === 'finalized')
+                                    @can('matchdays.update')
+                                        <form method="POST" action="{{ route('matchdays.reopen', $matchday) }}" data-confirm-delete="¿Reabrir jornada?" data-confirm-button-text="Sí, reabrir" data-confirm-text="Podrás agregar nuevos partidos y luego deberás finalizar nuevamente la jornada." data-confirm-color="#d97706">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button class="btn btn-outline-warning btn-sm" type="submit"><i class="ti ti-lock-open me-1"></i>Reabrir</button>
+                                        </form>
+                                    @endcan
+                                @endif
+                                <a class="btn btn-outline-primary btn-sm" href="{{ route('matchdays.configure', $matchday) }}">Configurar</a>
+                            </div>
                         </td>
                     </tr>
                 @empty

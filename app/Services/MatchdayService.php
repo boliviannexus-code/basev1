@@ -230,6 +230,7 @@ class MatchdayService
         $date->loadMissing('matchday.season');
         abort_unless($date->matchday->season?->is_active, 422, 'Solo se pueden modificar fechas en gestiones activas.');
         abort_if($date->matchday->status === 'finalized', 422, 'La jornada ya fue finalizada y no se puede modificar.');
+        abort_if($date->fixtureMatches()->whereHas('report')->exists(), 422, 'No se puede cambiar la fecha o cancha porque contiene partidos con planilla registrada.');
 
         $court = Court::query()
             ->whereKey($courtId)
@@ -332,6 +333,7 @@ class MatchdayService
         abort_if($date->matchday->status === 'finalized', 422, 'La jornada ya fue finalizada y no se puede modificar.');
         abort_unless((int) $match->company_id === (int) $date->company_id, 403);
         abort_unless((int) $match->matchday_date_id === (int) $date->id, 422, 'El partido no esta programado en esta fecha.');
+        abort_if($match->report()->exists(), 422, 'No se puede cambiar el horario de un partido con planilla registrada.');
 
         $match->update([
             'scheduled_time' => $scheduledTime,
@@ -467,6 +469,7 @@ class MatchdayService
         abort_if($date->matchday->status === 'finalized', 422, 'La jornada ya fue finalizada y no se puede modificar.');
         abort_unless((int) $match->company_id === (int) $date->company_id, 403);
         abort_unless((int) $match->matchday_date_id === (int) $date->id, 422, 'El partido no esta programado en esta fecha.');
+        abort_if($match->report()->exists(), 422, 'No se puede desprogramar un partido con planilla registrada.');
 
         $match->update([
             'matchday_date_id' => null,
@@ -521,6 +524,16 @@ class MatchdayService
         $matchday->update([
             'status' => 'finalized',
         ]);
+
+        return $matchday->refresh();
+    }
+
+    public function reopen(Matchday $matchday): Matchday
+    {
+        $this->ensureMatchdayVisible($matchday);
+        abort_unless($matchday->status === 'finalized', 422, 'Solo se puede reabrir una jornada finalizada.');
+
+        $matchday->update(['status' => 'draft']);
 
         return $matchday->refresh();
     }

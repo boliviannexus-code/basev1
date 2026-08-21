@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('title', 'Registrar partido | '.config('app.name', 'Base Admin'))
-@section('page-title', 'Registrar partido')
+@section('page-title', $report?->status === 'started' ? 'Confirmar datos iniciales' : 'Registrar partido')
 @section('page-subtitle', ($match->matchdayDate?->matchday?->name ?? 'Jornada').' · '.($match->matchdayDate?->date?->format('d/m/Y') ?? '-'))
 
 @section('content')
@@ -35,6 +35,12 @@
             </div>
         </div>
     </div>
+
+    @if ($report?->status === 'started')
+        <div class="alert alert-info">
+            El partido ya esta iniciado. Puedes corregir o confirmar estos datos; el marcador y las estadisticas registradas se conservaran.
+        </div>
+    @endif
 
     <form method="POST" action="{{ route('match-reports.matches.update', $match) }}">
         @csrf
@@ -132,10 +138,10 @@
         </div>
 
         <div class="d-flex justify-content-end gap-2 mt-3">
-            <a class="btn btn-outline-secondary" href="{{ route('match-reports.matchdays.show', $match->matchdayDate->matchday) }}">Cancelar</a>
+            <a class="btn btn-outline-secondary" href="{{ $report?->status === 'started' ? route('match-reports.matches.play', $match) : route('match-reports.matchdays.show', $match->matchdayDate->matchday) }}">Cancelar</a>
             <button class="btn btn-primary" type="submit">
                 <i class="ti ti-device-floppy me-1"></i>
-                Guardar registro inicial
+                {{ $report?->status === 'started' ? 'Confirmar y volver al partido' : 'Guardar registro inicial' }}
             </button>
         </div>
     </form>

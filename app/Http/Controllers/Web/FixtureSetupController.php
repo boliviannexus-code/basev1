@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Fixture\GenerateFixtureRequest;
+use App\Http\Requests\Fixture\GenerateSecondPhaseRequest;
 use App\Models\DivisionCategory;
 use App\Models\FixtureGeneration;
 use App\Models\Tournament;
@@ -87,6 +88,19 @@ class FixtureSetupController extends Controller
     public function report(FixtureGeneration $fixtureGeneration): View
     {
         return view('fixtures.report', $this->fixtures->reportContext($fixtureGeneration));
+    }
+
+    public function generateSecondPhase(GenerateSecondPhaseRequest $request, FixtureGeneration $fixtureGeneration): RedirectResponse
+    {
+        try {
+            $generation = $this->generator->generateSecondPhase($fixtureGeneration, $request->validated());
+        } catch (ValidationException $exception) {
+            return back()->withErrors($exception->errors())->withInput();
+        }
+
+        return redirect()
+            ->route('fixtures.report', $generation)
+            ->with('success', 'La clasificacion y segunda fase fueron guardadas correctamente.');
     }
 
     public function reportPdf(FixtureGeneration $fixtureGeneration): Response

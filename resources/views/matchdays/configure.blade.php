@@ -30,7 +30,16 @@
                 </a>
             @endif
             @can('matchdays.update')
-                @if ($matchday->status !== 'finalized')
+                @if ($matchday->status === 'finalized')
+                    <form method="POST" action="{{ route('matchdays.reopen', $matchday) }}" data-confirm-delete="¿Reabrir jornada?" data-confirm-button-text="Sí, reabrir" data-confirm-text="La jornada volverá a borrador para agregar fechas o partidos. Después deberás finalizarla nuevamente." data-confirm-color="#d97706">
+                        @csrf
+                        @method('PATCH')
+                        <button class="btn btn-warning btn-sm" type="submit">
+                            <i class="ti ti-lock-open me-1"></i>
+                            Reabrir jornada
+                        </button>
+                    </form>
+                @else
                     <form method="POST" action="{{ route('matchdays.finish', $matchday) }}" data-confirm-delete="Finalizar jornada?" data-confirm-button-text="Si, finalizar" data-confirm-text="Estas seguro? Se validara que todas las fechas tengan partidos y fiscalias asignadas. Luego ya no se podran modificar fechas ni partidos programados." data-confirm-color="#198754">
                         @csrf
                         @method('PATCH')

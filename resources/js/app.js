@@ -2071,7 +2071,9 @@ function initFixtureSteppers(scope = document) {
             thirdPlacePanel?.classList.toggle('d-none', secondPhase !== 'knockout' || bracket.target < 4);
 
             if (summaryFirstPhase) {
-                summaryFirstPhase.textContent = optionTitle(selectedFirstPhase());
+                summaryFirstPhase.textContent = selectedFirstPhase()
+                    ? optionTitle(selectedFirstPhase())
+                    : (stepper.dataset.firstPhaseLabel ?? '-');
             }
 
             if (summaryQualifiers && qualifiersInput) {
@@ -4946,6 +4948,94 @@ function initMeetingAttendance(scope = document) {
 
 showInitialAlerts();
 disableBusinessFormAutocomplete();
+function initStandingsFilters(scope = document) {
+    scope.querySelectorAll('[data-standings-filter]').forEach((form) => {
+        if (form.dataset.standingsFilterInitialized === '1') {
+            return;
+        }
+
+        const tournamentSelect = form.querySelector('[data-standings-tournament]');
+        const groupSelect = form.querySelector('[data-standings-group]');
+        const results = document.querySelector('[data-standings-results]');
+
+        if (!tournamentSelect || !groupSelect || !results) {
+            return;
+        }
+
+        let requestController;
+
+        const loadStandings = async (tournamentChanged = false) => {
+            requestController?.abort();
+            const controller = new AbortController();
+            requestController = controller;
+
+            const url = new URL(form.action, window.location.origin);
+            url.searchParams.set('tournament_id', tournamentSelect.value);
+            if (!tournamentChanged && groupSelect.value) {
+                url.searchParams.set('group', groupSelect.value);
+            }
+
+            tournamentSelect.disabled = true;
+            groupSelect.disabled = true;
+            results.setAttribute('aria-busy', 'true');
+            results.style.opacity = '0.55';
+
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        Accept: 'text/html',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    signal: controller.signal,
+                });
+
+                if (!response.ok) {
+                    throw new Error('No se pudo cargar la tabla de posiciones.');
+                }
+
+                const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+                const nextGroup = page.querySelector('[data-standings-group]');
+                const nextResults = page.querySelector('[data-standings-results]');
+
+                if (!nextGroup || !nextResults) {
+                    throw new Error('La respuesta de la tabla no es valida.');
+                }
+
+                groupSelect.innerHTML = nextGroup.innerHTML;
+                groupSelect.disabled = nextGroup.disabled;
+                results.innerHTML = nextResults.innerHTML;
+                if (nextGroup.value) {
+                    url.searchParams.set('group', nextGroup.value);
+                }
+                window.history.replaceState({}, '', `${url.pathname}${url.search}`);
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    Swal.fire({ icon: 'error', title: 'No se pudo actualizar', text: error.message });
+                }
+            } finally {
+                if (requestController !== controller) {
+                    return;
+                }
+
+                tournamentSelect.disabled = false;
+                if (!groupSelect.options.length) {
+                    groupSelect.disabled = true;
+                }
+                results.removeAttribute('aria-busy');
+                results.style.opacity = '';
+            }
+        };
+
+        tournamentSelect.addEventListener('change', () => loadStandings(true));
+        groupSelect.addEventListener('change', () => loadStandings(false));
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            loadStandings(false);
+        });
+        form.dataset.standingsFilterInitialized = '1';
+    });
+}
+
 initTomSelects();
 initPunishmentPlayerFilters();
 initRegistrationCategorySelects();
@@ -4970,6 +5060,7 @@ initTransferForms();
 initStockAdjustmentForms();
 initPermissionManagers();
 initMeetingAttendance();
+initStandingsFilters();
 initUserDropdowns();
 initSidebarToggle();
 initCashExpenseModal();

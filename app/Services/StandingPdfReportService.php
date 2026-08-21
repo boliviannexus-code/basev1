@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Company;
 use App\Models\StandingAdjustment;
+use App\Models\Team;
 use App\Models\Tournament;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -25,9 +26,82 @@ class StandingPdfReportService
         return $this->pdfResponse($pdf, $this->filename($tournament, $context['group']));
     }
 
-    private function makePdf(string $title): TCPDF
+    public function teamMatches(array $context): Response
     {
-        $pdf = new TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
+        /** @var Tournament $tournament */
+        $tournament = $context['tournament'];
+        /** @var Team $team */
+        $team = $context['team'];
+        $tournament->loadMissing(['company', 'season']);
+
+        $pdf = $this->makePdf('Partidos de '.$team->name, 'P');
+        $pdf->AddPage();
+        $pdf->writeHTML($this->teamMatchesHtml($context), true, false, true, false, '');
+
+        $filename = Str::slug('partidos '.$team->name.' '.$tournament->name) ?: 'partidos-equipo';
+
+        return $this->pdfResponse($pdf, $filename.'.pdf');
+    }
+
+    private function teamMatchesHtml(array $context): string
+    {
+        $tournament = $context['tournament'];
+        $team = $context['team'];
+        $matches = $context['matches'];
+        $rows = '';
+
+        foreach ($matches as $match) {
+            $finished = in_array($match->report?->status, ['completed', 'walkover'], true);
+            $score = $finished
+                ? $match->report->home_score.' - '.$match->report->away_score
+                : 'PENDIENTE';
+            $status = $finished
+                ? ($match->report->status === 'walkover' ? 'FINALIZADO W.O.' : 'FINALIZADO')
+                : ($match->matchday_date_id ? 'PROGRAMADO' : 'POR PROGRAMAR');
+            $date = $match->matchdayDate?->date?->format('d/m/Y') ?? '-';
+            $time = $match->scheduled_time ? \Carbon\Carbon::parse($match->scheduled_time)->format('H:i') : '-';
+            $round = $match->round_number ? 'Fecha '.$match->round_number : $match->stage;
+
+            $rows .= '
+                <tr style="font-size:8px;">
+                    <td style="width:8%;text-align:center;">'.e((string) $match->match_number).'</td>
+                    <td style="width:14%;">'.e($round).'</td>
+                    <td style="width:11%;text-align:center;">'.e($date).'<br>'.e($time).'</td>
+                    <td style="width:20%;text-align:right;font-weight:bold;">'.e($match->homeTeam?->name ?? $match->home_seed ?? 'Por definir').'</td>
+                    <td style="width:10%;text-align:center;font-weight:bold;color:'.($finished ? '#132f4c' : '#b45309').';">'.e($score).'</td>
+                    <td style="width:20%;font-weight:bold;">'.e($match->awayTeam?->name ?? $match->away_seed ?? 'Por definir').'</td>
+                    <td style="width:17%;text-align:center;">'.e($status).'</td>
+                </tr>';
+        }
+
+        if ($rows === '') {
+            $rows = '<tr><td colspan="7" style="text-align:center;color:#64748b;">Este equipo aun no tiene partidos generados.</td></tr>';
+        }
+
+        return $this->reportHeaderHtml($tournament->company, '
+                <div style="font-size:8px;color:#64748b;font-weight:bold;">REPORTE</div>
+                <div style="font-size:16px;color:#132f4c;font-weight:bold;">PARTIDOS DEL EQUIPO</div>
+            ').'
+            <table cellpadding="4" cellspacing="0" style="width:100%;background-color:#0f766e;color:#ffffff;">
+                <tr>
+                    <td style="width:45%;font-size:10px;font-weight:bold;">'.e(str($team->name)->upper()->toString()).'</td>
+                    <td style="width:35%;font-size:9px;text-align:center;">'.e(str($tournament->name)->upper()->toString()).'</td>
+                    <td style="width:20%;font-size:9px;text-align:right;">'.e(str($context['category']?->name.' · '.$context['series'])->upper()->toString()).'</td>
+                </tr>
+            </table>
+            <div style="height:4px;"></div>
+            <table cellpadding="4" cellspacing="0" border="1" style="width:100%;border-color:#d5dde8;">
+                <thead><tr style="background-color:#132f4c;color:#ffffff;font-weight:bold;text-align:center;font-size:8px;">
+                    <th style="width:8%;">#</th><th style="width:14%;">ETAPA</th><th style="width:11%;">FECHA/HORA</th>
+                    <th style="width:20%;">LOCAL</th><th style="width:10%;">RESULTADO</th><th style="width:20%;">VISITANTE</th><th style="width:17%;">ESTADO</th>
+                </tr></thead><tbody>'.$rows.'</tbody>
+            </table>
+            '.$this->reportFooterHtml($tournament->company);
+    }
+
+    private function makePdf(string $title, string $orientation = 'L'): TCPDF
+    {
+        $pdf = new TCPDF($orientation, 'mm', 'A4', true, 'UTF-8', false);
         $pdf->SetCreator(config('app.name', 'Nexgol'));
         $pdf->SetAuthor(config('app.name', 'Nexgol'));
         $pdf->SetTitle($title);

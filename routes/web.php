@@ -37,6 +37,7 @@ use App\Http\Controllers\Web\SportsReportController;
 use App\Http\Controllers\Web\StandingsController;
 use App\Http\Controllers\Web\TeamController;
 use App\Http\Controllers\Web\TournamentController;
+use App\Http\Controllers\Web\TournamentModificationController;
 use App\Http\Controllers\Web\TournamentRegistrationController;
 use App\Http\Controllers\Web\TransportTypeController;
 use App\Http\Controllers\Web\UserController;
@@ -48,6 +49,7 @@ Route::redirect('/', '/login');
 Route::domain('{tenant}.'.config('tenancy.base_domain'))->group(function (): void {
     Route::get('/', PublicLeaguePageController::class)->name('public.league');
     Route::get('tabla-posiciones', [PublicLeaguePageController::class, 'standings'])->name('public.standings');
+    Route::get('tabla-posiciones/{tournament}/categorias/{category}/series/{series}/equipos/{team}/partidos.pdf', [PublicLeaguePageController::class, 'teamMatchesPdf'])->name('public.standings.team-matches.pdf');
     Route::get('partidos', [PublicLeaguePageController::class, 'matches'])->name('public.matches');
     Route::get('kardex', [PublicLeaguePageController::class, 'kardex'])->name('public.kardex');
     Route::get('pagina-imagen/{field}', [PublicLeaguePageController::class, 'image'])->name('public.image');
@@ -181,11 +183,16 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         Route::put('{tournamentRegistration}', [TournamentRegistrationController::class, 'update'])->middleware('permission:tournament-registrations.update')->name('update');
         Route::delete('{tournamentRegistration}', [TournamentRegistrationController::class, 'destroy'])->middleware('permission:tournament-registrations.delete')->name('destroy');
     });
+    Route::prefix('tournament-modifications')->name('tournament-modifications.')->group(function (): void {
+        Route::get('/', [TournamentModificationController::class, 'index'])->middleware('permission:tournament-modifications.view')->name('index');
+        Route::post('team-substitutions', [TournamentModificationController::class, 'substitute'])->middleware('permission:tournament-modifications.create')->name('team-substitutions.store');
+    });
     Route::prefix('fixtures')->name('fixtures.')->middleware('permission:fixtures.view')->group(function (): void {
         Route::get('/', [FixtureSetupController::class, 'index'])->name('index');
         Route::get('patterns/pdf', [FixtureSetupController::class, 'patternsPdf'])->name('patterns.pdf');
         Route::get('patterns', [FixtureSetupController::class, 'patterns'])->name('patterns');
         Route::patch('generations/{fixtureGeneration}/resolve-seeds', [FixtureSetupController::class, 'resolveSeeds'])->middleware('permission:fixtures.generate')->name('resolve-seeds');
+        Route::post('generations/{fixtureGeneration}/second-phase', [FixtureSetupController::class, 'generateSecondPhase'])->middleware('permission:fixtures.generate')->name('second-phase.generate');
         Route::get('generations/{fixtureGeneration}/teams-pdf', [FixtureSetupController::class, 'reportTeamsPdf'])->name('report.teams-pdf');
         Route::get('generations/{fixtureGeneration}/pdf', [FixtureSetupController::class, 'reportPdf'])->name('report.pdf');
         Route::get('generations/{fixtureGeneration}/report', [FixtureSetupController::class, 'report'])->name('report');
@@ -203,6 +210,7 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         Route::get('days/{matchday}/printable', [MatchdayController::class, 'printable'])->middleware('permission:matchdays.view')->name('printable');
         Route::post('days/{matchday}/dates', [MatchdayController::class, 'storeDates'])->middleware('permission:matchdays.update')->name('dates.store');
         Route::patch('days/{matchday}/dates/reorder', [MatchdayController::class, 'reorderDate'])->middleware('permission:matchdays.update')->name('dates.reorder');
+        Route::patch('days/{matchday}/reopen', [MatchdayController::class, 'reopen'])->middleware('permission:matchdays.update')->name('reopen');
         Route::patch('days/{matchday}/finish', [MatchdayController::class, 'finish'])->middleware('permission:matchdays.update')->name('finish');
         Route::get('dates/{date}/configure', [MatchdayController::class, 'configureDate'])->middleware('permission:matchdays.view')->name('dates.configure');
         Route::patch('dates/{date}', [MatchdayController::class, 'updateDate'])->middleware('permission:matchdays.update')->name('dates.update');
@@ -262,6 +270,7 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
     });
     Route::get('standings', [StandingsController::class, 'index'])->middleware('permission:standings.view')->name('standings.index');
     Route::get('standings/pdf', [StandingsController::class, 'pdf'])->middleware('permission:standings.view')->name('standings.pdf');
+    Route::get('standings/{tournament}/categories/{category}/series/{series}/teams/{team}/matches-pdf', [StandingsController::class, 'teamMatchesPdf'])->middleware('permission:standings.view')->name('standings.team-matches.pdf');
     Route::prefix('sports-reports')->name('sports-reports.')->middleware('permission:sports-reports.view')->group(function (): void {
         Route::get('registered-teams', [SportsReportController::class, 'registeredTeams'])->name('registered-teams');
         Route::get('registered-teams/pdf', [SportsReportController::class, 'registeredTeamsPdf'])->name('registered-teams.pdf');

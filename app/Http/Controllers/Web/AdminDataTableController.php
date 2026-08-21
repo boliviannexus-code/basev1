@@ -272,7 +272,7 @@ class AdminDataTableController extends Controller
 
     private function teamActions(Team $team): string
     {
-        $actions = '<a class="btn btn-outline-secondary btn-sm" href="'.route('teams.show', $team).'" data-modal-url="'.route('teams.show', $team).'" data-modal-title="Detalle de equipo">Ver</a>';
+        $actions = '<a class="btn btn-outline-secondary btn-sm" href="'.route('teams.show', $team).'">Ver</a>';
 
         if (auth()->user()?->can('teams.update')) {
             $actions .= ' <a class="btn btn-outline-primary btn-sm" href="'.route('teams.edit', $team).'" data-modal-url="'.route('teams.edit', $team).'" data-modal-title="Editar equipo">Editar</a>';

@@ -17,12 +17,14 @@ use App\Models\Tournament;
 use App\Models\TournamentRegistration;
 use App\Models\TournamentTeamPlayer;
 use App\Services\StandingsService;
+use App\Services\StandingPdfReportService;
 use App\Support\CompanyContext;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class PublicLeaguePageController extends Controller
 {
@@ -57,6 +59,53 @@ class PublicLeaguePageController extends Controller
             $this->publicViewData($company),
             compact('tournaments', 'selectedTournament', 'groups', 'selectedGroup', 'standings')
         ));
+    }
+
+    public function teamMatchesPdf(
+        string $tenant,
+        Tournament $tournament,
+        int $category,
+        string $series,
+        Team $team,
+        StandingPdfReportService $pdfReport
+    ): HttpResponse {
+        $company = $this->publicCompany();
+        abort_unless((int) $tournament->company_id === (int) $company->id && $tournament->is_active, 404);
+        abort_unless((int) $team->company_id === (int) $company->id, 404);
+
+        $registration = TournamentRegistration::query()
+            ->with('category')
+            ->where('company_id', $company->id)
+            ->where('tournament_id', $tournament->id)
+            ->where('category_id', $category)
+            ->where('series', $series)
+            ->where('team_id', $team->id)
+            ->where('status', 'registered')
+            ->firstOrFail();
+
+        $matches = FixtureMatch::query()
+            ->with(['homeTeam', 'awayTeam', 'matchdayDate.court', 'report'])
+            ->where('company_id', $company->id)
+            ->where('tournament_id', $tournament->id)
+            ->where('category_id', $category)
+            ->where(fn ($query) => $query
+                ->where('home_team_id', $team->id)
+                ->orWhere('away_team_id', $team->id))
+            ->where(fn ($query) => $query
+                ->where('series', $series)
+                ->orWhere('phase', '!=', 'group'))
+            ->orderBy('stage_order')
+            ->orderBy('round_number')
+            ->orderBy('match_number')
+            ->get();
+
+        return $pdfReport->teamMatches([
+            'tournament' => $tournament,
+            'category' => $registration->category,
+            'series' => TournamentRegistration::SERIES[$series] ?? str($series)->headline()->toString(),
+            'team' => $team,
+            'matches' => $matches,
+        ]);
     }
 
     public function matches(Request $request): View

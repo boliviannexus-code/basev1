@@ -166,6 +166,34 @@ class MatchdayTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_finalized_matchday_can_be_reopened_to_add_matches(): void
+    {
+        [$company, , $user] = $this->leagueUser(['matchdays.view', 'matchdays.update']);
+        $season = Season::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+        $matchday = Matchday::factory()->create([
+            'company_id' => $company->id,
+            'season_id' => $season->id,
+            'status' => 'finalized',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->patch(route('matchdays.reopen', $matchday))
+            ->assertRedirect(route('matchdays.configure', $matchday));
+
+        $this->assertDatabaseHas('matchdays', [
+            'id' => $matchday->id,
+            'status' => 'draft',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('matchdays.configure', $matchday))
+            ->assertOk()
+            ->assertSee('Agregar fechas')
+            ->assertSee('Finalizar');
+    }
+
     public function test_matchday_date_can_schedule_fixture_matches_by_tournament_category_and_series(): void
     {
         [$company, , $user] = $this->leagueUser(['matchdays.view', 'matchdays.create', 'matchdays.update']);

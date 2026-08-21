@@ -22,7 +22,7 @@ class FixtureGenerationService
         $this->setup->ensureVisible($tournament);
 
         $series = $this->setup->seriesFor($tournament, $category);
-        $this->validateConfig($series, $config);
+        $this->validateFirstPhaseConfig($series);
         $this->ensureNoActiveGeneration($tournament, $category);
 
         return DB::transaction(function () use ($tournament, $category, $series, $config): FixtureGeneration {
@@ -44,9 +44,67 @@ class FixtureGenerationService
 
             $matchNumber = 1;
             $this->generateGroupPhase($generation, $tournament, $category, $series, (int) $config['first_phase_rounds'], $matchNumber);
-            $this->generateSecondPhase($generation, $tournament, $category, $series, $config, $matchNumber);
+            $generation->update([
+                'matches_count' => FixtureMatch::query()->where('fixture_generation_id', $generation->id)->count(),
+            ]);
+
+            return $generation->refresh();
+        });
+    }
+
+    public function generateSecondPhase(FixtureGeneration $generation, array $config): FixtureGeneration
+    {
+        $this->setup->ensureGenerationVisible($generation);
+        $generation->loadMissing(['tournament', 'category']);
+
+        if ($generation->status !== 'active') {
+            throw ValidationException::withMessages([
+                'fixture' => 'Solo se puede definir la segunda fase del fixture activo.',
+            ]);
+        }
+
+        if ($this->secondPhaseConfigured($generation)) {
+            throw ValidationException::withMessages([
+                'fixture' => 'La segunda fase de este fixture ya fue definida.',
+            ]);
+        }
+
+        $series = $this->setup->seriesFor($generation->tournament, $generation->category);
+        $this->validateSecondPhaseConfig($series, $config);
+
+        return DB::transaction(function () use ($generation, $series, $config): FixtureGeneration {
+            $generation = FixtureGeneration::query()->lockForUpdate()->findOrFail($generation->id);
+
+            if ($generation->status !== 'active') {
+                throw ValidationException::withMessages([
+                    'fixture' => 'Solo se puede definir la segunda fase del fixture activo.',
+                ]);
+            }
+
+            if ($this->secondPhaseConfigured($generation)) {
+                throw ValidationException::withMessages([
+                    'fixture' => 'La segunda fase de este fixture ya fue definida.',
+                ]);
+            }
+
+            $generation->loadMissing(['tournament', 'category']);
+            $matchNumber = ((int) FixtureMatch::query()
+                ->where('fixture_generation_id', $generation->id)
+                ->max('match_number')) + 1;
+
+            $this->appendSecondPhase(
+                $generation,
+                $generation->tournament,
+                $generation->category,
+                $series,
+                $config,
+                $matchNumber
+            );
 
             $generation->update([
+                'config' => array_merge($generation->config, $this->normalizedSecondPhaseConfig($config), [
+                    'second_phase_configured_at' => now()->toDateTimeString(),
+                ]),
                 'matches_count' => FixtureMatch::query()->where('fixture_generation_id', $generation->id)->count(),
             ]);
 
@@ -235,7 +293,7 @@ class FixtureGenerationService
             ->each(fn (array $row, int $index) => $map->put('Mejor tercero '.($index + 1), $row));
     }
 
-    private function generateSecondPhase(FixtureGeneration $generation, Tournament $tournament, DivisionCategory $category, Collection $series, array $config, int &$matchNumber): void
+    private function appendSecondPhase(FixtureGeneration $generation, Tournament $tournament, DivisionCategory $category, Collection $series, array $config, int &$matchNumber): void
     {
         $mode = $config['second_phase_mode'];
 
@@ -466,12 +524,16 @@ class FixtureGenerationService
         ])->filter(fn (array $stage): bool => $target >= $stage['size'])->values()->all();
     }
 
-    private function validateConfig(Collection $series, array $config): void
+    private function validateFirstPhaseConfig(Collection $series): void
     {
         if ($series->isEmpty()) {
             throw ValidationException::withMessages(['series' => 'No hay series con equipos para generar fixture.']);
         }
+    }
 
+    private function validateSecondPhaseConfig(Collection $series, array $config): void
+    {
+        $this->validateFirstPhaseConfig($series);
         $minTeamCount = (int) ($series->min('team_count') ?? 0);
         $qualifiers = (int) $config['qualifiers_per_series'];
 
@@ -492,6 +554,14 @@ class FixtureGenerationService
     {
         return [
             'first_phase_rounds' => (int) $config['first_phase_rounds'],
+            'second_phase_status' => 'pending',
+        ];
+    }
+
+    private function normalizedSecondPhaseConfig(array $config): array
+    {
+        return [
+            'second_phase_status' => 'configured',
             'qualifiers_per_series' => (int) $config['qualifiers_per_series'],
             'second_phase_mode' => $config['second_phase_mode'],
             'fill_rule' => $config['fill_rule'] ?? 'best_thirds',
@@ -500,5 +570,11 @@ class FixtureGenerationService
             'league_champion_rule' => $config['league_champion_rule'] ?? 'table',
             'stage_leg_modes' => $config['stage_leg_modes'] ?? [],
         ];
+    }
+
+    private function secondPhaseConfigured(FixtureGeneration $generation): bool
+    {
+        return ($generation->config['second_phase_status'] ?? null) === 'configured'
+            || array_key_exists('second_phase_mode', $generation->config);
     }
 }

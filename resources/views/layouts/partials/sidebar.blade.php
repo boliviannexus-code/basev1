@@ -1,6 +1,6 @@
 @php
     $leagueOpen = request()->routeIs('companies.*', 'website-page.*', 'courts.*', 'seasons.*', 'divisions.*', 'categories.*', 'teams.*', 'players.*', 'player-imports.*');
-    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'fixtures.*', 'standings.*', 'player-habilitations.*', 'player-transfers.*');
+    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'tournament-modifications.*', 'fixtures.*', 'standings.*', 'player-habilitations.*', 'player-transfers.*');
     $reportsOpen = request()->routeIs('sports-reports.*');
     $matchdayOpen = request()->routeIs('matchdays.*', 'match-reports.*');
     $penaltiesOpen = request()->routeIs('red-cards.*', 'red-card-articles.*', 'punishments.*');
@@ -19,6 +19,7 @@
         || auth()->user()?->can('player-imports.view');
     $canTournament = auth()->user()?->can('tournaments.view')
         || auth()->user()?->can('tournament-registrations.view')
+        || auth()->user()?->can('tournament-modifications.view')
         || auth()->user()?->can('fixtures.view')
         || auth()->user()?->can('standings.view')
         || auth()->user()?->can('player-habilitations.view')
@@ -178,6 +179,14 @@
                                         <a class="nav-link" href="{{ route('tournament-registrations.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-clipboard-list"></i></span>
                                             <span class="nav-link-title">Inscripciones</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('tournament-modifications.view')
+                                    <li class="nav-item {{ request()->routeIs('tournament-modifications.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('tournament-modifications.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-adjustments-horizontal"></i></span>
+                                            <span class="nav-link-title">Modificaciones</span>
                                         </a>
                                     </li>
                                 @endcan

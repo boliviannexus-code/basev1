@@ -21,9 +21,40 @@
         </div>
     </div>
 
-    <x-ui.table-card title="Asistente de configuracion global">
+    @if (! $activeGeneration)
+        <x-ui.table-card title="Generar primera fase">
+            <div class="alert alert-info">
+                Puedes iniciar el campeonato ahora. La clasificacion y la modalidad de segunda fase se definiran por separado cuando las conozcas.
+            </div>
+            <form method="POST" action="{{ route('fixtures.generate', ['tournament' => $tournament, 'category' => $category]) }}">
+                @csrf
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="fixture-option">
+                            <input class="form-check-input" type="radio" name="first_phase_rounds" value="1" @checked(old('first_phase_rounds', 1) == 1)>
+                            <span><span class="fixture-option-title">Solo ida</span><span class="fixture-option-copy">Cada equipo juega una vez contra cada rival de su serie.</span></span>
+                        </label>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="fixture-option">
+                            <input class="form-check-input" type="radio" name="first_phase_rounds" value="2" @checked(old('first_phase_rounds') == 2)>
+                            <span><span class="fixture-option-title">Ida y vuelta</span><span class="fixture-option-copy">Cada cruce se repite invirtiendo localia.</span></span>
+                        </label>
+                    </div>
+                </div>
+                <button class="btn btn-success mt-3" type="submit"><i class="ti ti-calendar-plus me-1"></i>Generar y guardar primera fase</button>
+            </form>
+        </x-ui.table-card>
+    @elseif (($activeGeneration->config['second_phase_status'] ?? null) === 'configured' || array_key_exists('second_phase_mode', $activeGeneration->config))
+        <x-ui.table-card title="Fases del campeonato">
+            <div class="alert alert-success mb-0">
+                La primera y segunda fase ya estan definidas. Puedes consultar todos los partidos desde el fixture generado.
+            </div>
+        </x-ui.table-card>
+    @else
+    <x-ui.table-card title="Definir clasificacion y segunda fase">
         <div class="alert alert-info py-2 mb-3">
-            Esta configuracion se aplicara a toda la categoria. Al finalizar se generaran partidos pendientes de programacion para jornadas futuras.
+            La primera fase ya esta guardada. Esta configuracion agregara la clasificacion y la segunda fase sin modificar los partidos existentes.
         </div>
 
         <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
@@ -34,45 +65,19 @@
             @endforeach
         </div>
 
-        <div class="fixture-stepper" data-fixture-stepper data-series-count="{{ $seriesCount }}" data-total-teams="{{ $totalTeams }}" data-min-team-count="{{ $minTeamCount }}">
+        <div class="fixture-stepper" data-fixture-stepper data-series-count="{{ $seriesCount }}" data-total-teams="{{ $totalTeams }}" data-min-team-count="{{ $minTeamCount }}" data-first-phase-label="{{ ((int) ($activeGeneration->config['first_phase_rounds'] ?? 1)) === 2 ? 'Ida y vuelta' : 'Solo ida' }}">
             <div class="fixture-stepper-header" role="list" aria-label="Pasos del fixture">
-                <button class="fixture-step-indicator active" type="button" data-fixture-step-indicator="1">1. Primera fase</button>
+                <button class="fixture-step-indicator active" type="button" data-fixture-step-indicator="1">1. Primera fase guardada</button>
                 <button class="fixture-step-indicator" type="button" data-fixture-step-indicator="2">2. Clasificacion</button>
                 <button class="fixture-step-indicator" type="button" data-fixture-step-indicator="3">3. Segunda fase</button>
                 <button class="fixture-step-indicator" type="button" data-fixture-step-indicator="4">4. Resumen</button>
             </div>
 
-            <form class="fixture-stepper-body" method="POST" action="{{ route('fixtures.generate', ['tournament' => $tournament, 'category' => $category]) }}" autocomplete="off">
+            <form class="fixture-stepper-body" method="POST" action="{{ route('fixtures.second-phase.generate', $activeGeneration) }}" autocomplete="off">
                 @csrf
                 <section data-fixture-step="1">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="fixture-option">
-                                <input class="form-check-input" type="radio" name="first_phase_rounds" value="1" @checked(true)>
-                                <span>
-                                    <span class="fixture-option-title">Solo ida</span>
-                                    <span class="fixture-option-copy">Cada equipo juega una vez contra cada rival de su serie.</span>
-                                </span>
-                            </label>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="fixture-option">
-                                <input class="form-check-input" type="radio" name="first_phase_rounds" value="2">
-                                <span>
-                                    <span class="fixture-option-title">Ida y vuelta</span>
-                                    <span class="fixture-option-copy">Cada cruce se repite invirtiendo localia.</span>
-                                </span>
-                            </label>
-                        </div>
-                        <div class="col-md-12">
-                            <div class="alert {{ $hasOddSeries ? 'alert-warning' : 'alert-success' }} mb-0">
-                                @if ($hasOddSeries)
-                                    Hay series con cantidad impar de equipos: {{ $oddSeriesLabels }}. El generador debera asignar fecha libre en esas series.
-                                @else
-                                    Todas las series tienen cantidad par de equipos. No se requieren fechas libres por imparidad.
-                                @endif
-                            </div>
-                        </div>
+                    <div class="alert alert-success mb-0">
+                        Primera fase guardada: <strong>{{ ((int) ($activeGeneration->config['first_phase_rounds'] ?? 1)) === 2 ? 'ida y vuelta' : 'solo ida' }}</strong>, con {{ $activeGeneration->matches_count }} partido(s). Ya puedes programarlos mientras defines el resto del campeonato.
                     </div>
                 </section>
 
@@ -251,10 +256,11 @@
                     </button>
                     <button class="btn btn-success d-none" type="submit" data-fixture-submit>
                         <i class="ti ti-calendar-plus me-1"></i>
-                        Generar fixture
+                        Guardar y generar segunda fase
                     </button>
                 </div>
             </form>
         </div>
     </x-ui.table-card>
+    @endif
 @endsection
