@@ -80,9 +80,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(function (AuthorizationException $exception, Request $request) {
             if (! $request->is('api/*')) {
-                return $request->user()
-                    ? redirect()->to(url('/admin'))
-                    : redirect()->guest(url('/login'));
+                return null;
             }
 
             return response()->json([
@@ -97,9 +95,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
-            return $request->user()
-                ? redirect()->to(url('/admin'))
-                : redirect()->guest(url('/login'));
+            return null;
         });
 
         $exceptions->render(function (ModelNotFoundException $exception, Request $request) {

@@ -44,8 +44,6 @@ use App\Http\Controllers\Web\UserController;
 use App\Http\Controllers\Web\WebsitePageController;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/login');
-
 Route::domain('{tenant}.'.config('tenancy.base_domain'))->group(function (): void {
     Route::get('/', PublicLeaguePageController::class)->name('public.league');
     Route::get('tabla-posiciones', [PublicLeaguePageController::class, 'standings'])->name('public.standings');
@@ -54,6 +52,8 @@ Route::domain('{tenant}.'.config('tenancy.base_domain'))->group(function (): voi
     Route::get('kardex', [PublicLeaguePageController::class, 'kardex'])->name('public.kardex');
     Route::get('pagina-imagen/{field}', [PublicLeaguePageController::class, 'image'])->name('public.image');
 });
+
+Route::redirect('/', '/login');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthController::class, 'showLogin'])->name('login');
