@@ -82,7 +82,7 @@ COPY --chown=www-data:www-data . .
 COPY --from=vendor --chown=www-data:www-data /app/vendor ./vendor
 COPY --from=assets --chown=www-data:www-data /app/public/build ./public/build
 
-RUN rm -f public/hot \
+RUN rm -f public/hot bootstrap/cache/*.php \
     && mkdir -p \
         storage/app/public \
         storage/framework/cache \
