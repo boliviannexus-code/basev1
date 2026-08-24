@@ -228,9 +228,24 @@ class MatchdayService
     {
         $this->ensureDateVisible($date);
         $date->loadMissing('matchday.season');
-        abort_unless($date->matchday->season?->is_active, 422, 'Solo se pueden modificar fechas en gestiones activas.');
-        abort_if($date->matchday->status === 'finalized', 422, 'La jornada ya fue finalizada y no se puede modificar.');
-        abort_if($date->fixtureMatches()->whereHas('report')->exists(), 422, 'No se puede cambiar la fecha o cancha porque contiene partidos con planilla registrada.');
+
+        if (! $date->matchday->season?->is_active) {
+            throw ValidationException::withMessages([
+                'fecha' => 'Solo se pueden modificar fechas en gestiones activas.',
+            ]);
+        }
+
+        if ($date->matchday->status === 'finalized') {
+            throw ValidationException::withMessages([
+                'fecha' => 'La jornada ya fue finalizada y no se puede modificar.',
+            ]);
+        }
+
+        if ($date->fixtureMatches()->whereHas('report')->exists()) {
+            throw ValidationException::withMessages([
+                'fecha' => 'No se puede cambiar la fecha o cancha porque contiene partidos con planilla registrada.',
+            ]);
+        }
 
         $court = Court::query()
             ->whereKey($courtId)
@@ -296,6 +311,26 @@ class MatchdayService
 
             $current->update(['sort_order' => $targetOrder]);
             $target->update(['sort_order' => $currentOrder]);
+        });
+    }
+
+    public function deleteDate(MatchdayDate $date): void
+    {
+        $this->ensureDateVisible($date);
+        $date->loadMissing('matchday.season');
+        abort_unless($date->matchday->season?->is_active, 422, 'Solo se pueden eliminar fechas en gestiones activas.');
+        abort_if($date->matchday->status === 'finalized', 422, 'La jornada ya fue finalizada y no se puede modificar.');
+
+        if ($date->fixtureMatches()->exists() || $date->fiscals()->exists()) {
+            throw ValidationException::withMessages([
+                'fecha' => 'Solo se puede eliminar una fecha vacia, sin partidos ni fiscales asignados.',
+            ]);
+        }
+
+        DB::transaction(function () use ($date): void {
+            $matchday = $date->matchday;
+            $date->delete();
+            $this->normalizeDateOrder($matchday);
         });
     }
 
@@ -398,6 +433,35 @@ class MatchdayService
         abort_unless((int) $fiscal->matchday_date_id === (int) $date->id, 404);
 
         $fiscal->delete();
+    }
+
+    public function updateFiscalTimes(MatchdayDate $date, MatchdayDateFiscal $fiscal, string $startTime, string $endTime): MatchdayDateFiscal
+    {
+        $this->ensureDateVisible($date);
+        $date->loadMissing('matchday');
+        abort_if($date->matchday->status === 'finalized', 422, 'La jornada ya fue finalizada y no se puede modificar.');
+        abort_unless((int) $fiscal->matchday_date_id === (int) $date->id, 404);
+        abort_unless((int) $fiscal->company_id === (int) $date->company_id, 403);
+
+        $overlap = $date->fiscals()
+            ->whereKeyNot($fiscal->id)
+            ->where(fn ($query) => $query
+                ->where('start_time', '<', $endTime)
+                ->where('end_time', '>', $startTime))
+            ->exists();
+
+        if ($overlap) {
+            throw ValidationException::withMessages([
+                'start_time' => 'Ya existe una fiscalia asignada en ese rango horario.',
+            ]);
+        }
+
+        $fiscal->update([
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+        ]);
+
+        return $fiscal->refresh();
     }
 
     public function fiscalFilterOptions(MatchdayDate $date, ?int $tournamentId, ?string $fixtureGroup): array

@@ -8,6 +8,7 @@ use App\Http\Requests\Matchday\ScheduleFixtureMatchRequest;
 use App\Http\Requests\Matchday\StoreMatchdayDatesRequest;
 use App\Http\Requests\Matchday\StoreMatchdayFiscalRequest;
 use App\Http\Requests\Matchday\UpdateMatchdayDateRequest;
+use App\Http\Requests\Matchday\UpdateMatchdayFiscalRequest;
 use App\Http\Requests\Matchday\UpdateScheduledMatchTimeRequest;
 use App\Models\FixtureMatch;
 use App\Models\Matchday;
@@ -120,6 +121,17 @@ class MatchdayController extends Controller
         return redirect()
             ->route('matchdays.configure', $date->matchday)
             ->with('success', 'Fecha de jornada actualizada correctamente.');
+    }
+
+    public function destroyDate(MatchdayDate $date): RedirectResponse
+    {
+        $matchday = $date->matchday;
+
+        $this->matchdays->deleteDate($date);
+
+        return redirect()
+            ->route('matchdays.configure', $matchday)
+            ->with('success', 'Fecha eliminada correctamente.');
     }
 
     public function reorderDate(ReorderMatchdayDateRequest $request, Matchday $matchday): RedirectResponse
@@ -272,6 +284,30 @@ class MatchdayController extends Controller
                 'show_fiscals',
             ])))
             ->with('success', 'Fiscal de turno eliminado correctamente.');
+    }
+
+    public function updateFiscal(UpdateMatchdayFiscalRequest $request, MatchdayDate $date, MatchdayDateFiscal $fiscal): RedirectResponse
+    {
+        $this->matchdays->updateFiscalTimes(
+            $date,
+            $fiscal,
+            $request->validated('start_time'),
+            $request->validated('end_time')
+        );
+
+        return redirect()
+            ->route('matchdays.dates.configure', array_merge(['date' => $date], $request->only([
+                'tournament_id',
+                'fixture_group',
+                'category_id',
+                'series',
+                'fiscal_tournament_id',
+                'fiscal_fixture_group',
+                'fiscal_category_id',
+                'fiscal_series',
+                'show_fiscals',
+            ])))
+            ->with('success', 'Horario de fiscalia actualizado correctamente.');
     }
 
     public function unscheduleMatch(MatchdayDate $date, FixtureMatch $fixtureMatch): RedirectResponse

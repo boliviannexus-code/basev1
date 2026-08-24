@@ -10,6 +10,8 @@ use App\Models\FixtureGeneration;
 use App\Models\FixtureMatch;
 use App\Models\Matchday;
 use App\Models\MatchdayDate;
+use App\Models\MatchdayDateFiscal;
+use App\Models\MatchReport;
 use App\Models\Season;
 use App\Models\Team;
 use App\Models\Tournament;
@@ -166,6 +168,139 @@ class MatchdayTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_empty_matchday_date_can_be_deleted_and_date_order_is_normalized(): void
+    {
+        [$company, , $user] = $this->leagueUser(['matchdays.view', 'matchdays.update']);
+        $season = Season::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+        $matchday = Matchday::factory()->create([
+            'company_id' => $company->id,
+            'season_id' => $season->id,
+            'status' => 'draft',
+        ]);
+        $court = Court::factory()->create(['company_id' => $company->id]);
+        $firstDate = MatchdayDate::factory()->create([
+            'company_id' => $company->id,
+            'matchday_id' => $matchday->id,
+            'court_id' => $court->id,
+            'sort_order' => 1,
+        ]);
+        $secondDate = MatchdayDate::factory()->create([
+            'company_id' => $company->id,
+            'matchday_id' => $matchday->id,
+            'court_id' => $court->id,
+            'sort_order' => 2,
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->delete(route('matchdays.dates.destroy', $firstDate))
+            ->assertRedirect(route('matchdays.configure', $matchday))
+            ->assertSessionHas('success', 'Fecha eliminada correctamente.');
+
+        $this->assertSoftDeleted($firstDate);
+        $this->assertDatabaseHas('matchday_dates', [
+            'id' => $secondDate->id,
+            'sort_order' => 1,
+        ]);
+    }
+
+    public function test_matchday_date_with_assignments_cannot_be_deleted(): void
+    {
+        [$company, , $user] = $this->leagueUser(['matchdays.view', 'matchdays.update']);
+        $season = Season::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+        $matchday = Matchday::factory()->create([
+            'company_id' => $company->id,
+            'season_id' => $season->id,
+            'status' => 'draft',
+        ]);
+        $date = MatchdayDate::factory()->create([
+            'company_id' => $company->id,
+            'matchday_id' => $matchday->id,
+            'court_id' => Court::factory()->create(['company_id' => $company->id])->id,
+        ]);
+        MatchdayDateFiscal::query()->create([
+            'company_id' => $company->id,
+            'matchday_date_id' => $date->id,
+            'team_id' => Team::factory()->create(['company_id' => $company->id])->id,
+            'start_time' => '18:00',
+            'end_time' => '20:00',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->from(route('matchdays.configure', $matchday))
+            ->delete(route('matchdays.dates.destroy', $date))
+            ->assertRedirect(route('matchdays.configure', $matchday))
+            ->assertSessionHasErrors([
+                'fecha' => 'Solo se puede eliminar una fecha vacia, sin partidos ni fiscales asignados.',
+            ]);
+
+        $this->assertNotSoftDeleted($date);
+    }
+
+    public function test_fiscal_assignment_times_can_be_updated_without_overlapping_another_assignment(): void
+    {
+        [$company, , $user] = $this->leagueUser(['matchdays.view', 'matchdays.update']);
+        $season = Season::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+        $matchday = Matchday::factory()->create([
+            'company_id' => $company->id,
+            'season_id' => $season->id,
+            'status' => 'draft',
+        ]);
+        $date = MatchdayDate::factory()->create([
+            'company_id' => $company->id,
+            'matchday_id' => $matchday->id,
+            'court_id' => Court::factory()->create(['company_id' => $company->id])->id,
+        ]);
+        $firstFiscal = MatchdayDateFiscal::query()->create([
+            'company_id' => $company->id,
+            'matchday_date_id' => $date->id,
+            'team_id' => Team::factory()->create(['company_id' => $company->id])->id,
+            'start_time' => '18:00',
+            'end_time' => '20:00',
+        ]);
+        MatchdayDateFiscal::query()->create([
+            'company_id' => $company->id,
+            'matchday_date_id' => $date->id,
+            'team_id' => Team::factory()->create(['company_id' => $company->id])->id,
+            'start_time' => '21:00',
+            'end_time' => '23:00',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->patch(route('matchdays.dates.fiscals.update', [$date, $firstFiscal]), [
+                'start_time' => '17:30',
+                'end_time' => '20:30',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Horario de fiscalia actualizado correctamente.');
+
+        $this->assertDatabaseHas('matchday_date_fiscals', [
+            'id' => $firstFiscal->id,
+            'start_time' => '17:30:00',
+            'end_time' => '20:30:00',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->from(route('matchdays.dates.configure', $date))
+            ->patch(route('matchdays.dates.fiscals.update', [$date, $firstFiscal]), [
+                'start_time' => '20:00',
+                'end_time' => '22:00',
+            ])
+            ->assertRedirect(route('matchdays.dates.configure', $date))
+            ->assertSessionHasErrors([
+                'start_time' => 'Ya existe una fiscalia asignada en ese rango horario.',
+            ]);
+
+        $this->assertDatabaseHas('matchday_date_fiscals', [
+            'id' => $firstFiscal->id,
+            'start_time' => '17:30:00',
+            'end_time' => '20:30:00',
+        ]);
+    }
+
     public function test_finalized_matchday_can_be_reopened_to_add_matches(): void
     {
         [$company, , $user] = $this->leagueUser(['matchdays.view', 'matchdays.update']);
@@ -288,6 +423,31 @@ class MatchdayTest extends TestCase
             'matchday_date_id' => $date->id,
             'status' => 'scheduled',
         ]);
+
+        $report = MatchReport::query()->create([
+            'company_id' => $company->id,
+            'fixture_match_id' => $match->id,
+            'status' => 'draft',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->from(route('matchdays.configure', $matchday))
+            ->patch(route('matchdays.dates.update', $date), [
+                'court_id' => $court->id,
+                'date' => '2026-08-02',
+            ])
+            ->assertRedirect(route('matchdays.configure', $matchday))
+            ->assertSessionHasErrors([
+                'fecha' => 'No se puede cambiar la fecha o cancha porque contiene partidos con planilla registrada.',
+            ]);
+
+        $this->assertDatabaseHas('matchday_dates', [
+            'id' => $date->id,
+            'date' => '2026-08-01',
+        ]);
+
+        $report->delete();
 
         $this
             ->actingAs($user)

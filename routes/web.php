@@ -214,12 +214,14 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         Route::patch('days/{matchday}/finish', [MatchdayController::class, 'finish'])->middleware('permission:matchdays.update')->name('finish');
         Route::get('dates/{date}/configure', [MatchdayController::class, 'configureDate'])->middleware('permission:matchdays.view')->name('dates.configure');
         Route::patch('dates/{date}', [MatchdayController::class, 'updateDate'])->middleware('permission:matchdays.update')->name('dates.update');
+        Route::delete('dates/{date}', [MatchdayController::class, 'destroyDate'])->middleware('permission:matchdays.update')->name('dates.destroy');
         Route::post('dates/{date}/matches', [MatchdayController::class, 'scheduleMatch'])->middleware('permission:matchdays.update')->name('dates.matches.store');
         Route::get('dates/{date}/matches/options', [MatchdayController::class, 'fixtureMatchOptions'])->middleware('permission:matchdays.view')->name('dates.matches.options');
         Route::patch('dates/{date}/matches/{fixtureMatch}/time', [MatchdayController::class, 'updateScheduledTime'])->middleware('permission:matchdays.update')->name('dates.matches.time');
         Route::delete('dates/{date}/matches/{fixtureMatch}', [MatchdayController::class, 'unscheduleMatch'])->middleware('permission:matchdays.update')->name('dates.matches.destroy');
         Route::get('dates/{date}/fiscals/options', [MatchdayController::class, 'fiscalOptions'])->middleware('permission:matchdays.view')->name('dates.fiscals.options');
         Route::post('dates/{date}/fiscals', [MatchdayController::class, 'storeFiscal'])->middleware('permission:matchdays.update')->name('dates.fiscals.store');
+        Route::patch('dates/{date}/fiscals/{fiscal}', [MatchdayController::class, 'updateFiscal'])->middleware('permission:matchdays.update')->name('dates.fiscals.update');
         Route::delete('dates/{date}/fiscals/{fiscal}', [MatchdayController::class, 'destroyFiscal'])->middleware('permission:matchdays.update')->name('dates.fiscals.destroy');
         Route::get('{season}', [MatchdayController::class, 'show'])->middleware('permission:matchdays.view')->name('show');
         Route::post('{season}', [MatchdayController::class, 'store'])->middleware('permission:matchdays.create')->name('store');

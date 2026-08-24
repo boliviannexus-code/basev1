@@ -117,6 +117,9 @@
                 @error('fiscales')
                     <div class="alert alert-danger">{{ $message }}</div>
                 @enderror
+                @error('fecha')
+                    <div class="alert alert-danger">{{ $message }}</div>
+                @enderror
                 <table class="table table-hover align-middle">
                     <thead>
                         <tr>
@@ -186,6 +189,15 @@
                                             <button class="btn btn-outline-primary btn-icon btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#matchday-date-edit-{{ $date->id }}" title="Modificar fecha y cancha" aria-label="Modificar fecha y cancha">
                                                 <i class="ti ti-edit"></i>
                                             </button>
+                                            @if ($date->fixtureMatches->isEmpty() && $date->fiscals->isEmpty())
+                                                <form class="d-inline" method="POST" action="{{ route('matchdays.dates.destroy', $date) }}" data-confirm-delete="¿Eliminar fecha?" data-confirm-button-text="Sí, eliminar" data-confirm-text="La fecha se eliminará de esta jornada." data-confirm-color="#d63939">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button class="btn btn-outline-danger btn-icon btn-sm" type="submit" title="Eliminar fecha" aria-label="Eliminar fecha">
+                                                        <i class="ti ti-trash"></i>
+                                                    </button>
+                                                </form>
+                                            @endif
                                         @endcan
                                         <a class="btn btn-outline-primary btn-sm" href="{{ route('matchdays.dates.configure', $date) }}">
                                             Configurar fecha

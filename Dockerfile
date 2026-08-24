@@ -56,6 +56,7 @@ RUN apt-get update \
         libpq-dev \
         libwebp-dev \
         libzip-dev \
+        postgresql-client \
         unzip \
         zip \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
