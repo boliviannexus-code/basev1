@@ -52,6 +52,19 @@ class FixtureGenerationService
         });
     }
 
+    public function deleteCompletely(FixtureGeneration $generation): void
+    {
+        $this->setup->ensureGenerationVisible($generation);
+
+        DB::transaction(function () use ($generation): void {
+            $lockedGeneration = FixtureGeneration::query()
+                ->lockForUpdate()
+                ->findOrFail($generation->id);
+
+            $lockedGeneration->delete();
+        });
+    }
+
     public function generateSecondPhase(FixtureGeneration $generation, array $config): FixtureGeneration
     {
         $this->setup->ensureGenerationVisible($generation);

@@ -7,6 +7,9 @@ use App\Models\Division;
 use App\Models\DivisionCategory;
 use App\Models\FixtureGeneration;
 use App\Models\FixtureMatch;
+use App\Models\Matchday;
+use App\Models\MatchdayDate;
+use App\Models\MatchReport;
 use App\Models\Season;
 use App\Models\Team;
 use App\Models\Tournament;
@@ -277,6 +280,94 @@ class FixtureSetupTest extends TestCase
             ->assertOk()
             ->assertSee('Ver fixture generado')
             ->assertSee('La primera y segunda fase ya estan definidas');
+    }
+
+    public function test_complete_fixture_deletion_removes_played_and_scheduled_matches(): void
+    {
+        [$company, , $user] = $this->leagueUser(['fixtures.view', 'fixtures.generate']);
+        $tournament = $this->tournamentFor($company);
+        $matchday = Matchday::factory()->create([
+            'company_id' => $company->id,
+            'season_id' => $tournament->season_id,
+        ]);
+        $date = MatchdayDate::factory()->create([
+            'company_id' => $company->id,
+            'matchday_id' => $matchday->id,
+        ]);
+        $generation = FixtureGeneration::query()->create([
+            'company_id' => $company->id,
+            'tournament_id' => $tournament->id,
+            'category_id' => $tournament->category_id,
+            'generated_by' => $user->id,
+            'status' => 'active',
+            'config' => [],
+            'matches_count' => 1,
+            'generated_at' => now(),
+        ]);
+        $match = FixtureMatch::query()->create([
+            'company_id' => $company->id,
+            'fixture_generation_id' => $generation->id,
+            'tournament_id' => $tournament->id,
+            'division_id' => $tournament->division_id,
+            'category_id' => $tournament->category_id,
+            'phase' => 'group',
+            'stage' => 'Primera fase',
+            'stage_order' => 1,
+            'round_number' => 1,
+            'match_number' => 1,
+            'leg_number' => 1,
+            'matchday_date_id' => $date->id,
+            'scheduled_time' => '10:00',
+            'status' => 'completed',
+        ]);
+        $report = MatchReport::query()->create([
+            'company_id' => $company->id,
+            'fixture_match_id' => $match->id,
+            'home_score' => 2,
+            'away_score' => 1,
+            'status' => 'completed',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('fixtures.report', $generation))
+            ->assertOk()
+            ->assertSee('Eliminar todo el fixture');
+
+        $this->actingAs($user)
+            ->delete(route('fixtures.destroy', $generation))
+            ->assertRedirect(route('fixtures.configure', [
+                'tournament' => $tournament,
+                'category' => $tournament->category,
+            ]));
+
+        $this->assertDatabaseMissing('fixture_generations', ['id' => $generation->id]);
+        $this->assertDatabaseMissing('fixture_matches', ['id' => $match->id]);
+        $this->assertDatabaseMissing('match_reports', ['id' => $report->id]);
+        $this->assertDatabaseHas('matchdays', ['id' => $matchday->id]);
+        $this->assertDatabaseHas('matchday_dates', ['id' => $date->id]);
+    }
+
+    public function test_complete_fixture_deletion_requires_generate_permission_and_company_access(): void
+    {
+        [$company, $otherCompany, $user] = $this->leagueUser(['fixtures.view']);
+        $ownTournament = $this->tournamentFor($company);
+        $otherTournament = $this->tournamentFor($otherCompany);
+        $ownGeneration = FixtureGeneration::query()->create([
+            'company_id' => $company->id, 'tournament_id' => $ownTournament->id, 'category_id' => $ownTournament->category_id,
+            'generated_by' => $user->id, 'status' => 'active', 'config' => [], 'matches_count' => 0, 'generated_at' => now(),
+        ]);
+        $otherGeneration = FixtureGeneration::query()->create([
+            'company_id' => $otherCompany->id, 'tournament_id' => $otherTournament->id, 'category_id' => $otherTournament->category_id,
+            'status' => 'active', 'config' => [], 'matches_count' => 0, 'generated_at' => now(),
+        ]);
+
+        $this->actingAs($user)->delete(route('fixtures.destroy', $ownGeneration))->assertForbidden();
+
+        Permission::findOrCreate('fixtures.generate');
+        $user->givePermissionTo('fixtures.generate');
+
+        $this->actingAs($user)->delete(route('fixtures.destroy', $otherGeneration))->assertForbidden();
+        $this->assertDatabaseHas('fixture_generations', ['id' => $otherGeneration->id]);
     }
 
     private function tournamentFor(Company $company): Tournament

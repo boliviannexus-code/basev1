@@ -39,6 +39,20 @@
                 <i class="ti ti-users me-1"></i>
                 Imprimir por equipo
             </a>
+            @can('fixtures.generate')
+                <form method="POST" action="{{ route('fixtures.destroy', $generation) }}"
+                    data-confirm-delete="¿Eliminar todo el fixture?"
+                    data-confirm-button-text="Sí, eliminar todo"
+                    data-confirm-text="ÚLTIMO RECURSO: se borrarán permanentemente todos los partidos de este fixture, sus programaciones en jornadas y fechas, planillas, resultados y sanciones, aunque ya hayan sido jugados. Esta acción no se puede deshacer."
+                    data-confirm-color="#dc2626">
+                    @csrf
+                    @method('DELETE')
+                    <button class="btn btn-danger btn-sm" type="submit">
+                        <i class="ti ti-trash me-1"></i>
+                        Eliminar todo el fixture
+                    </button>
+                </form>
+            @endcan
         </div>
     </div>
 

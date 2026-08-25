@@ -196,6 +196,7 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         Route::get('generations/{fixtureGeneration}/teams-pdf', [FixtureSetupController::class, 'reportTeamsPdf'])->name('report.teams-pdf');
         Route::get('generations/{fixtureGeneration}/pdf', [FixtureSetupController::class, 'reportPdf'])->name('report.pdf');
         Route::get('generations/{fixtureGeneration}/report', [FixtureSetupController::class, 'report'])->name('report');
+        Route::delete('generations/{fixtureGeneration}', [FixtureSetupController::class, 'destroy'])->middleware('permission:fixtures.generate')->name('destroy');
         Route::get('{tournament}/categories', [FixtureSetupController::class, 'categories'])->name('categories');
         Route::get('{tournament}/categories/{category}/series', [FixtureSetupController::class, 'series'])->name('series');
         Route::get('{tournament}/categories/{category}/series/{series}/teams', [FixtureSetupController::class, 'seriesTeams'])->name('series.teams');

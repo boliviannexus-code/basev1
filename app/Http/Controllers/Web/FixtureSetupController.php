@@ -90,6 +90,18 @@ class FixtureSetupController extends Controller
         return view('fixtures.report', $this->fixtures->reportContext($fixtureGeneration));
     }
 
+    public function destroy(FixtureGeneration $fixtureGeneration): RedirectResponse
+    {
+        $tournament = $fixtureGeneration->tournament;
+        $category = $fixtureGeneration->category;
+
+        $this->generator->deleteCompletely($fixtureGeneration);
+
+        return redirect()
+            ->route('fixtures.configure', compact('tournament', 'category'))
+            ->with('success', 'Fixture eliminado por completo. Se borraron sus partidos, programaciones, resultados y registros relacionados.');
+    }
+
     public function generateSecondPhase(GenerateSecondPhaseRequest $request, FixtureGeneration $fixtureGeneration): RedirectResponse
     {
         try {
