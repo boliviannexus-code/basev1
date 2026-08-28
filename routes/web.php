@@ -1,23 +1,24 @@
 <?php
 
+use App\Http\Controllers\Web\AccommodationPackages\AccommodationPackageController;
+use App\Http\Controllers\Web\AccommodationPackages\PackageServiceController;
 use App\Http\Controllers\Web\Admin\AccommodationCatalogController;
 use App\Http\Controllers\Web\Admin\CompanyOnlineStatusController;
 use App\Http\Controllers\Web\Admin\SpaceApprovalController;
 use App\Http\Controllers\Web\AdminDataTableController;
-use App\Http\Controllers\Web\AdminReservationGroupController;
 use App\Http\Controllers\Web\AdminReservationController;
-use App\Http\Controllers\Web\AccommodationPackages\AccommodationPackageController;
-use App\Http\Controllers\Web\AccommodationPackages\PackageServiceController;
+use App\Http\Controllers\Web\AdminReservationGroupController;
 use App\Http\Controllers\Web\AuditController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\AvailabilityController;
 use App\Http\Controllers\Web\BusinessIntelligenceController;
 use App\Http\Controllers\Web\CheckInController;
+use App\Http\Controllers\Web\CheckOutAlertController;
 use App\Http\Controllers\Web\CompanyController;
 use App\Http\Controllers\Web\CompanyPublicProfileController;
 use App\Http\Controllers\Web\CountryController;
-use App\Http\Controllers\Web\DatabaseBackupController;
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\DatabaseBackupController;
 use App\Http\Controllers\Web\ExchangeRateController;
 use App\Http\Controllers\Web\ExtraChargeCategoryController;
 use App\Http\Controllers\Web\ExtraChargeController;
@@ -30,20 +31,20 @@ use App\Http\Controllers\Web\PosController;
 use App\Http\Controllers\Web\PublicSite\PublicAccommodationController;
 use App\Http\Controllers\Web\PublicSite\PublicCompanyPageController;
 use App\Http\Controllers\Web\PublicSite\PublicReservationController;
+use App\Http\Controllers\Web\ReportController;
 use App\Http\Controllers\Web\ReservationChannelController;
 use App\Http\Controllers\Web\ReservationMoveController;
 use App\Http\Controllers\Web\ReservationPaymentController;
 use App\Http\Controllers\Web\ReservationSettingsController;
-use App\Http\Controllers\Web\ReportController;
 use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\SalesController;
+use App\Http\Controllers\Web\SpaceCashController;
 use App\Http\Controllers\Web\Spaces\SharedSpaceRegistrationStepperController;
 use App\Http\Controllers\Web\Spaces\SpaceController;
 use App\Http\Controllers\Web\Spaces\SpaceRegistrationStepperController;
-use App\Http\Controllers\Web\SpaceCashController;
+use App\Http\Controllers\Web\StayController;
 use App\Http\Controllers\Web\StayPaymentController;
 use App\Http\Controllers\Web\StayRoomChangeController;
-use App\Http\Controllers\Web\StayController;
 use App\Http\Controllers\Web\UserController;
 use App\Support\AccommodationCatalogRegistry;
 use Illuminate\Support\Facades\Route;
@@ -74,6 +75,10 @@ Route::middleware('auth')->group(function (): void {
     Route::post('reservas/{reservation}/comprobante', [PublicReservationController::class, 'submitPaymentProof'])->whereNumber('reservation')->name('public.reservations.payment-proof');
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::prefix('checkout-alerts')->name('checkout-alerts.')->middleware(['company_user', 'permission:occupancy.manage'])->group(function (): void {
+        Route::get('/', [CheckOutAlertController::class, 'index'])->name('index');
+        Route::post('{stay}/snooze', [CheckOutAlertController::class, 'snooze'])->whereNumber('stay')->name('snooze');
+    });
     Route::get('business-intelligence', [BusinessIntelligenceController::class, 'index'])
         ->middleware(['company_user', 'permission:business-intelligence.view'])
         ->name('business-intelligence.index');

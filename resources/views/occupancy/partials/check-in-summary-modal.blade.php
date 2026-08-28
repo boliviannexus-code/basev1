@@ -56,7 +56,7 @@
         </div>
         <div>
             <span>Saldo grupo</span>
-            <strong>{{ $money($groupBalance) }}</strong>
+            <strong><x-ui.money :amount="$groupBalance" exchange-rate="{{ $stay->exchange_rate }}" /></strong>
         </div>
     </div>
 
@@ -85,10 +85,10 @@
                 </div>
                 <dl class="check-in-read-dl">
                     <div><dt>Recurso</dt><dd>{{ $resourceLabel }}</dd></div>
-                    <div><dt>Precio noche</dt><dd>{{ $money($stay->price_per_night_bob) }}</dd></div>
-                    <div><dt>Hospedaje</dt><dd>{{ $money($lodgingTotal) }}</dd></div>
-                    <div><dt>Cargos extras</dt><dd>{{ $money($extrasTotal) }}</dd></div>
-                    <div><dt>Saldo estancia</dt><dd>{{ $money($statement?->balance ?? 0) }}</dd></div>
+                    <div><dt>Precio noche</dt><dd><x-ui.money :amount="$stay->price_per_night_bob" :exchange-rate="$stay->exchange_rate" /></dd></div>
+                    <div><dt>Hospedaje</dt><dd><x-ui.money :amount="$lodgingTotal" :exchange-rate="$stay->exchange_rate" /></dd></div>
+                    <div><dt>Cargos extras</dt><dd><x-ui.money :amount="$extrasTotal" :exchange-rate="$stay->exchange_rate" /></dd></div>
+                    <div><dt>Saldo estancia</dt><dd><x-ui.money :amount="$statement?->balance ?? 0" :exchange-rate="$stay->exchange_rate" /></dd></div>
                     <div><dt>Desayuno</dt><dd>{{ $stay->breakfast_included ? 'Incluido' : 'No incluido' }}</dd></div>
                 </dl>
             </div>
@@ -118,7 +118,7 @@
                     <div class="check-in-read-stay-meta">
                         <span>{{ $relatedStay->check_in_date->format('d/m/Y') }} - {{ $relatedStay->check_out_date->format('d/m/Y') }}</span>
                         <span>{{ $relatedStay->people_count }} pers. · {{ $relatedStay->nights }} noches</span>
-                        <strong>{{ $money($relatedStay->accountStatement?->balance ?? 0) }}</strong>
+                        <strong><x-ui.money :amount="$relatedStay->accountStatement?->balance ?? 0" :exchange-rate="$relatedStay->exchange_rate" /></strong>
                     </div>
                 </div>
             @endforeach
@@ -170,10 +170,10 @@
             <span>Resumen de cuenta</span>
         </div>
         <dl class="check-in-read-dl check-in-read-dl-compact">
-            <div><dt>Total grupo</dt><dd>{{ $money($groupTotal) }}</dd></div>
-            <div><dt>Saldo grupo</dt><dd>{{ $money($groupBalance) }}</dd></div>
-            <div><dt>Total estancia seleccionada</dt><dd>{{ $money($statementTotal($statement)) }}</dd></div>
-            <div><dt>Saldo estancia seleccionada</dt><dd>{{ $money($statement?->balance ?? 0) }}</dd></div>
+            <div><dt>Total grupo</dt><dd><x-ui.money :amount="$groupTotal" :exchange-rate="$stay->exchange_rate" /></dd></div>
+            <div><dt>Saldo grupo</dt><dd><x-ui.money :amount="$groupBalance" :exchange-rate="$stay->exchange_rate" /></dd></div>
+            <div><dt>Total estancia seleccionada</dt><dd><x-ui.money :amount="$statementTotal($statement)" :exchange-rate="$stay->exchange_rate" /></dd></div>
+            <div><dt>Saldo estancia seleccionada</dt><dd><x-ui.money :amount="$statement?->balance ?? 0" :exchange-rate="$stay->exchange_rate" /></dd></div>
         </dl>
     </div>
 
@@ -200,7 +200,7 @@
                             <td>{{ $item->extraChargeCategory?->name ?: '-' }}</td>
                             <td>{{ $item->description }}</td>
                             <td class="text-end">{{ number_format((float) $item->quantity, 2) }}</td>
-                            <td class="text-end fw-semibold">{{ $money($item->total) }}</td>
+                            <td class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$item->total" :currency="$item->currency" :exchange-rate="$stay->exchange_rate" /></td>
                         </tr>
                     @empty
                         <tr>

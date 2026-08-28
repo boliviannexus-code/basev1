@@ -472,6 +472,60 @@ class WeeklyOccupancyTest extends TestCase
         }
     }
 
+    public function test_occupied_stay_has_one_management_action_for_editing_and_room_changes(): void
+    {
+        Carbon::setTestNow('2026-06-10 10:00:00');
+
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user, $company] = $this->companyUser();
+            $space = $this->privateSpace($company);
+            $guest = Guest::factory()->create(['company_id' => $company->id]);
+            $group = CheckInGroup::factory()->create([
+                'company_id' => $company->id,
+                'main_guest_id' => $guest->id,
+                'check_in_date' => '2026-06-09',
+                'check_out_date' => '2026-06-12',
+                'status' => 'checked_in',
+            ]);
+            $stay = Stay::factory()->create([
+                'company_id' => $company->id,
+                'check_in_group_id' => $group->id,
+                'holder_guest_id' => $guest->id,
+                'space_id' => $space->id,
+                'check_in_date' => '2026-06-09',
+                'check_out_date' => '2026-06-12',
+                'status' => 'occupied',
+            ]);
+
+            $actions = $this
+                ->actingAs($user)
+                ->getJson(route('occupancy.cell-actions', [
+                    'space_id' => $space->id,
+                    'date' => '2026-06-10',
+                ]))
+                ->assertOk()
+                ->json('actions');
+
+            $managementAction = collect($actions)->firstWhere('key', 'manage_stay');
+            $accountAction = collect($actions)->firstWhere('key', 'manage_account');
+
+            $this->assertSame('Gestionar estancia', $managementAction['label']);
+            $this->assertSame(route('check-ins.edit', [
+                'checkInGroup' => $group,
+                'highlight_stay' => $stay->id,
+            ]).'#stay-'.$stay->id, $managementAction['url']);
+            $this->assertSame('Cuenta y cobros', $accountAction['label']);
+            $this->assertSame(route('stays.account', $stay), $accountAction['url']);
+            $this->assertNotContains('move_stay', collect($actions)->pluck('key')->all());
+            $this->assertNotContains('edit_stay', collect($actions)->pluck('key')->all());
+            $this->assertNotContains('collect_stay_payment', collect($actions)->pluck('key')->all());
+            $this->assertNotContains('extra_charge', collect($actions)->pluck('key')->all());
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_pending_checkout_today_allows_reservation_and_block_but_not_check_in_or_check_out(): void
     {
         Carbon::setTestNow('2026-06-10 10:00:00');

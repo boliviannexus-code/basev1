@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Reservations\MoveReservationRequest;
+use App\Models\ExchangeRate;
 use App\Models\Reservation;
 use App\Services\Reservations\ReservationMoveService;
 use Carbon\CarbonImmutable;
@@ -45,6 +46,7 @@ class ReservationMoveController extends Controller
             'checkIn' => $checkIn,
             'checkOut' => $checkOut,
             'resources' => $this->moves->availableResources($reservation, $checkIn->toDateString(), $checkOut->toDateString()),
+            'currentExchangeRate' => ExchangeRate::currentForCompany((int) $reservation->company_id),
         ]);
     }
 

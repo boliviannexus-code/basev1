@@ -3,6 +3,15 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('reservations:mark-no-shows')
+    ->dailyAt('00:05')
+    ->withoutOverlapping();
+
+Schedule::command('checkouts:extend-unresolved')
+    ->dailyAt('20:00')
+    ->withoutOverlapping();
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

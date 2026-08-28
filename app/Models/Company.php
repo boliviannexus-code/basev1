@@ -41,6 +41,8 @@ class Company extends Model implements Auditable
         'tiktok_url',
         'report_footer',
         'reservation_advance_percentage',
+        'check_out_time',
+        'check_out_alert_snooze_minutes',
         'is_active',
         'is_public_enabled',
     ];
@@ -51,6 +53,7 @@ class Company extends Model implements Auditable
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'reservation_advance_percentage' => 'decimal:2',
+            'check_out_alert_snooze_minutes' => 'integer',
             'is_active' => 'boolean',
             'is_public_enabled' => 'boolean',
             'is_online_enabled_by_admin' => 'boolean',

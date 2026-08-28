@@ -71,7 +71,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label" for="document_number">Numero documento</label>
-                                <input class="form-control @error('main_guest.document_number') is-invalid @enderror @error('document_number') is-invalid @enderror" id="document_number" name="document_number" value="{{ old('main_guest.document_number', old('document_number', $initial['main_guest']['document_number'] ?? '')) }}" autocomplete="off" data-guest-document-number>
+                                <input class="form-control @error('main_guest.document_number') is-invalid @enderror @error('document_number') is-invalid @enderror" id="document_number" name="document_number" value="{{ old('main_guest.document_number', old('document_number', $initial['main_guest']['document_number'] ?? '')) }}" autocomplete="off" required data-guest-document-number>
                                 <div class="invalid-feedback">{{ $errors->first('main_guest.document_number') ?: $errors->first('document_number') }}</div>
                                 <div class="form-hint d-none" data-guest-lookup-message></div>
                             </div>

@@ -10,10 +10,19 @@ class StoreInternalReservationRequest extends StoreCheckInRequest
     {
         $rules = parent::rules();
         $rules['check_in_date'] = ['required', 'date', 'after_or_equal:today'];
+        $rules['main_guest.document_number'] = ['nullable', 'string', 'max:80'];
+        $rules['main_guest.birth_country_id'][0] = 'nullable';
+        $rules['stays.*.guests.*.document_number'] = ['nullable', 'string', 'max:80'];
+        $rules['stays.*.guests.*.birth_country_id'][0] = 'nullable';
         $rules['main_guest.phone'] = ['nullable', 'string', 'max:40'];
         $rules['phone'] = ['nullable', 'string', 'max:40'];
 
         return $rules;
+    }
+
+    protected function requiredAdditionalGuestFields(): array
+    {
+        return ['document_type', 'first_name', 'last_name', 'birth_date'];
     }
 
     public function attributes(): array

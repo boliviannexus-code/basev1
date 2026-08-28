@@ -28,7 +28,13 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard'));
+        $intendedUrl = $request->session()->pull('url.intended');
+
+        if ($request->user()->can('dashboard.view')) {
+            return redirect()->route('dashboard');
+        }
+
+        return redirect()->to($intendedUrl ?? route('public.reservations.index'));
     }
 
     public function logout(Request $request): RedirectResponse

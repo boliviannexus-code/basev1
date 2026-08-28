@@ -73,8 +73,8 @@
                                 <div class="text-muted small">{{ $group->nights }} noche{{ $group->nights === 1 ? '' : 's' }} · {{ $group->guests }} persona{{ $group->guests === 1 ? '' : 's' }}</div>
                             </td>
                             <td>
-                                <div>{{ money_format_decimal($group->total_amount) }} {{ $group->currency }}</div>
-                                <div class="text-muted small">Adelanto {{ money_format_decimal($group->advance_amount) }}</div>
+                                <x-ui.money :amount="$group->total_amount" :currency="$group->currency" :exchange-rate="$currentExchangeRate?->rate" />
+                                <div class="text-muted small">Adelanto <x-ui.money :amount="$group->advance_amount" :currency="$group->currency" :exchange-rate="$currentExchangeRate?->rate" /></div>
                             </td>
                             <td>
                                 <span class="badge bg-{{ $statusTones[$group->status] ?? 'secondary' }}-lt">
@@ -137,8 +137,8 @@
                             <div class="text-muted small">{{ $reservation->nights }} noche{{ $reservation->nights === 1 ? '' : 's' }} · {{ $reservation->guests }} persona{{ $reservation->guests === 1 ? '' : 's' }}</div>
                         </td>
                         <td>
-                            <div>{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</div>
-                            <div class="text-muted small">Adelanto {{ money_format_decimal($reservation->advance_amount) }}</div>
+                            <x-ui.money :amount="$reservation->total_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" />
+                            <div class="text-muted small">Adelanto <x-ui.money :amount="$reservation->advance_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></div>
                         </td>
                         <td>
                             <span class="badge bg-{{ $statusTones[$reservation->status] ?? 'secondary' }}-lt">

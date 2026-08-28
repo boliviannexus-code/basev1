@@ -427,10 +427,10 @@ class OccupancyGridService
     private function actionsForStay(Stay $stay): array
     {
         if ($stay->status === 'checked_out') {
-            return ['view_check_in', 'view_account'];
+            return ['view_check_in', 'manage_account'];
         }
 
-        return ['view_check_in', 'move_stay', 'edit_stay', 'view_account', 'extra_charge', 'check_out'];
+        return ['view_check_in', 'manage_stay', 'manage_account', 'check_out'];
     }
 
     private function toneForReservation($reservation): string

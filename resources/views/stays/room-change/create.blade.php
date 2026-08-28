@@ -24,7 +24,7 @@
             </div>
             <div class="col-md-6">
                 <label class="form-label">Saldo actual</label>
-                <div class="form-control-plaintext fw-semibold">{{ $money($stay->accountStatement?->balance ?? 0) }}</div>
+                <div class="form-control-plaintext fw-semibold"><x-ui.money :amount="$stay->accountStatement?->balance ?? 0" :exchange-rate="$stay->exchange_rate" /></div>
             </div>
         </div>
 

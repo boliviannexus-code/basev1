@@ -35,6 +35,15 @@
     </div>
 </div>
 
+@auth
+    @if (auth()->user()?->company_id && auth()->user()?->can('occupancy.manage'))
+        <div data-checkout-alerts
+             data-index-url="{{ route('checkout-alerts.index') }}"
+             data-snooze-url="{{ route('checkout-alerts.snooze', ['stay' => '__STAY__']) }}"
+             data-snooze-minutes="{{ auth()->user()?->company?->check_out_alert_snooze_minutes ?? 30 }}"></div>
+    @endif
+@endauth
+
 <div class="modal modal-blur fade" id="ajaxModal" tabindex="-1" aria-labelledby="ajaxModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
         <div class="modal-content">

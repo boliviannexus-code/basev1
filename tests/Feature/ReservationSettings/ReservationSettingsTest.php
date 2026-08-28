@@ -30,6 +30,8 @@ class ReservationSettingsTest extends TestCase
         $this->actingAs($user)
             ->put(route('reservation-settings.update'), [
                 'reservation_advance_percentage' => 35.5,
+                'check_out_time' => '10:30',
+                'check_out_alert_snooze_minutes' => 20,
             ])
             ->assertRedirect(route('reservation-settings.edit'))
             ->assertSessionHasNoErrors();
@@ -37,6 +39,8 @@ class ReservationSettingsTest extends TestCase
         $this->assertDatabaseHas('companies', [
             'id' => $company->id,
             'reservation_advance_percentage' => '35.50',
+            'check_out_time' => '10:30:00',
+            'check_out_alert_snooze_minutes' => 20,
         ]);
     }
 }

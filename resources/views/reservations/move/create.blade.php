@@ -54,7 +54,7 @@
             </div>
             <div class="col-md-5">
                 <label class="form-label">Saldo actual</label>
-                <div class="form-control-plaintext fw-semibold">{{ $money($reservation->reservationGroup?->accountStatement?->balance ?? $reservation->balance_amount) }}</div>
+                <div class="form-control-plaintext fw-semibold"><x-ui.money :amount="$reservation->reservationGroup?->accountStatement?->balance ?? $reservation->balance_amount" :exchange-rate="$currentExchangeRate?->rate" /></div>
             </div>
         </div>
 

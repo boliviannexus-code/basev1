@@ -60,7 +60,7 @@
                             <tr>
                                 <td>#{{ $debtStay->id }}</td>
                                 <td>{{ $debtHolder }}</td>
-                                <td class="text-end fw-semibold">{{ $money($debt['balance'], $debt['currency']) }}</td>
+                                <td class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$debt['balance']" :currency="$debt['currency']" :exchange-rate="$debtStay->exchange_rate" /></td>
                             </tr>
                         @endforeach
                     </tbody>

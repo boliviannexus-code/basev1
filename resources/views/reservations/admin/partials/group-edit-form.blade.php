@@ -230,13 +230,18 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Fecha ingreso</label>
-                            <input class="form-control @error('check_in_date') is-invalid @enderror" name="check_in_date" type="date" min="{{ today()->toDateString() }}" value="{{ old('check_in_date', $group->check_in->toDateString()) }}" data-reservation-global-check-in>
+                            <input class="form-control @error('check_in_date') is-invalid @enderror" name="check_in_date" type="date" min="{{ today()->toDateString() }}" value="{{ old('check_in_date', $group->check_in->toDateString()) }}" aria-describedby="reservation-global-date-hint" data-reservation-global-check-in>
                             @error('check_in_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Fecha salida</label>
-                            <input class="form-control @error('check_out_date') is-invalid @enderror" name="check_out_date" type="date" value="{{ old('check_out_date', $group->check_out->toDateString()) }}" data-reservation-global-check-out>
+                            <input class="form-control @error('check_out_date') is-invalid @enderror" name="check_out_date" type="date" value="{{ old('check_out_date', $group->check_out->toDateString()) }}" aria-describedby="reservation-global-date-hint" data-reservation-global-check-out>
                             @error('check_out_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-12">
+                            <div class="form-hint" id="reservation-global-date-hint">
+                                <i class="ti ti-link me-1"></i><span data-reservation-global-nights>{{ $group->nights }} noches · fechas vinculadas</span>
+                            </div>
                         </div>
                     </div>
 

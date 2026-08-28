@@ -2505,6 +2505,65 @@ body {
     font-size: .75rem;
 }
 
+.dashboard-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.dashboard-alert-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.dashboard-alert-card {
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--tblr-border-color);
+    border-left: .25rem solid var(--tblr-secondary);
+    border-radius: var(--tblr-border-radius-lg);
+    background: var(--tblr-bg-surface);
+    box-shadow: var(--tblr-shadow-card);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.dashboard-alert-card:hover { box-shadow: var(--tblr-shadow-card-hover); transform: translateY(-2px); }
+.dashboard-alert-card:focus-visible { outline: .2rem solid color-mix(in srgb, var(--tblr-primary) 30%, transparent); outline-offset: .15rem; }
+
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-alert-card { transition: none; }
+    .dashboard-alert-card:hover { transform: none; }
+}
+
+.dashboard-alert-card-warning { border-left-color: var(--tblr-warning); }
+.dashboard-alert-card-danger { border-left-color: var(--tblr-danger); }
+.dashboard-alert-card-info { border-left-color: var(--tblr-info); }
+
+.dashboard-alert-icon {
+    display: grid;
+    flex: 0 0 2.75rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--tblr-bg-surface-secondary);
+    color: var(--tblr-primary);
+    font-size: 1.35rem;
+}
+
+.dashboard-alert-card > div { min-width: 0; }
+.dashboard-alert-card span,
+.dashboard-alert-card small { display: block; }
+.dashboard-alert-card strong { display: block; margin-block: .1rem; font-size: 1.65rem; line-height: 1.15; }
+.dashboard-alert-card small { color: var(--tblr-secondary); }
+
 .dashboard-bars {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -2624,6 +2683,14 @@ body {
         flex: 1 1 auto;
     }
 
+    .dashboard-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-alert-grid {
+        grid-template-columns: 1fr;
+    }
+
     .dashboard-bars {
         gap: .45rem;
     }
@@ -2638,6 +2705,13 @@ body {
 
     .dashboard-rank-meter {
         grid-column: 1 / -1;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1199.98px) {
+    .dashboard-kpi-grid,
+    .dashboard-alert-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 

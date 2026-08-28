@@ -5,8 +5,8 @@ namespace App\Http\Requests\CheckIns;
 use App\Models\AvailabilityStatus;
 use App\Models\Country;
 use App\Models\OccupancyBlock;
-use App\Models\ReservationGroup;
 use App\Models\ReservationChannel;
+use App\Models\ReservationGroup;
 use App\Models\RoomBedUnit;
 use App\Models\Space;
 use App\Models\SpaceRoom;
@@ -33,7 +33,7 @@ class StoreCheckInRequest extends FormRequest
         return [
             'check_in_type' => ['required', Rule::in(['individual', 'multiple'])],
             'main_guest.document_type' => ['required', Rule::in(['passport', 'dni', 'ci', 'other'])],
-            'main_guest.document_number' => ['nullable', 'string', 'max:80'],
+            'main_guest.document_number' => ['required', 'string', 'max:80'],
             'main_guest.first_name' => ['required', 'string', 'max:120'],
             'main_guest.last_name' => ['required', 'string', 'max:120'],
             'main_guest.birth_country_id' => [
@@ -68,7 +68,7 @@ class StoreCheckInRequest extends FormRequest
             'stays.*.breakfast_included' => ['sometimes', 'boolean'],
             'stays.*.guests' => ['nullable', 'array'],
             'stays.*.guests.*.document_type' => ['required_with:stays.*.guests', Rule::in(['passport', 'dni', 'ci', 'other'])],
-            'stays.*.guests.*.document_number' => ['nullable', 'string', 'max:80'],
+            'stays.*.guests.*.document_number' => ['required_with:stays.*.guests', 'string', 'max:80'],
             'stays.*.guests.*.first_name' => ['required_with:stays.*.guests', 'string', 'max:120'],
             'stays.*.guests.*.last_name' => ['required_with:stays.*.guests', 'string', 'max:120'],
             'stays.*.guests.*.birth_date' => ['required_with:stays.*.guests', 'date', 'before_or_equal:today'],
@@ -140,7 +140,7 @@ class StoreCheckInRequest extends FormRequest
                 }
 
                 foreach ($stay['guests'] ?? [] as $guestIndex => $guest) {
-                    foreach (['document_type', 'first_name', 'last_name', 'birth_date', 'birth_country_id'] as $field) {
+                    foreach ($this->requiredAdditionalGuestFields() as $field) {
                         if (! filled($guest[$field] ?? null)) {
                             $validator->errors()->add("stays.{$index}.guests.{$guestIndex}.{$field}", 'Completa este dato del huesped.');
                         }
@@ -150,6 +150,11 @@ class StoreCheckInRequest extends FormRequest
                 $this->validateStayResource($validator, $companyId, (int) $index, $stay);
             }
         });
+    }
+
+    protected function requiredAdditionalGuestFields(): array
+    {
+        return ['document_type', 'document_number', 'first_name', 'last_name', 'birth_date', 'birth_country_id'];
     }
 
     protected function prepareForValidation(): void

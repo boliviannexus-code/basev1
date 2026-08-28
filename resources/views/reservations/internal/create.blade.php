@@ -71,14 +71,14 @@
                                 <div class="invalid-feedback">{{ $errors->first('main_guest.document_type') ?: $errors->first('document_type') }}</div>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label" for="document_number">Numero documento</label>
+                                <label class="form-label" for="document_number">Numero documento <span class="text-body-secondary fw-normal">(opcional)</span></label>
                                 <input class="form-control @error('main_guest.document_number') is-invalid @enderror @error('document_number') is-invalid @enderror" id="document_number" name="document_number" value="{{ old('main_guest.document_number', old('document_number')) }}" autocomplete="off" data-guest-document-number>
                                 <div class="invalid-feedback">{{ $errors->first('main_guest.document_number') ?: $errors->first('document_number') }}</div>
                                 <div class="form-hint d-none" data-guest-lookup-message></div>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label" for="birth_country_id">Pais de nacimiento</label>
-                                <select class="form-select @error('main_guest.birth_country_id') is-invalid @enderror @error('birth_country_id') is-invalid @enderror" id="birth_country_id" name="birth_country_id" autocomplete="new-password" data-browser-autofill-off data-country-autocomplete data-placeholder="Buscar pais" required data-main-guest-country>
+                                <label class="form-label" for="birth_country_id">Pais de nacimiento <span class="text-body-secondary fw-normal">(opcional)</span></label>
+                                <select class="form-select @error('main_guest.birth_country_id') is-invalid @enderror @error('birth_country_id') is-invalid @enderror" id="birth_country_id" name="birth_country_id" autocomplete="new-password" data-browser-autofill-off data-country-autocomplete data-placeholder="Buscar pais" data-main-guest-country>
                                     @if ($selectedBirthCountry)
                                         <option value="{{ $selectedBirthCountry->id }}" selected>{{ $selectedBirthCountry->name }} ({{ $selectedBirthCountry->iso_code }})</option>
                                     @endif

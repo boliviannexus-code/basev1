@@ -38,6 +38,95 @@ function showInitialAlerts() {
     }
 }
 
+function initCheckOutAlerts() {
+    const config = document.querySelector('[data-checkout-alerts]');
+
+    if (!config) return;
+
+    let checking = false;
+    const pauseStorageKey = 'checkout-alerts-paused-until';
+    const alertsArePaused = () => {
+        const pausedUntil = Number(window.sessionStorage.getItem(pauseStorageKey) ?? 0);
+        const maximumPause = Math.max(Number(config.dataset.snoozeMinutes ?? 30), 1) * 60000;
+        const remaining = pausedUntil - Date.now();
+
+        if (remaining <= 0 || remaining > maximumPause) {
+            window.sessionStorage.removeItem(pauseStorageKey);
+
+            return false;
+        }
+
+        return true;
+    };
+
+    const endpoint = (template, stayId) => template.replace('__STAY__', String(stayId));
+    const post = async (url) => {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message ?? 'No se pudo completar la accion.');
+        return payload;
+    };
+
+    const showStay = async (stay) => {
+        const result = await Swal.fire({
+            icon: stay.permanent ? 'error' : 'warning',
+            title: stay.permanent ? 'Conflicto de habitacion pendiente' : 'Check-out pendiente',
+            html: `<strong>${stay.unit || 'Habitacion'}</strong><br>${stay.guest}<br><span class="text-muted">Salida: ${stay.check_out_date}</span>${stay.balance > 0 ? `<br><span class="text-danger">Saldo pendiente: ${stay.balance.toFixed(2)} Bs</span>` : ''}${stay.permanent ? '<br><span class="text-danger fw-bold">No fue posible extender la estancia porque la habitacion tiene otra reserva o bloqueo. Esta alerta continuara hasta resolver el conflicto.</span>' : ''}`,
+            confirmButtonText: 'Ver check-in',
+            cancelButtonText: `Recordar en ${stay.snooze_minutes} min`,
+            showCancelButton: true,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            reverseButtons: true,
+        });
+
+        try {
+            await post(endpoint(config.dataset.snoozeUrl, stay.id));
+
+            if (result.isConfirmed) {
+                window.sessionStorage.setItem(
+                    pauseStorageKey,
+                    String(Date.now() + (Number(stay.snooze_minutes) * 60000)),
+                );
+                window.location.href = stay.check_in_url;
+
+                return true;
+            }
+        } catch (error) {
+            await Swal.fire({ icon: 'error', title: 'Accion pendiente', text: error.message });
+        }
+
+        return false;
+    };
+
+    const check = async () => {
+        if (checking || Swal.isVisible() || alertsArePaused()) return;
+        checking = true;
+        try {
+            const response = await fetch(config.dataset.indexUrl, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!response.ok) return;
+            const payload = await response.json();
+            for (const stay of payload.data ?? []) {
+                const navigatingToCheckIn = await showStay(stay);
+
+                if (navigatingToCheckIn) break;
+            }
+        } finally {
+            checking = false;
+        }
+    };
+
+    check();
+    window.setInterval(check, 60000);
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) check();
+    });
+}
+
 async function fetchHtml(url) {
     const response = await fetch(url, {
         headers: {
@@ -5629,12 +5718,23 @@ function initReservationGroupForms(scope = document) {
 
         const globalCheckIn = form.querySelector('[data-reservation-global-check-in]');
         const globalCheckOut = form.querySelector('[data-reservation-global-check-out]');
+        const globalNights = form.querySelector('[data-reservation-global-nights]');
+        const daysBetween = (start, end) => Math.round((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000);
+        let linkedNights = globalCheckIn?.value && globalCheckOut?.value
+            ? Math.max(daysBetween(globalCheckIn.value, globalCheckOut.value), 1)
+            : 1;
+
         const syncGlobalDates = () => {
             if (!globalCheckIn?.value || !globalCheckOut?.value) {
                 return;
             }
 
-            const nights = Math.max(Math.round((new Date(`${globalCheckOut.value}T00:00:00`) - new Date(`${globalCheckIn.value}T00:00:00`)) / 86400000), 1);
+            const minCheckOut = addDays(globalCheckIn.value, 1);
+            globalCheckOut.min = minCheckOut;
+
+            if (globalNights) {
+                globalNights.textContent = `${linkedNights} ${linkedNights === 1 ? 'noche' : 'noches'} · fechas vinculadas`;
+            }
 
             form.querySelectorAll('[data-reservation-date-row]').forEach((row) => {
                 const checkIn = row.querySelector('[data-reservation-check-in]');
@@ -5643,18 +5743,32 @@ function initReservationGroupForms(scope = document) {
 
                 if (checkIn) checkIn.value = globalCheckIn.value;
                 if (checkOut) checkOut.value = globalCheckOut.value;
-                if (nightsInput) nightsInput.value = String(nights);
+                if (nightsInput) nightsInput.value = String(linkedNights);
             });
         };
 
-        globalCheckIn?.addEventListener('change', syncGlobalDates);
-        globalCheckOut?.addEventListener('change', syncGlobalDates);
+        globalCheckIn?.addEventListener('change', () => {
+            if (globalCheckIn.value && globalCheckOut) {
+                globalCheckOut.value = addDays(globalCheckIn.value, linkedNights);
+            }
+
+            syncGlobalDates();
+        });
+        globalCheckOut?.addEventListener('change', () => {
+            if (globalCheckOut.value && globalCheckIn) {
+                globalCheckIn.value = addDays(globalCheckOut.value, -linkedNights);
+            }
+
+            syncGlobalDates();
+        });
+        syncGlobalDates();
 
         form.dataset.reservationGroupInitialized = '1';
     });
 }
 
 showInitialAlerts();
+initCheckOutAlerts();
 disableBusinessFormAutocomplete();
 initHumanTextCapitalization();
 initTomSelects();
@@ -5696,6 +5810,7 @@ initReservationMoveForms();
 initReservationGroupForms();
 
 document.addEventListener('click', (event) => {
+    const stayCheckOut = event.target.closest('[data-stay-checkout]');
     const modalTrigger = event.target.closest('[data-modal-url]');
     const roomServicesCopyAll = event.target.closest('[data-room-services-copy-all]');
     const sharedRoomEditToggle = event.target.closest('[data-shared-room-edit-toggle]');
@@ -5705,6 +5820,52 @@ document.addEventListener('click', (event) => {
     const packageIconOption = event.target.closest('[data-package-icon-option]');
     const packageServiceAdd = event.target.closest('[data-package-service-add]');
     const packageServiceRemove = event.target.closest('[data-package-service-remove]');
+
+    if (stayCheckOut) {
+        event.preventDefault();
+        Swal.fire({
+            icon: 'warning',
+            title: 'Confirmar check-out',
+            text: `Se cerrara la estancia de ${stayCheckOut.dataset.resourceLabel || 'esta habitacion'}.`,
+            showCancelButton: true,
+            confirmButtonText: 'Realizar check-out',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#f59f00',
+        }).then(async (result) => {
+            if (!result.isConfirmed) return;
+
+            try {
+                stayCheckOut.disabled = true;
+                const response = await fetch(stayCheckOut.dataset.checkoutUrl, {
+                    method: 'POST',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const payload = await response.json();
+
+                if (!response.ok || payload.success === false) {
+                    const blocked = await Swal.fire({
+                        icon: 'error',
+                        title: 'Check-out bloqueado',
+                        text: payload.message ?? 'No se pudo realizar el check-out.',
+                        showCancelButton: true,
+                        confirmButtonText: 'Ver estado de cuenta',
+                        cancelButtonText: 'Cerrar',
+                    });
+                    if (blocked.isConfirmed) window.location.href = stayCheckOut.dataset.accountUrl;
+                    return;
+                }
+
+                await Swal.fire({ icon: 'success', title: 'Check-out realizado', text: payload.message, timer: 1600, showConfirmButton: false });
+                window.location.reload();
+            } catch (error) {
+                Swal.fire({ icon: 'error', title: 'Error', text: error.message });
+            } finally {
+                stayCheckOut.disabled = false;
+            }
+        });
+
+        return;
+    }
 
     if (modalTrigger) {
         event.preventDefault();

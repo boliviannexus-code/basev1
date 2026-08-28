@@ -210,9 +210,9 @@ class OccupancyGridActionService
                 'tone' => 'primary',
             ],
             [
-                'key' => 'view_account',
-                'label' => 'Estado de cuenta',
-                'icon' => 'ti-receipt-2',
+                'key' => 'manage_account',
+                'label' => 'Cuenta y cobros',
+                'icon' => 'ti-wallet',
                 'tone' => 'success',
                 'url' => route('stays.account', $stay),
             ],
@@ -225,34 +225,16 @@ class OccupancyGridActionService
         return [
             $base[0],
             [
-                'key' => 'move_stay',
-                'label' => 'Cambiar habitacion',
-                'icon' => 'ti-switch-horizontal',
+                'key' => 'manage_stay',
+                'label' => 'Gestionar estancia',
+                'icon' => 'ti-settings',
                 'tone' => 'primary',
-            ],
-            [
-                'key' => 'edit_stay',
-                'label' => 'Editar estancia',
-                'icon' => 'ti-edit',
-                'tone' => 'secondary',
                 'url' => route('check-ins.edit', [
                     'checkInGroup' => $stay->check_in_group_id,
                     'highlight_stay' => $stay->id,
                 ]).'#stay-'.$stay->id,
             ],
             $base[1],
-            [
-                'key' => 'collect_stay_payment',
-                'label' => 'Cobrar',
-                'icon' => 'ti-cash-register',
-                'tone' => 'success',
-            ],
-            [
-                'key' => self::ACTION_EXTRA_CHARGE,
-                'label' => 'Agregar cargo extra',
-                'icon' => 'ti-plus',
-                'tone' => 'primary',
-            ],
             [
                 'key' => self::ACTION_CHECK_OUT,
                 'label' => 'Check-out',

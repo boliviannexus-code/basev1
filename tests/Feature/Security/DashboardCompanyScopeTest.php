@@ -45,6 +45,8 @@ class DashboardCompanyScopeTest extends TestCase
 
         $this->stay($company, $privateSpace, people: 2, breakfast: true, checkIn: now()->subDay(), checkOut: now()->addDay());
         $this->stay($company, $sharedSpace, $room, people: 1, breakfast: true, checkIn: now()->subDay(), checkOut: now()->addDay());
+        $this->stay($company, $privateSpace, people: 1, checkIn: now(), checkOut: now()->addDays(2));
+        $this->stay($company, $privateSpace, people: 1, checkIn: now()->subDay(), checkOut: now());
 
         $otherSpace = $this->privateSpace($otherCompany, 'Casa Ajena');
         $this->stay($otherCompany, $otherSpace, people: 9, breakfast: true, checkIn: now()->subDay(), checkOut: now()->addDay());
@@ -65,23 +67,73 @@ class DashboardCompanyScopeTest extends TestCase
             'status' => 'confirmed',
             'guests' => 8,
         ]);
+        ReservationGroup::factory()->create([
+            'company_id' => $company->id,
+            'code' => 'RSG-DASH-0002',
+            'guest_name' => 'Pendiente Hoy',
+            'check_in' => now()->toDateString(),
+            'check_out' => now()->addDay()->toDateString(),
+            'status' => 'pending_payment',
+        ]);
+        ReservationGroup::factory()->create([
+            'company_id' => $company->id,
+            'code' => 'RSG-DASH-0003',
+            'guest_name' => 'Pendiente Futuro',
+            'check_in' => now()->addDay()->toDateString(),
+            'check_out' => now()->addDays(2)->toDateString(),
+            'status' => 'pending_payment',
+        ]);
 
-        $this
+        $response = $this
             ->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Empresa Local')
             ->assertSee('companies/local-logo.png')
             ->assertSee('Contexto de empresa')
-            ->assertSee('Habitaciones compartidas ocupadas')
-            ->assertSee('Espacios privados ocupados')
-            ->assertSee('Desayunos para hoy')
+            ->assertSee('Ocupacion')
+            ->assertSee('Habitaciones ocupadas')
+            ->assertSee('Disponibles esta noche')
+            ->assertSee('Check-ins hoy')
+            ->assertSee('Check-outs hoy')
+            ->assertSee('Desayunos hoy')
+            ->assertSee('Resumen por espacio')
+            ->assertSee('Alertas operativas')
+            ->assertSee('Habitaciones para check-out')
+            ->assertSee('Habitaciones con saldo pendiente')
+            ->assertSee('Reservas para hoy')
+            ->assertSee('1 pendientes de pago o revision')
+            ->assertDontSee('Informacion de empresa')
+            ->assertDontSee('Reservas por estado')
             ->assertSee('Casa Local')
             ->assertSee('Hostal Local')
             ->assertSee('Reserva Local')
             ->assertDontSee('Empresa Ajena')
             ->assertDontSee('Casa Ajena')
             ->assertDontSee('Reserva Ajena');
+
+        $occupancy = $response->viewData('occupancy');
+
+        $this->assertSame(100, $occupancy['occupancy_rate']);
+        $this->assertSame(2, $occupancy['occupied_units']);
+        $this->assertSame(2, $occupancy['total_units']);
+        $this->assertSame(0, $occupancy['available_units']);
+        $this->assertSame(1, $occupancy['check_ins_today']);
+        $this->assertSame(1, $occupancy['check_outs_today']);
+        $this->assertCount(2, $occupancy['by_space']);
+
+        $breakfast = $response->viewData('breakfast');
+
+        $this->assertSame(3, $breakfast['total_people']);
+        $this->assertSame(2, $breakfast['by_space']->firstWhere('space.id', $privateSpace->id)['people']);
+        $this->assertSame(1, $breakfast['by_space']->firstWhere('space.id', $sharedSpace->id)['people']);
+
+        $alerts = $response->viewData('alerts');
+
+        $this->assertSame(1, $alerts['pending_reservations']);
+        $this->assertCount(1, $alerts['check_out_rooms']);
+        $this->assertCount(0, $alerts['pending_balance_rooms']);
+        $this->assertCount(2, $alerts['reservations_today']);
     }
 
     public function test_global_super_admin_dashboard_sees_company_summary_without_financial_details(): void
@@ -103,8 +155,7 @@ class DashboardCompanyScopeTest extends TestCase
             ->assertSee('Empresa Uno')
             ->assertSee('Empresa Dos')
             ->assertSee('Sin datos financieros')
-            ->assertDontSee('Total Bs')
-            ->assertDontSee('Saldo');
+            ->assertDontSee('Total Bs');
     }
 
     public function test_super_admin_with_company_dashboard_is_scoped_to_assigned_company(): void

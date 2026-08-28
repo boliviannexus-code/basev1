@@ -1,8 +1,8 @@
 @extends('layouts.admin')
 
-@section('title', 'Estado de cuenta | '.config('app.name', 'Base Admin'))
-@section('page-title', 'Estado de cuenta')
-@section('page-subtitle', $stay->checkInGroup?->code.' - Estancia #'.$stay->id)
+@section('title', 'Cuenta y cobros | '.config('app.name', 'Base Admin'))
+@section('page-title', 'Cuenta y cobros')
+@section('page-subtitle', 'Consulta cargos, registra consumos y cobra la estancia '.$stay->checkInGroup?->code)
 
 @section('content')
     @php
@@ -20,7 +20,52 @@
         $paymentItems = $activeItems->where('type', 'payment');
         $cancelledItems = $statement->items->where('status', 'cancelled')->sortBy('date');
         $money = fn ($value, $currency = null) => number_format((float) $value, 2).' '.($currency ?: $statement->currency);
+        $exchangeRate = (float) $stay->exchange_rate;
+        $status = [
+            'paid' => ['label' => 'Pagado', 'tone' => 'success'],
+            'partial' => ['label' => 'Pago parcial', 'tone' => 'warning'],
+            'open' => ['label' => 'Pendiente', 'tone' => 'secondary'],
+        ][$statement->status] ?? ['label' => ucfirst($statement->status), 'tone' => 'secondary'];
     @endphp
+
+    <x-ui.card class="mb-3">
+        <div class="card-body">
+            <div class="d-flex flex-column flex-lg-row gap-3 justify-content-between align-items-lg-center">
+                <div>
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                        <span class="text-secondary">Saldo pendiente</span>
+                        <span class="badge bg-{{ $status['tone'] }}-lt">{{ $status['label'] }}</span>
+                    </div>
+                    <div class="fs-1 fw-bold lh-1"><x-ui.money :amount="$statement->balance" :currency="$statement->currency" :exchange-rate="$exchangeRate" /></div>
+                    <div class="text-secondary small mt-2">{{ $holderName }} · {{ $resourceLabel ?: 'Hospedaje' }}</div>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <button
+                        class="btn btn-outline-primary"
+                        type="button"
+                        data-modal-url="{{ route('stays.extra-charges.create', $stay) }}"
+                        data-modal-title="Agregar cargo extra"
+                    >
+                        <i class="ti ti-plus me-1"></i>Agregar cargo
+                    </button>
+                    @if ((float) $statement->balance > 0 && $openRegister)
+                        <button
+                            class="btn btn-success"
+                            type="button"
+                            data-modal-url="{{ route('stays.payments.create', $stay) }}"
+                            data-modal-title="Cobrar estancia"
+                        >
+                            <i class="ti ti-cash-register me-1"></i>Cobrar saldo
+                        </button>
+                    @elseif ((float) $statement->balance > 0)
+                        <a class="btn btn-outline-success" href="{{ route('space-cash.index') }}">
+                            <i class="ti ti-cash-register me-1"></i>Iniciar caja para cobrar
+                        </a>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </x-ui.card>
 
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
         <div class="btn-list">
@@ -30,24 +75,7 @@
             <a class="btn btn-outline-primary btn-sm" href="{{ route('check-ins.edit', ['checkInGroup' => $stay->check_in_group_id, 'highlight_stay' => $stay->id]) }}#stay-{{ $stay->id }}">
                 <i class="ti ti-edit me-1"></i>Editar estancia
             </a>
-            @if ((float) $statement->balance > 0 && $openRegister)
-                <button
-                    class="btn btn-success btn-sm"
-                    type="button"
-                    data-modal-url="{{ route('stays.payments.create', $stay) }}"
-                    data-modal-title="Cobrar estancia"
-                >
-                    <i class="ti ti-cash-register me-1"></i>Cobrar
-                </button>
-            @elseif ((float) $statement->balance > 0)
-                <a class="btn btn-outline-success btn-sm" href="{{ route('space-cash.index') }}">
-                    <i class="ti ti-cash-register me-1"></i>Iniciar caja de espacios
-                </a>
-            @endif
         </div>
-        <span class="badge bg-{{ $statement->status === 'paid' ? 'success' : ($statement->status === 'partial' ? 'warning' : 'secondary') }}-lt">
-            {{ ucfirst($statement->status) }}
-        </span>
     </div>
 
     <div class="row g-3">
@@ -169,8 +197,8 @@
                                     <td>{{ $item->date->format('d/m/Y') }}</td>
                                     <td>{{ $item->description }}</td>
                                     <td class="text-end">{{ number_format((float) $item->quantity, 2) }}</td>
-                                    <td class="text-end">{{ number_format((float) $item->unit_price, 2) }} Bs</td>
-                                    <td class="text-end fw-semibold">{{ number_format((float) $item->total, 2) }} Bs</td>
+                                    <td class="text-end"><x-ui.money class="align-items-end" :amount="$item->unit_price" :currency="$item->currency" :exchange-rate="$exchangeRate" /></td>
+                                    <td class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$item->total" :currency="$item->currency" :exchange-rate="$exchangeRate" /></td>
                                 </tr>
                             @empty
                                 <tr>
@@ -213,8 +241,8 @@
                                     <td>{{ $item->extraChargeCategory?->name ?: '-' }}</td>
                                     <td>{{ $item->description }}</td>
                                     <td class="text-end">{{ number_format((float) $item->quantity, 2) }}</td>
-                                    <td class="text-end">{{ $money($item->unit_price, $item->currency) }}</td>
-                                    <td class="text-end fw-semibold">{{ $money($item->total, $item->currency) }}</td>
+                                    <td class="text-end"><x-ui.money class="align-items-end" :amount="$item->unit_price" :currency="$item->currency" :exchange-rate="$exchangeRate" /></td>
+                                    <td class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$item->total" :currency="$item->currency" :exchange-rate="$exchangeRate" /></td>
                                 </tr>
                             @empty
                                 <tr>
@@ -235,23 +263,23 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between py-2 border-bottom">
                         <span>Subtotal</span>
-                        <strong>{{ $money($statement->subtotal) }}</strong>
+                        <strong><x-ui.money class="align-items-end" :amount="$statement->subtotal" :currency="$statement->currency" :exchange-rate="$exchangeRate" /></strong>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                         <span>Extras</span>
-                        <strong>{{ $money($statement->extra_charges_total) }}</strong>
+                        <strong><x-ui.money class="align-items-end" :amount="$statement->extra_charges_total" :currency="$statement->currency" :exchange-rate="$exchangeRate" /></strong>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                         <span>Descuentos</span>
-                        <strong>{{ $money($statement->discount_total) }}</strong>
+                        <strong><x-ui.money class="align-items-end" :amount="$statement->discount_total" :currency="$statement->currency" :exchange-rate="$exchangeRate" /></strong>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                         <span>Pagado</span>
-                        <strong>{{ $money($statement->payments_total) }}</strong>
+                        <strong><x-ui.money class="align-items-end" :amount="$statement->payments_total" :currency="$statement->currency" :exchange-rate="$exchangeRate" /></strong>
                     </div>
                     <div class="d-flex justify-content-between align-items-center pt-3">
                         <span class="fw-semibold">Saldo</span>
-                        <strong class="fs-2">{{ $money($statement->balance) }}</strong>
+                        <strong class="fs-2"><x-ui.money class="align-items-end" :amount="$statement->balance" :currency="$statement->currency" :exchange-rate="$exchangeRate" /></strong>
                     </div>
 
                     @if (auth()->user()?->hasRole('super_admin'))
@@ -324,7 +352,7 @@
                         @foreach ($cancelledItems as $item)
                             <div class="d-flex justify-content-between gap-2 py-2 border-bottom">
                                 <span>{{ $item->date?->format('d/m/Y') }} - {{ $item->description }}</span>
-                                <strong>{{ $money($item->total, $item->currency) }}</strong>
+                                <strong><x-ui.money class="align-items-end" :amount="$item->total" :currency="$item->currency" :exchange-rate="$exchangeRate" /></strong>
                             </div>
                         @endforeach
                     </div>

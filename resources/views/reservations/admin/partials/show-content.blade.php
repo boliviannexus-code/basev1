@@ -44,11 +44,11 @@
     <x-ui.card title="Resumen de pago">
         <div class="card-body">
             <dl class="reservation-admin-dl">
-                <div><dt>Precio noche</dt><dd>{{ money_format_decimal($reservation->price_per_person) }} {{ $reservation->currency }}</dd></div>
-                <div><dt>Subtotal</dt><dd>{{ money_format_decimal($reservation->subtotal_amount) }} {{ $reservation->currency }}</dd></div>
-                <div><dt>Total</dt><dd>{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</dd></div>
-                <div><dt>Adelanto</dt><dd>{{ money_format_decimal($reservation->advance_amount) }} {{ $reservation->currency }}</dd></div>
-                <div><dt>Saldo</dt><dd>{{ money_format_decimal($reservation->balance_amount) }} {{ $reservation->currency }}</dd></div>
+                <div><dt>Precio noche</dt><dd><x-ui.money :amount="$reservation->price_per_person" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
+                <div><dt>Subtotal</dt><dd><x-ui.money :amount="$reservation->subtotal_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
+                <div><dt>Total</dt><dd><x-ui.money :amount="$reservation->total_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
+                <div><dt>Adelanto</dt><dd><x-ui.money :amount="$reservation->advance_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
+                <div><dt>Saldo</dt><dd><x-ui.money :amount="$reservation->balance_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
                 <div><dt>Referencia</dt><dd>{{ $reservation->payment_reference ?: 'Sin referencia' }}</dd></div>
             </dl>
         </div>

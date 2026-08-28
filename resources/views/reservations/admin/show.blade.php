@@ -84,11 +84,11 @@
         <x-ui.card title="Resumen de pago">
             <div class="card-body">
                 <dl class="reservation-admin-dl">
-                    <div><dt>Precio por noche</dt><dd>{{ money_format_decimal($reservation->price_per_person) }} {{ $reservation->currency }}</dd></div>
-                    <div><dt>Subtotal</dt><dd>{{ money_format_decimal($reservation->subtotal_amount) }} {{ $reservation->currency }}</dd></div>
-                    <div><dt>Total</dt><dd>{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</dd></div>
-                    <div><dt>Adelanto requerido</dt><dd>{{ money_format_decimal($reservation->advance_amount) }} {{ $reservation->currency }}</dd></div>
-                    <div><dt>Saldo pendiente</dt><dd>{{ money_format_decimal($reservation->balance_amount) }} {{ $reservation->currency }}</dd></div>
+                    <div><dt>Precio por noche</dt><dd><x-ui.money :amount="$reservation->price_per_person" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
+                    <div><dt>Subtotal</dt><dd><x-ui.money :amount="$reservation->subtotal_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
+                    <div><dt>Total</dt><dd><x-ui.money :amount="$reservation->total_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
+                    <div><dt>Adelanto requerido</dt><dd><x-ui.money :amount="$reservation->advance_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
+                    <div><dt>Saldo pendiente</dt><dd><x-ui.money :amount="$reservation->balance_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
                     <div><dt>Referencia</dt><dd>{{ $reservation->payment_reference ?: 'Sin referencia' }}</dd></div>
                 </dl>
 
@@ -97,7 +97,7 @@
                         <h4 class="h6">Habitaciones reservadas</h4>
                         <div class="public-chip-list">
                             @foreach ($reservation->roomItems as $item)
-                                <span>{{ $item->room?->title ?: $item->room?->name }} · Cap. {{ $item->capacity }} · {{ money_format_decimal($item->subtotal_amount) }} {{ $reservation->currency }}</span>
+                                <span>{{ $item->room?->title ?: $item->room?->name }} · Cap. {{ $item->capacity }} · <x-ui.money :amount="$item->subtotal_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></span>
                             @endforeach
                         </div>
                     </div>
@@ -151,8 +151,8 @@
                             <td>{{ $charge->category?->name ?: '-' }}</td>
                             <td>{{ $charge->detail }}</td>
                             <td class="text-end">{{ number_format((float) $charge->quantity, 2) }}</td>
-                            <td class="text-end">{{ money_format_decimal($charge->unit_price) }} Bs</td>
-                            <td class="text-end fw-semibold">{{ money_format_decimal($charge->total) }} Bs</td>
+                            <td class="text-end"><x-ui.money class="align-items-end" :amount="$charge->unit_price" :exchange-rate="$currentExchangeRate?->rate" /></td>
+                            <td class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$charge->total" :exchange-rate="$currentExchangeRate?->rate" /></td>
                             <td class="text-end"><span class="badge text-bg-success">Activo</span></td>
                             <td class="text-end">
                                 @can('reservations.manage')
@@ -177,8 +177,8 @@
                             <td>{{ $charge->category?->name ?: '-' }}</td>
                             <td>{{ $charge->detail }}</td>
                             <td class="text-end">{{ number_format((float) $charge->quantity, 2) }}</td>
-                            <td class="text-end">{{ money_format_decimal($charge->unit_price) }} Bs</td>
-                            <td class="text-end">{{ money_format_decimal($charge->total) }} Bs</td>
+                            <td class="text-end"><x-ui.money class="align-items-end" :amount="$charge->unit_price" :exchange-rate="$currentExchangeRate?->rate" /></td>
+                            <td class="text-end"><x-ui.money class="align-items-end" :amount="$charge->total" :exchange-rate="$currentExchangeRate?->rate" /></td>
                             <td class="text-end"><span class="badge text-bg-secondary">Cancelado</span></td>
                             <td></td>
                         </tr>

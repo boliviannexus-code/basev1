@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Reservation;
 use App\Models\ReservationGroup;
+use App\Models\Space;
 use App\Models\Stay;
 use App\Support\CompanyContext;
 use Carbon\CarbonImmutable;
@@ -33,7 +34,63 @@ class DashboardController extends Controller
             'occupancy' => $this->occupancySummary($companyId, $today),
             'breakfast' => $this->breakfastSummary($companyId, $today),
             'reservations' => $this->reservationSummary($companyId, $today),
+            'alerts' => $this->operationalAlerts($companyId, $today),
         ]);
+    }
+
+    private function operationalAlerts(?int $companyId, CarbonImmutable $today): array
+    {
+        $pendingStatuses = ['pending_payment', 'payment_under_review'];
+        $activeReservationStatuses = ['pending_payment', 'payment_under_review', 'confirmed', 'checked_in'];
+
+        $reservationGroups = ReservationGroup::query()
+            ->withoutGlobalScope('company')
+            ->when($companyId, fn (Builder $query): Builder => $query->where('company_id', $companyId));
+        $singleReservations = Reservation::query()
+            ->withoutGlobalScope('company')
+            ->whereNull('reservation_group_id')
+            ->when($companyId, fn (Builder $query): Builder => $query->where('company_id', $companyId));
+
+        $reservationRelations = [
+            'company',
+            'reservations.space',
+            'reservations.room',
+            'reservations.roomItems.room',
+            'reservations.bedUnitItems.bedUnit.room',
+        ];
+        $todayGroups = (clone $reservationGroups)
+            ->with($reservationRelations)
+            ->whereIn('status', $activeReservationStatuses)
+            ->whereDate('check_in', $today->toDateString())
+            ->orderBy('guest_name')
+            ->get();
+        $todaySingles = (clone $singleReservations)
+            ->with(['company', 'space', 'room', 'roomItems.room', 'bedUnitItems.bedUnit.room'])
+            ->whereIn('status', $activeReservationStatuses)
+            ->whereDate('check_in', $today->toDateString())
+            ->orderBy('guest_name')
+            ->get();
+        $reservationsToday = $todayGroups->concat($todaySingles)->values();
+        $pending = $reservationsToday->whereIn('status', $pendingStatuses)->count();
+
+        $stays = Stay::query()
+            ->withoutGlobalScope('company')
+            ->when($companyId, fn (Builder $query): Builder => $query->where('company_id', $companyId))
+            ->where('status', 'occupied')
+            ->with(['company', 'space', 'room', 'bedUnit', 'holderGuest', 'accountStatement']);
+        $checkOuts = (clone $stays)
+            ->whereDate('check_out_date', $today->toDateString())
+            ->get();
+        $pendingBalances = (clone $stays)
+            ->whereHas('accountStatement', fn (Builder $query): Builder => $query->where('balance', '>', 0))
+            ->get();
+
+        return [
+            'pending_reservations' => $pending,
+            'check_out_rooms' => $checkOuts,
+            'pending_balance_rooms' => $pendingBalances,
+            'reservations_today' => $reservationsToday,
+        ];
     }
 
     private function companySummaries(?int $companyId): Collection
@@ -52,14 +109,56 @@ class DashboardController extends Controller
 
     private function occupancySummary(?int $companyId, CarbonImmutable $today): array
     {
+        $spaces = Space::query()
+            ->withoutGlobalScope('company')
+            ->when($companyId, fn (Builder $query): Builder => $query->where('company_id', $companyId))
+            ->where('status', 'active')
+            ->with([
+                'spaceMode',
+                'rooms' => fn ($query) => $query->where('status', 'active'),
+                'rooms.bedUnits' => fn ($query) => $query->where('status', 'active'),
+            ])
+            ->get();
         $occupiedStays = $this->staysOnDate($companyId, $today)
             ->with(['space.spaceMode', 'room'])
             ->get();
 
         $sharedStays = $occupiedStays->filter(fn (Stay $stay): bool => $stay->space?->spaceMode?->slug === 'compartido');
         $privateStays = $occupiedStays->filter(fn (Stay $stay): bool => $stay->space?->spaceMode?->slug === 'privado');
+        $checkIns = $this->staysForEventDate($companyId, 'check_in_date', $today)->get();
+        $checkOuts = $this->staysForEventDate($companyId, 'check_out_date', $today)->get();
+        $bySpace = $spaces
+            ->map(function (Space $space) use ($occupiedStays, $checkIns, $checkOuts): array {
+                $spaceStays = $occupiedStays->where('space_id', $space->id);
+                $totalUnits = $this->spaceUnitCount($space);
+                $occupiedUnits = $spaceStays
+                    ->unique(fn (Stay $stay): string => $stay->space_id.'-'.($stay->space_room_id ?: 'space').'-'.($stay->room_bed_unit_id ?: 'room'))
+                    ->count();
+
+                return [
+                    'space' => $space,
+                    'mode' => $space->spaceMode?->slug,
+                    'occupancy_rate' => $totalUnits > 0 ? (int) round(($occupiedUnits / $totalUnits) * 100) : 0,
+                    'occupied_units' => $occupiedUnits,
+                    'total_units' => $totalUnits,
+                    'available_units' => max($totalUnits - $occupiedUnits, 0),
+                    'check_ins_today' => $checkIns->where('space_id', $space->id)->count(),
+                    'check_outs_today' => $checkOuts->where('space_id', $space->id)->count(),
+                    'guests' => (int) $spaceStays->sum('people_count'),
+                ];
+            })
+            ->sortBy(fn (array $row): string => (string) ($row['space']?->title ?: $row['space']?->name))
+            ->values();
+        $totalUnits = (int) $bySpace->sum('total_units');
+        $occupiedUnits = (int) $bySpace->sum('occupied_units');
 
         return [
+            'occupancy_rate' => $totalUnits > 0 ? (int) round(($occupiedUnits / $totalUnits) * 100) : 0,
+            'occupied_units' => $occupiedUnits,
+            'total_units' => $totalUnits,
+            'available_units' => max($totalUnits - $occupiedUnits, 0),
+            'check_ins_today' => $checkIns->count(),
+            'check_outs_today' => $checkOuts->count(),
             'shared_rooms' => $sharedStays
                 ->filter(fn (Stay $stay): bool => $stay->space_room_id !== null)
                 ->unique(fn (Stay $stay): string => $stay->space_id.'-'.$stay->space_room_id)
@@ -71,23 +170,28 @@ class DashboardController extends Controller
             'private_guests' => (int) $privateStays->sum('people_count'),
             'total_stays' => $occupiedStays->count(),
             'total_guests' => (int) $occupiedStays->sum('people_count'),
-            'by_space' => $occupiedStays
-                ->groupBy('space_id')
-                ->map(function (Collection $stays): array {
-                    $space = $stays->first()->space;
-
-                    return [
-                        'space' => $space,
-                        'mode' => $space?->spaceMode?->slug,
-                        'occupied_units' => $stays
-                            ->unique(fn (Stay $stay): string => $stay->space_id.'-'.($stay->space_room_id ?: 'space').'-'.($stay->room_bed_unit_id ?: 'room'))
-                            ->count(),
-                        'guests' => (int) $stays->sum('people_count'),
-                    ];
-                })
-                ->sortBy(fn (array $row): string => (string) ($row['space']?->title ?: $row['space']?->name))
-                ->values(),
+            'by_space' => $bySpace,
         ];
+    }
+
+    private function spaceUnitCount(Space $space): int
+    {
+        if ($space->spaceMode?->slug !== 'compartido') {
+            return 1;
+        }
+
+        return (int) $space->rooms->sum(fn ($room): int => $room->sale_mode === 'bed_unit'
+            ? $room->bedUnits->count()
+            : 1);
+    }
+
+    private function staysForEventDate(?int $companyId, string $column, CarbonImmutable $date): Builder
+    {
+        return Stay::query()
+            ->withoutGlobalScope('company')
+            ->when($companyId, fn (Builder $query): Builder => $query->where('company_id', $companyId))
+            ->whereIn('status', ['occupied', 'checked_out'])
+            ->whereDate($column, $date->toDateString());
     }
 
     private function breakfastSummary(?int $companyId, CarbonImmutable $today): array

@@ -7,13 +7,14 @@ use App\Models\Company;
 use App\Models\Country;
 use App\Models\ExchangeRate;
 use App\Models\ExtraChargeCategory;
+use App\Models\OccupancyBlock;
 use App\Models\PaymentMethod;
 use App\Models\PrivateSpaceType;
-use App\Models\OccupancyBlock;
-use App\Models\ReservationGroup;
 use App\Models\ReservationChannel;
-use App\Models\SpaceCashRegister;
+use App\Models\ReservationGroup;
 use App\Models\Space;
+use App\Models\SpaceCashRegister;
+use App\Models\SpaceCashReservationPayment;
 use App\Models\SpaceMode;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -35,11 +36,9 @@ class InternalReservationTest extends TestCase
             ->post(route('internal-reservations.store'), [
                 'check_in_type' => 'multiple',
                 'document_type' => 'ci',
-                'document_number' => '123456',
                 'first_name' => 'Ana',
                 'last_name' => 'Perez',
                 'phone' => '76543210',
-                'birth_country_id' => $country->id,
                 'birth_date' => now()->subYears(30)->toDateString(),
                 'reservation_channel_id' => $channel->id,
                 'total_people' => 4,
@@ -74,6 +73,8 @@ class InternalReservationTest extends TestCase
         $this->assertSame('pending_payment', $group->status);
         $this->assertSame('pending', $group->payment_status);
         $this->assertSame('76543210', $group->guest_phone);
+        $this->assertNull($group->guest_document);
+        $this->assertNull($group->guest_birth_country_id);
         $this->assertSame(2, $group->reservations()->count());
         $this->assertSame('400.00', $group->total_amount);
         $this->assertSame('0.00', $group->advance_amount);
@@ -327,7 +328,7 @@ class InternalReservationTest extends TestCase
             ])
             ->assertRedirect(route('admin.reservation-groups.show', $group));
 
-        $receiptNumber = \App\Models\SpaceCashReservationPayment::query()
+        $receiptNumber = SpaceCashReservationPayment::query()
             ->where('reservation_group_id', $group->id)
             ->value('receipt_number');
 
@@ -832,7 +833,8 @@ class InternalReservationTest extends TestCase
             ->assertSee('Modificar reserva')
             ->assertSee('data-modal-url="'.route('admin.reservation-groups.edit', $group).'"', false)
             ->assertDontSee('name="reservations['.$reservation->id.'][price_per_night_bob]"', false)
-            ->assertSee('80.00 BOB');
+            ->assertSee('80.00 BOB')
+            ->assertSee('11.49 USD');
 
         $this
             ->actingAs($user)
@@ -874,6 +876,10 @@ class InternalReservationTest extends TestCase
 
         $this
             ->actingAs($user)
+            ->withHeaders([
+                'Accept' => 'application/json',
+                'X-Requested-With' => 'XMLHttpRequest',
+            ])
             ->patch(route('admin.reservation-groups.update', $group), [
                 'reservation_channel_id' => null,
                 'check_in_type' => 'multiple',
@@ -892,8 +898,8 @@ class InternalReservationTest extends TestCase
                 'guest_document' => '',
                 'reservations' => [
                     $reservation->id => [
-                        'check_in' => now()->addDays(2)->toDateString(),
-                        'check_out' => now()->addDays(4)->toDateString(),
+                        'check_in' => now()->addDays(3)->toDateString(),
+                        'check_out' => now()->addDays(5)->toDateString(),
                         'nights' => 2,
                         'guests' => 2,
                         'price_per_night_usd' => 10,
@@ -902,8 +908,10 @@ class InternalReservationTest extends TestCase
                     ],
                 ],
             ])
-            ->assertRedirect(route('admin.reservation-groups.show', $group))
-            ->assertSessionDoesntHaveErrors();
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('message', 'Reserva actualizada correctamente.')
+            ->assertJsonPath('redirect_url', route('admin.reservation-groups.show', $group));
 
         $this->assertNull($group->refresh()->guest_email);
         $this->assertSame('Ana Maria Perez', $group->guest_name);
@@ -912,6 +920,10 @@ class InternalReservationTest extends TestCase
         $this->assertSame(now()->subYears(30)->toDateString(), $group->guest_birth_date->toDateString());
         $this->assertSame(3, $group->guests);
         $this->assertSame('Nota actualizada', $group->notes);
+        $this->assertSame(now()->addDays(3)->toDateString(), $group->check_in->toDateString());
+        $this->assertSame(now()->addDays(5)->toDateString(), $group->check_out->toDateString());
+        $this->assertSame(now()->addDays(3)->toDateString(), $reservation->refresh()->check_in->toDateString());
+        $this->assertSame(now()->addDays(5)->toDateString(), $reservation->check_out->toDateString());
         $this->assertSame('69.60', $reservation->refresh()->price_per_person);
         $this->assertSame('139.20', $reservation->subtotal_amount);
         $this->assertSame('ana@example.test', $reservation->refresh()->guest_email);

@@ -26,10 +26,14 @@ class ReservationSettingsController extends Controller
         $company = $this->company();
         $data = $request->validate([
             'reservation_advance_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
+            'check_out_time' => ['required', 'date_format:H:i'],
+            'check_out_alert_snooze_minutes' => ['required', 'integer', 'min:1', 'max:1440'],
         ]);
 
         $company->update([
             'reservation_advance_percentage' => round((float) $data['reservation_advance_percentage'], 2),
+            'check_out_time' => $data['check_out_time'],
+            'check_out_alert_snooze_minutes' => (int) $data['check_out_alert_snooze_minutes'],
         ]);
 
         return redirect()

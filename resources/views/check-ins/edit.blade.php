@@ -99,9 +99,33 @@
                                 </div>
                                 <div class="text-body-secondary small">Titular: {{ $holderName }}</div>
                             </div>
-                            <a class="btn btn-outline-secondary btn-sm" href="{{ route('occupancy.index', ['week_start' => $stay->check_in_date->toDateString(), 'space_id' => $stay->space_id]) }}">
-                                <i class="ti ti-calendar-stats me-1"></i>Grilla
-                            </a>
+                            <div class="d-flex flex-wrap gap-2">
+                                @if ($stay->status === 'occupied')
+                                    @if ($stay->check_out_date->isToday())
+                                        <button
+                                            class="btn btn-warning btn-sm"
+                                            type="button"
+                                            data-stay-checkout
+                                            data-checkout-url="{{ route('occupancy.check-out.store', $stay) }}"
+                                            data-account-url="{{ route('stays.account', $stay) }}"
+                                            data-resource-label="{{ $resourceLabel }}"
+                                        >
+                                            <i class="ti ti-logout me-1"></i>Realizar check-out
+                                        </button>
+                                    @endif
+                                    <button
+                                        class="btn btn-outline-primary btn-sm"
+                                        type="button"
+                                        data-modal-url="{{ route('stays.room-change.create', $stay) }}"
+                                        data-modal-title="Cambiar habitacion"
+                                    >
+                                        <i class="ti ti-switch-horizontal me-1"></i>Cambiar habitacion
+                                    </button>
+                                @endif
+                                <a class="btn btn-outline-secondary btn-sm" href="{{ route('occupancy.index', ['week_start' => $stay->check_in_date->toDateString(), 'space_id' => $stay->space_id]) }}">
+                                    <i class="ti ti-calendar-stats me-1"></i>Grilla
+                                </a>
+                            </div>
                         </div>
 
                         <form class="check-in-edit-stay-form" method="post" action="{{ route('stays.update', $stay) }}" data-guest-lookup-url="{{ route('check-ins.guest-lookup') }}" autocomplete="off" data-check-in-price-reference-row>

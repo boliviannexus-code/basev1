@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\ExchangeRate;
 use App\Models\Reservation;
 use App\Models\ReservationGroup;
 use App\Services\Reservations\ReservationManagementService;
@@ -66,6 +67,7 @@ class AdminReservationController extends Controller
             'reservationGroups' => $reservationGroups,
             'counts' => $counts,
             'status' => $status,
+            'currentExchangeRate' => ExchangeRate::currentForCompany($companyId),
         ]);
     }
 
@@ -82,6 +84,7 @@ class AdminReservationController extends Controller
         return view($request->ajax() ? 'reservations.admin.partials.show-content' : 'reservations.admin.show', [
             'reservation' => $reservation,
             'occupancyUrl' => $this->occupancyUrlForReservation($reservation),
+            'currentExchangeRate' => ExchangeRate::currentForCompany($this->companyId()),
         ]);
     }
 

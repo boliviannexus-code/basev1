@@ -111,9 +111,9 @@
     <x-ui.card title="Resumen de pago">
         <div class="card-body">
             <dl class="reservation-admin-dl">
-                <div><dt>Total</dt><dd>{{ money_format_decimal($group->total_amount) }} {{ $group->currency }}</dd></div>
-                <div><dt>Adelanto</dt><dd>{{ money_format_decimal($group->advance_amount) }} {{ $group->currency }}</dd></div>
-                <div><dt>Saldo</dt><dd>{{ money_format_decimal($group->balance_amount) }} {{ $group->currency }}</dd></div>
+                <div><dt>Total</dt><dd><x-ui.money :amount="$group->total_amount" :currency="$group->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
+                <div><dt>Adelanto</dt><dd><x-ui.money :amount="$group->advance_amount" :currency="$group->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
+                <div><dt>Saldo</dt><dd><x-ui.money :amount="$group->balance_amount" :currency="$group->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
                 <div><dt>Metodo</dt><dd>{{ $group->payment_method ?: 'Sin metodo' }}</dd></div>
                 <div><dt>Referencia</dt><dd>{{ $group->payment_reference ?: 'Sin referencia' }}</dd></div>
             </dl>
@@ -169,8 +169,8 @@
                     <td>{{ $reservation->check_in->format('d/m/Y') }}</td>
                     <td>{{ $reservation->check_out->format('d/m/Y') }}</td>
                     <td class="text-end">{{ $reservation->nights }}</td>
-                    <td class="text-end">{{ money_format_decimal($reservation->price_per_person) }} {{ $reservation->currency }}</td>
-                    <td class="text-end fw-semibold">{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</td>
+                    <td class="text-end"><x-ui.money class="align-items-end" :amount="$reservation->price_per_person" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></td>
+                    <td class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$reservation->total_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></td>
                     <td><span class="badge bg-{{ in_array($reservation->status, ['confirmed', 'checked_in'], true) ? 'success' : ($reservation->status === 'no_show' ? 'danger' : ($reservation->status === 'cancelled' ? 'secondary' : 'warning')) }}-lt">{{ $statusLabels[$reservation->status] ?? str($reservation->status)->replace('_', ' ') }}</span></td>
                 </tr>
             @endforeach
@@ -195,7 +195,7 @@
                         <td>{{ $item->date?->format('d/m/Y') ?: '-' }}</td>
                         <td>{{ $item->description }}</td>
                         <td>{{ str($item->type)->replace('_', ' ')->headline() }}</td>
-                        <td class="text-end fw-semibold">{{ money_format_decimal($item->total) }} {{ $item->currency }}</td>
+                        <td class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$item->total" :currency="$item->currency" :exchange-rate="$currentExchangeRate?->rate" /></td>
                     </tr>
                 @empty
                     <x-ui.empty-row colspan="4" message="No hay movimientos registrados." />
@@ -204,15 +204,15 @@
             <tfoot>
                 <tr>
                     <th colspan="3" class="text-end">Subtotal</th>
-                    <th class="text-end">{{ money_format_decimal($group->accountStatement->subtotal) }} {{ $group->accountStatement->currency }}</th>
+                    <th class="text-end"><x-ui.money class="align-items-end" :amount="$group->accountStatement->subtotal" :currency="$group->accountStatement->currency" :exchange-rate="$currentExchangeRate?->rate" /></th>
                 </tr>
                 <tr>
                     <th colspan="3" class="text-end">Pagos</th>
-                    <th class="text-end">{{ money_format_decimal($group->accountStatement->payments_total) }} {{ $group->accountStatement->currency }}</th>
+                    <th class="text-end"><x-ui.money class="align-items-end" :amount="$group->accountStatement->payments_total" :currency="$group->accountStatement->currency" :exchange-rate="$currentExchangeRate?->rate" /></th>
                 </tr>
                 <tr>
                     <th colspan="3" class="text-end">Saldo</th>
-                    <th class="text-end">{{ money_format_decimal($group->accountStatement->balance) }} {{ $group->accountStatement->currency }}</th>
+                    <th class="text-end"><x-ui.money class="align-items-end" :amount="$group->accountStatement->balance" :currency="$group->accountStatement->currency" :exchange-rate="$currentExchangeRate?->rate" /></th>
                 </tr>
             </tfoot>
         </table>

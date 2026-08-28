@@ -40,7 +40,7 @@ class UpdateStayRequest extends FormRequest
                 Rule::exists((new Guest)->getTable(), 'id')->where(fn (QueryBuilder $query): QueryBuilder => $query->where('company_id', $companyId)),
             ],
             'guests.*.document_type' => ['required_with:guests', Rule::in(['passport', 'dni', 'ci', 'other'])],
-            'guests.*.document_number' => ['nullable', 'string', 'max:80'],
+            'guests.*.document_number' => ['required_with:guests', 'string', 'max:80'],
             'guests.*.first_name' => ['required_with:guests', 'string', 'max:120'],
             'guests.*.last_name' => ['required_with:guests', 'string', 'max:120'],
             'guests.*.birth_date' => ['required_with:guests', 'date', 'before_or_equal:today'],
@@ -78,7 +78,7 @@ class UpdateStayRequest extends FormRequest
             }
 
             foreach ($this->input('guests', []) as $guestIndex => $guest) {
-                foreach (['document_type', 'first_name', 'last_name', 'birth_date', 'birth_country_id'] as $field) {
+                foreach (['document_type', 'document_number', 'first_name', 'last_name', 'birth_date', 'birth_country_id'] as $field) {
                     if (! filled($guest[$field] ?? null)) {
                         $validator->errors()->add("guests.{$guestIndex}.{$field}", 'Completa este dato del huesped.');
                     }
@@ -95,6 +95,7 @@ class UpdateStayRequest extends FormRequest
             foreach ($this->input('night_prices', []) as $date => $price) {
                 if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $date)) {
                     $validator->errors()->add("night_prices.{$date}", 'Fecha de noche invalida.');
+
                     continue;
                 }
 

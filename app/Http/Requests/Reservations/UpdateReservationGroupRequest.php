@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Reservations;
 
 use App\Models\ReservationChannel;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -100,6 +101,7 @@ class UpdateReservationGroupRequest extends FormRequest
 
                 if (! $reservation) {
                     $validator->errors()->add("reservations.{$reservationId}", 'La reserva seleccionada no pertenece al grupo.');
+
                     continue;
                 }
 
@@ -121,6 +123,7 @@ class UpdateReservationGroupRequest extends FormRequest
                 foreach ($reservationData['night_prices'] ?? [] as $date => $price) {
                     if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $date)) {
                         $validator->errors()->add("reservations.{$reservationId}.night_prices.{$date}", 'Fecha de noche invalida.');
+
                         continue;
                     }
 
@@ -153,8 +156,8 @@ class UpdateReservationGroupRequest extends FormRequest
             'reservations' => collect($this->input('reservations', []))
                 ->map(function ($reservation): array {
                     $reservation = is_array($reservation) ? $reservation : [];
-                    $checkIn = $this->input('check_in_date') ?: ($reservation['check_in'] ?? null);
-                    $checkOut = $this->input('check_out_date') ?: ($reservation['check_out'] ?? null);
+                    $checkIn = $reservation['check_in'] ?? $this->input('check_in_date');
+                    $checkOut = $reservation['check_out'] ?? $this->input('check_out_date');
                     $nights = $checkIn && $checkOut
                         ? $this->nightsBetween((string) $checkIn, (string) $checkOut)
                         : (filled($reservation['nights'] ?? null) ? max((int) $reservation['nights'], 1) : null);
@@ -199,7 +202,7 @@ class UpdateReservationGroupRequest extends FormRequest
     private function nightsBetween(string $checkIn, string $checkOut): int
     {
         try {
-            return max(\Carbon\CarbonImmutable::parse($checkIn)->diffInDays(\Carbon\CarbonImmutable::parse($checkOut)), 1);
+            return max(CarbonImmutable::parse($checkIn)->diffInDays(CarbonImmutable::parse($checkOut)), 1);
         } catch (\Throwable) {
             return 1;
         }
