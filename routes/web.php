@@ -9,6 +9,8 @@ use App\Http\Controllers\Web\BiometricTestController;
 use App\Http\Controllers\Web\CategoryController;
 use App\Http\Controllers\Web\CompanyController;
 use App\Http\Controllers\Web\CourtController;
+use App\Http\Controllers\Web\CourtFeeItemController;
+use App\Http\Controllers\Web\CourtFeeController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\DatabaseBackupController;
 use App\Http\Controllers\Web\DivisionController;
@@ -17,6 +19,8 @@ use App\Http\Controllers\Web\FixtureSetupController;
 use App\Http\Controllers\Web\GuideTypeController;
 use App\Http\Controllers\Web\LeagueSettingController;
 use App\Http\Controllers\Web\MatchdayController;
+use App\Http\Controllers\Web\MatchdayCourtFeeController;
+use App\Http\Controllers\Web\ExtraChargeController;
 use App\Http\Controllers\Web\MatchReportController;
 use App\Http\Controllers\Web\MeetingController;
 use App\Http\Controllers\Web\PermissionController;
@@ -129,6 +133,44 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         Route::get('{court}/edit', [CourtController::class, 'edit'])->middleware('permission:courts.update')->name('edit');
         Route::put('{court}', [CourtController::class, 'update'])->middleware('permission:courts.update')->name('update');
         Route::delete('{court}', [CourtController::class, 'destroy'])->middleware('permission:courts.delete')->name('destroy');
+    });
+    Route::prefix('court-fees')->name('court-fees.')->group(function (): void {
+        Route::get('/', [CourtFeeController::class, 'index'])->middleware('permission:court-fee-items.view')->name('index');
+        Route::get('create', [CourtFeeController::class, 'create'])->middleware('permission:court-fee-items.create')->name('create');
+        Route::post('/', [CourtFeeController::class, 'store'])->middleware('permission:court-fee-items.create')->name('store');
+        Route::get('{courtFee}', [CourtFeeController::class, 'show'])->middleware('permission:court-fee-items.view')->name('show');
+        Route::get('{courtFee}/edit', [CourtFeeController::class, 'edit'])->middleware('permission:court-fee-items.update')->name('edit');
+        Route::put('{courtFee}', [CourtFeeController::class, 'update'])->middleware('permission:court-fee-items.update')->name('update');
+        Route::delete('{courtFee}', [CourtFeeController::class, 'destroy'])->middleware('permission:court-fee-items.delete')->name('destroy');
+        Route::get('{courtFee}/tournaments/edit', [CourtFeeController::class, 'editTournaments'])->middleware('permission:court-fee-items.update')->name('tournaments.edit');
+        Route::put('{courtFee}/tournaments', [CourtFeeController::class, 'syncTournaments'])->middleware('permission:court-fee-items.update')->name('tournaments.update');
+        Route::get('{courtFee}/items/create', [CourtFeeItemController::class, 'create'])->middleware('permission:court-fee-items.create')->name('items.create');
+        Route::post('{courtFee}/items', [CourtFeeItemController::class, 'store'])->middleware('permission:court-fee-items.create')->name('items.store');
+    });
+    Route::prefix('matchday-court-fees')->name('matchday-court-fees.')->group(function (): void {
+        Route::get('/', [MatchdayCourtFeeController::class, 'index'])->middleware('permission:court-fee-items.view')->name('index');
+        Route::get('{matchday}', [MatchdayCourtFeeController::class, 'show'])->middleware('permission:court-fee-items.view')->name('show');
+        Route::get('{matchday}/pdf', [MatchdayCourtFeeController::class, 'pdf'])->middleware('permission:court-fee-items.view')->name('pdf');
+        Route::get('{matchday}/generate', [MatchdayCourtFeeController::class, 'generateForm'])->middleware('permission:court-fee-items.update')->name('generate-form');
+        Route::post('{matchday}/generate', [MatchdayCourtFeeController::class, 'generate'])->middleware('permission:court-fee-items.update')->name('generate');
+        Route::post('{matchday}/consolidate', [MatchdayCourtFeeController::class, 'consolidate'])->middleware('permission:court-fee-items.update')->name('consolidate');
+        Route::patch('{matchday}/reopen', [MatchdayCourtFeeController::class, 'reopen'])->middleware('permission:court-fee-items.update')->name('reopen');
+        Route::delete('installments/{installment}', [MatchdayCourtFeeController::class, 'destroyInstallment'])->middleware('permission:court-fee-items.update')->name('installments.destroy');
+        Route::delete('{matchday}/installments/charge/{extraCharge}', [MatchdayCourtFeeController::class, 'destroyChargeInstallments'])->middleware('permission:court-fee-items.update')->name('installments.destroy-charge');
+    });
+    Route::prefix('extra-charges')->name('extra-charges.')->group(function (): void {
+        Route::get('/', [ExtraChargeController::class, 'index'])->middleware('permission:court-fee-items.view')->name('index');
+        Route::get('create', [ExtraChargeController::class, 'create'])->middleware('permission:court-fee-items.create')->name('create');
+        Route::post('/', [ExtraChargeController::class, 'store'])->middleware('permission:court-fee-items.create')->name('store');
+        Route::get('{extraCharge}/edit', [ExtraChargeController::class, 'edit'])->middleware('permission:court-fee-items.update')->name('edit');
+        Route::put('{extraCharge}', [ExtraChargeController::class, 'update'])->middleware('permission:court-fee-items.update')->name('update');
+        Route::get('{extraCharge}/assignments/edit', [ExtraChargeController::class, 'editAssignments'])->middleware('permission:court-fee-items.update')->name('assignments.edit');
+        Route::put('{extraCharge}/assignments', [ExtraChargeController::class, 'syncAssignments'])->middleware('permission:court-fee-items.update')->name('assignments.update');
+    });
+    Route::prefix('court-fee-items')->name('court-fee-items.')->group(function (): void {
+        Route::get('{courtFeeItem}/edit', [CourtFeeItemController::class, 'edit'])->middleware('permission:court-fee-items.update')->name('edit');
+        Route::put('{courtFeeItem}', [CourtFeeItemController::class, 'update'])->middleware('permission:court-fee-items.update')->name('update');
+        Route::delete('{courtFeeItem}', [CourtFeeItemController::class, 'destroy'])->middleware('permission:court-fee-items.delete')->name('destroy');
     });
     Route::prefix('teams')->name('teams.')->group(function (): void {
         Route::get('/', [TeamController::class, 'index'])->middleware('permission:teams.view')->name('index');

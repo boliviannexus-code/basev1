@@ -17,9 +17,11 @@
                             <div class="text-body-secondary small">Universales: {{ collect($universalMatchControlItems)->values()->implode(', ') }}</div>
                         </div>
                         <div class="d-flex flex-wrap gap-2">
-                            <div class="input-group input-group-sm" style="max-width: 360px;">
+                            <div class="input-group input-group-sm" style="max-width: 480px;">
                                 <span class="input-group-text"><i class="ti ti-plus"></i></span>
                                 <input class="form-control" name="new_match_control_item" placeholder="Nuevo item, ej. Cintillo" maxlength="120" @cannot('league-settings.update') readonly @endcannot>
+                                <span class="input-group-text">Bs</span>
+                                <input class="form-control text-end" name="new_match_control_item_absence_cost" type="number" min="0" step="0.01" value="0.00" aria-label="Costo por ausencia" @cannot('league-settings.update') readonly @endcannot>
                             </div>
                             @can('league-settings.update')
                                 <button class="btn btn-primary btn-sm" type="submit">
@@ -35,6 +37,7 @@
                                 <tr>
                                     <th>Item por liga</th>
                                     <th class="text-center" style="width: 110px;">Orden</th>
+                                    <th class="text-end" style="width: 170px;">Costo por ausencia (Bs)</th>
                                     <th class="text-center" style="width: 110px;">Activo</th>
                                 </tr>
                             </thead>
@@ -54,6 +57,7 @@
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                         </td>
+                                        <td><input class="form-control form-control-sm text-end @error('match_control_items.'.$item->id.'.absence_cost') is-invalid @enderror" name="match_control_items[{{ $item->id }}][absence_cost]" type="number" min="0" step="0.01" value="{{ old('match_control_items.'.$item->id.'.absence_cost', $item->absence_cost) }}" @cannot('league-settings.update') readonly @endcannot required>@error('match_control_items.'.$item->id.'.absence_cost')<div class="invalid-feedback">{{ $message }}</div>@enderror</td>
                                         <td class="text-center">
                                             <input type="hidden" name="match_control_items[{{ $item->id }}][is_active]" value="0">
                                             <input class="form-check-input" name="match_control_items[{{ $item->id }}][is_active]" type="checkbox" value="1" @checked(old('match_control_items.'.$item->id.'.is_active', $item->is_active)) @cannot('league-settings.update') disabled @endcannot>
@@ -61,7 +65,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="3" class="text-center text-body-secondary">Sin items propios de esta liga.</td>
+                                        <td colspan="4" class="text-center text-body-secondary">Sin items propios de esta liga.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

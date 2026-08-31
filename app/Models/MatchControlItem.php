@@ -11,6 +11,7 @@ class MatchControlItem extends Model
         'company_id',
         'key',
         'label',
+        'absence_cost',
         'sort_order',
         'is_active',
     ];
@@ -19,6 +20,7 @@ class MatchControlItem extends Model
     {
         return [
             'sort_order' => 'integer',
+            'absence_cost' => 'decimal:2',
             'is_active' => 'boolean',
         ];
     }

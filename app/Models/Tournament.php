@@ -76,4 +76,9 @@ class Tournament extends Model implements Auditable
             ->withPivot(['status', 'notes'])
             ->withTimestamps();
     }
+
+    public function courtFees(): BelongsToMany
+    {
+        return $this->belongsToMany(CourtFee::class)->withTimestamps();
+    }
 }

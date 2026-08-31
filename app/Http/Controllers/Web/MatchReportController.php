@@ -12,6 +12,8 @@ use App\Models\MatchReport;
 use App\Models\MatchReportPlayer;
 use App\Models\TournamentTeamPlayer;
 use App\Services\MatchControlItemService;
+use App\Services\TeamAccountChargeService;
+use App\Services\MatchdayCourtFeeStatementService;
 use App\Services\MatchReportPdfService;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
@@ -92,6 +94,9 @@ class MatchReportController extends Controller
         $data['fixture_match_id'] = $fixtureMatch->id;
         $items = $controlItems->itemsForCompany($fixtureMatch->company_id);
         $data['control_items'] = $controlItems->normalizeSubmitted($data['control_items'] ?? [], $items);
+        $data['control_item_costs'] = $items->mapWithKeys(fn (array $item): array => [
+            $item['key'] => number_format((float) ($item['absence_cost'] ?? 0), 2, '.', ''),
+        ])->all();
         $data['home_present'] = data_get($data, 'control_items.home.present', false);
         $data['away_present'] = data_get($data, 'control_items.away.present', false);
         $data['home_paid_court_fee'] = data_get($data, 'control_items.home.court_fee_paid', false);
@@ -133,6 +138,11 @@ class MatchReportController extends Controller
             ['fixture_match_id' => $fixtureMatch->id],
             $data
         );
+        app(MatchdayCourtFeeStatementService::class)->markSourceChanged($report);
+
+        if ($report->status === 'walkover') {
+            app(TeamAccountChargeService::class)->syncFromReport($report);
+        }
 
         if ($report->status === 'started') {
             return redirect()
@@ -183,6 +193,7 @@ class MatchReportController extends Controller
             'team_side' => $side,
             'jersey_number' => $request->filled('jersey_number') ? $request->integer('jersey_number') : null,
         ]);
+        app(MatchdayCourtFeeStatementService::class)->markSourceChanged($matchReport);
 
         return response()->json([
             'success' => true,
@@ -199,6 +210,7 @@ class MatchReportController extends Controller
         $updates = $this->statsUpdatesFor($player, $field, $delta);
         $player->update($updates);
         $this->syncScoreFromPlayers($player->matchReport);
+        app(MatchdayCourtFeeStatementService::class)->markSourceChanged($player->matchReport);
 
         return response()->json([
             'success' => true,
@@ -206,7 +218,7 @@ class MatchReportController extends Controller
         ]);
     }
 
-    public function finish(MatchReport $matchReport): RedirectResponse
+    public function finish(MatchReport $matchReport, TeamAccountChargeService $accountCharges): RedirectResponse
     {
         $this->ensureEditableReport($matchReport);
         $this->syncScoreFromPlayers($matchReport);
@@ -223,6 +235,9 @@ class MatchReportController extends Controller
             $matchReport->refresh();
             $this->advanceEliminationWinner($matchReport);
         });
+
+        $accountCharges->syncFromReport($matchReport->refresh());
+        app(MatchdayCourtFeeStatementService::class)->markSourceChanged($matchReport);
 
         $matchReport->loadMissing('fixtureMatch.matchdayDate.matchday');
 

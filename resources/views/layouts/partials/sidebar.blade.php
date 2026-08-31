@@ -6,6 +6,7 @@
     $penaltiesOpen = request()->routeIs('red-cards.*', 'red-card-articles.*', 'punishments.*');
     $meetingsOpen = request()->routeIs('accreditations.*', 'meetings.*');
     $settingsOpen = request()->routeIs('league-settings.*');
+    $treasuryOpen = request()->routeIs('court-fees.*', 'court-fee-items.*', 'matchday-court-fees.*', 'extra-charges.*');
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'biometric.*', 'database-backups.*');
 
     $canLeague = auth()->user()?->can('companies.view')
@@ -33,6 +34,7 @@
     $canMeetings = auth()->user()?->can('accreditations.view')
         || auth()->user()?->can('meetings.view');
     $canSettings = auth()->user()?->can('league-settings.view');
+    $canTreasury = auth()->user()?->can('court-fee-items.view');
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('fingerprint-templates.view')
         || auth()->user()?->can('roles.view')
@@ -412,6 +414,38 @@
                                     <a class="nav-link" href="{{ route('league-settings.match-control-items') }}">
                                         <span class="nav-link-icon"><i class="ti ti-checklist"></i></span>
                                         <span class="nav-link-title">Items de control</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                @endif
+
+                @if ($canTreasury)
+                    <li class="nav-item app-menu-section {{ $treasuryOpen ? 'active' : '' }}">
+                        <button class="nav-link app-menu-toggle {{ $treasuryOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-treasury" aria-expanded="{{ $treasuryOpen ? 'true' : 'false' }}" aria-controls="menu-treasury">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-building-bank"></i></span>
+                            <span class="nav-link-title">Hacienda</span>
+                            <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
+                        </button>
+                        <div class="collapse {{ $treasuryOpen ? 'show' : '' }}" id="menu-treasury">
+                            <ul class="nav app-submenu">
+                                <li class="nav-item {{ request()->routeIs('court-fees.*', 'court-fee-items.*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('court-fees.index') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-cash"></i></span>
+                                        <span class="nav-link-title">Parámetros derecho de cancha</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('matchday-court-fees.*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('matchday-court-fees.index') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-calendar-dollar"></i></span>
+                                        <span class="nav-link-title">Derecho jornadas</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('extra-charges.*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('extra-charges.index') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-receipt-2"></i></span>
+                                        <span class="nav-link-title">Cargos extra</span>
                                     </a>
                                 </li>
                             </ul>

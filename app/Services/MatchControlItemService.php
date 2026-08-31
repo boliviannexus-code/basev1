@@ -23,6 +23,7 @@ class MatchControlItemService
                 'label' => $label,
                 'is_universal' => true,
                 'is_active' => true,
+                'absence_cost' => '0.00',
             ])
             ->values();
 
@@ -38,6 +39,7 @@ class MatchControlItemService
                 'label' => $item->label,
                 'is_universal' => false,
                 'is_active' => $item->is_active,
+                'absence_cost' => $item->absence_cost,
             ]);
 
         return $universal->concat($custom)->values();
@@ -70,7 +72,7 @@ class MatchControlItemService
         return $values;
     }
 
-    public function syncItems(Company $company, array $items, ?string $newItemLabel = null): void
+    public function syncItems(Company $company, array $items, ?string $newItemLabel = null, float $newItemAbsenceCost = 0): void
     {
         foreach ($items as $itemData) {
             $item = MatchControlItem::query()
@@ -85,6 +87,7 @@ class MatchControlItemService
             $item->update([
                 'label' => str($itemData['label'] ?? $item->label)->squish()->limit(120, '')->toString(),
                 'sort_order' => (int) ($itemData['sort_order'] ?? $item->sort_order),
+                'absence_cost' => round((float) ($itemData['absence_cost'] ?? $item->absence_cost), 2),
                 'is_active' => (bool) ($itemData['is_active'] ?? false),
             ]);
         }
@@ -100,6 +103,7 @@ class MatchControlItemService
             'key' => $this->uniqueKeyFor($company->id, $label),
         ], [
             'label' => $label,
+            'absence_cost' => round($newItemAbsenceCost, 2),
             'sort_order' => $this->nextSortOrder($company->id),
             'is_active' => true,
         ]);

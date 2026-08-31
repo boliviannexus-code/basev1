@@ -141,15 +141,18 @@ class LeagueSettingController extends Controller
             'match_control_items.*.id' => ['required', 'integer', 'exists:match_control_items,id'],
             'match_control_items.*.label' => ['required', 'string', 'max:120'],
             'match_control_items.*.sort_order' => ['required', 'integer', 'min:0', 'max:999'],
+            'match_control_items.*.absence_cost' => ['required', 'numeric', 'min:0', 'max:9999999999.99', 'decimal:0,2'],
             'match_control_items.*.is_active' => ['sometimes', 'boolean'],
             'new_match_control_item' => ['nullable', 'string', 'max:120'],
+            'new_match_control_item_absence_cost' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99', 'decimal:0,2'],
         ]);
         $company = $this->companyFor($data['company_id'] ?? null);
 
         $controlItems->syncItems(
             $company,
             $data['match_control_items'] ?? [],
-            $data['new_match_control_item'] ?? null
+            $data['new_match_control_item'] ?? null,
+            (float) ($data['new_match_control_item_absence_cost'] ?? 0)
         );
 
         return redirect()

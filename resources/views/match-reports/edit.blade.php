@@ -92,6 +92,9 @@
                                 @foreach ($controlItems as $item)
                                     <th class="text-center">
                                         <span>{{ $item['label'] }}</span>
+                                        @if((float) ($item['absence_cost'] ?? 0) > 0)
+                                            <small>Falta: Bs {{ number_format((float) $item['absence_cost'], 2, ',', '.') }}</small>
+                                        @endif
                                         @if ($item['is_universal'])
                                             <small>Universal</small>
                                         @endif
