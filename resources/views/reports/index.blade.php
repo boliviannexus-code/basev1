@@ -2,7 +2,7 @@
 
 @section('title', $reportTitle.' | Reportes')
 @section('page-title', 'Reportes')
-@section('page-subtitle', 'Reportes operativos con filtros por fecha, usuario, metodo, categoria y modulo')
+@section('page-subtitle', 'Ingresos y egresos de hospedaje por periodo, espacio y forma de pago')
 
 @section('content')
     <x-ui.table-card title="Filtros">
@@ -33,6 +33,15 @@
                 </select>
             </div>
             <div class="col-md-3 col-xl-2">
+                <label class="form-label" for="report-space">Espacio</label>
+                <select class="form-select" id="report-space" name="space_id" data-tom-select data-placeholder="Todos">
+                    <option value="">Todos</option>
+                    @foreach ($spaces as $space)
+                        <option value="{{ $space->id }}" @selected((int) $filters['space_id'] === (int) $space->id)>{{ $space->title ?: $space->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-3 col-xl-2">
                 <label class="form-label" for="report-method">Metodo</label>
                 <select class="form-select" id="report-method" name="payment_method_id" data-tom-select data-placeholder="Todos">
                     <option value="">Todos</option>
@@ -50,7 +59,7 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-12 d-flex flex-wrap gap-2">
+            <div class="col-12 d-flex flex-wrap gap-2">
                 <button class="btn btn-primary" type="submit"><i class="ti ti-filter"></i> Filtrar</button>
                 <a class="btn btn-outline-secondary" href="{{ route('reports.index') }}"><i class="ti ti-eraser"></i> Limpiar</a>
                 @can('reports.print')
@@ -75,9 +84,21 @@
         <div class="d-flex align-items-center justify-content-between gap-3 mt-3">
             <div>
                 <h2 class="h3 mb-1">{{ $reportTitle }}</h2>
-                <div class="text-body-secondary">{{ $company?->name }} · {{ $filters['from']->format('Y-m-d') }} al {{ $filters['to']->format('Y-m-d') }}</div>
+                <div class="text-body-secondary">
+                    {{ $company?->name }} · {{ $filters['from']->format('Y-m-d') }} al {{ $filters['to']->format('Y-m-d') }}
+                    @if ($filters['space_id'])
+                        · {{ $spaces->firstWhere('id', $filters['space_id'])?->title ?: $spaces->firstWhere('id', $filters['space_id'])?->name }}
+                    @endif
+                </div>
             </div>
         </div>
+
+        @if ($filters['space_id'])
+            <div class="alert alert-info mt-3 mb-0" role="note">
+                <i class="ti ti-info-circle me-1"></i>
+                El filtro por espacio incluye cobros de hospedaje y reservas vinculados. Los ingresos, egresos y cajas generales sin un espacio asociado se excluyen del resultado.
+            </div>
+        @endif
 
         @include('reports.partials.operational-sections')
     </div>

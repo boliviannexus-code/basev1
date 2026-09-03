@@ -39,6 +39,10 @@
                             Mis reservas
                         </a>
                     @endif
+                    <a class="btn btn-outline-dark btn-sm" href="{{ route('my-account.edit') }}">
+                        <i class="ti ti-user-cog"></i>
+                        Mi cuenta
+                    </a>
                     <form action="{{ route('logout') }}" method="post">
                         @csrf
                         <button class="btn btn-outline-dark btn-sm" type="submit">

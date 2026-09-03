@@ -3,10 +3,9 @@
     $th = 'border: 1px solid #555; background-color: #f1f3f5; font-weight: bold; padding: 4px;';
     $td = 'border: 1px solid #777; padding: 4px;';
     $money = fn ($value) => number_format((float) $value, 2, '.', ',');
-    $showIncomes = in_array($reportType, ['summary', 'sales', 'lodging', 'reservations'], true);
+    $showIncomes = in_array($reportType, ['summary', 'lodging', 'reservations'], true);
     $showExpenses = in_array($reportType, ['summary', 'expenses'], true);
     $incomeDetailRows = $incomeRows->filter(fn ($row) => match ($reportType) {
-        'sales' => $row['type'] === 'Venta POS',
         'lodging' => $row['type'] === 'Hospedaje',
         'reservations' => $row['type'] === 'Reserva',
         default => true,
@@ -31,6 +30,7 @@
         <td width="37%" align="right">
             <strong style="font-size: 13px;">{{ $reportTitle }}</strong><br>
             <strong>Periodo:</strong> {{ $filters['from']->format('Y-m-d') }} al {{ $filters['to']->format('Y-m-d') }}<br>
+            <strong>Espacio:</strong> {{ $selectedSpace?->title ?: $selectedSpace?->name ?: 'Todos' }}<br>
             <strong>Fecha impresion:</strong> {{ now()->format('Y-m-d H:i') }}<br>
             <strong>Usuario:</strong> {{ $printedBy?->name ?? '-' }}<br>
             <strong>Email:</strong> {{ $printedBy?->email ?? '-' }}
@@ -41,23 +41,23 @@
 <br>
 <table cellpadding="4" cellspacing="0" style="{{ $font }}">
     <tr>
-        <th style="{{ $th }}">Ventas POS</th>
+        <th style="{{ $th }}">Ingresos directos</th>
         <th style="{{ $th }}">Hospedaje</th>
         <th style="{{ $th }}">Reservas</th>
         <th style="{{ $th }}">Egresos</th>
         <th style="{{ $th }}">Saldo</th>
     </tr>
     <tr>
-        <td style="{{ $td }}" align="right">{{ $money($totals['sales']) }}</td>
+        <td style="{{ $td }}" align="right">{{ $money($totals['direct_incomes']) }}</td>
         <td style="{{ $td }}" align="right">{{ $money($totals['lodging']) }}</td>
         <td style="{{ $td }}" align="right">{{ $money($totals['reservations']) }}</td>
         <td style="{{ $td }}" align="right">{{ $money($totals['expenses']) }}</td>
-        <td style="{{ $td }}" align="right">{{ $money($totals['sales'] + $totals['direct_incomes'] + $totals['lodging'] + $totals['reservations'] - $totals['expenses']) }}</td>
+        <td style="{{ $td }}" align="right">{{ $money($totals['direct_incomes'] + $totals['lodging'] + $totals['reservations'] - $totals['expenses']) }}</td>
     </tr>
 </table>
 
 <br>
-<h2 style="{{ $font }} font-size: 12px;">Resumen por metodo</h2>
+    <h2 style="{{ $font }} font-size: 12px;">Resumen por tipo de pago</h2>
 <table cellpadding="4" cellspacing="0" style="{{ $font }}">
     <tr>
         <th style="{{ $th }}">Metodo</th>
@@ -122,7 +122,7 @@
         @forelse ($expenses->take(120) as $expense)
             <tr>
                 <td style="{{ $td }}">{{ $expense->spent_at?->format('Y-m-d H:i') }}</td>
-                <td style="{{ $td }}">{{ $expense->source_label }}</td>
+                <td style="{{ $td }}">Hospedaje</td>
                 <td style="{{ $td }}">{{ $expense->user?->name ?? $expense->responsible_name }}</td>
                 <td style="{{ $td }}">{{ $expense->paymentMethod?->name ?: 'Efectivo' }}</td>
                 <td style="{{ $td }}">{{ $expense->category?->name ?: '-' }}</td>

@@ -171,11 +171,12 @@ class SpaceCashRegisterService
     private function paymentRows(Collection $lodgingPayments, Collection $incomes): array
     {
         return $lodgingPayments
+            ->toBase()
             ->map(fn ($payment): array => [
                 'name' => $payment->paymentMethod?->name ?: 'Pago',
                 'total' => (float) $payment->amount_bob,
             ])
-            ->merge($incomes->map(fn ($income): array => [
+            ->merge($incomes->toBase()->map(fn ($income): array => [
                 'name' => $income->paymentMethod?->name ?: 'Pago',
                 'total' => (float) $income->amount,
             ]))
@@ -192,6 +193,7 @@ class SpaceCashRegisterService
     private function expenseRows(Collection $expenses): array
     {
         return $expenses
+            ->toBase()
             ->map(fn ($expense): array => [
                 'name' => $expense->paymentMethod?->name ?: 'Efectivo',
                 'total' => (float) $expense->amount,

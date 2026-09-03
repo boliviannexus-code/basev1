@@ -26,6 +26,7 @@ class User extends Authenticatable implements Auditable
 
     protected $auditExclude = [
         'password',
+        'transaction_pin',
         'remember_token',
     ];
 

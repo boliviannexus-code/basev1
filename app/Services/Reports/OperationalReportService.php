@@ -2,21 +2,16 @@
 
 namespace App\Services\Reports;
 
-use App\Models\CashRegister;
-use App\Models\CashRegisterExpense;
-use App\Models\CashRegisterLodgingPayment;
 use App\Models\ExtraChargeCategory;
 use App\Models\OccupancyBlock;
 use App\Models\PaymentMethod;
 use App\Models\Reservation;
-use App\Models\Sale;
 use App\Models\Space;
-use App\Models\SpaceRoom;
 use App\Models\SpaceCashExpense;
 use App\Models\SpaceCashIncome;
 use App\Models\SpaceCashLodgingPayment;
-use App\Models\SpaceCashRegister;
 use App\Models\SpaceCashReservationPayment;
+use App\Models\SpaceRoom;
 use App\Models\Stay;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -29,11 +24,9 @@ class OperationalReportService
     {
         return [
             'summary' => 'Resumen general',
-            'sales' => 'Ventas POS',
             'expenses' => 'Egresos',
             'lodging' => 'Hospedaje',
             'reservations' => 'Reservas',
-            'cash' => 'Cajas',
         ];
     }
 
@@ -65,6 +58,7 @@ class OperationalReportService
             'users' => User::query()->where('company_id', $companyId)->orderBy('name')->get(['id', 'name']),
             'paymentMethods' => PaymentMethod::query()->where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'categories' => ExtraChargeCategory::query()->where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'spaces' => Space::query()->where('company_id', $companyId)->orderBy('title')->orderBy('name')->get(['id', 'title', 'name']),
         ];
     }
 
@@ -84,23 +78,11 @@ class OperationalReportService
 
     public function build(int $companyId, array $filters): array
     {
-        $sales = $this->sales($companyId, $filters);
         $directIncomes = $this->directIncomes($companyId, $filters);
         $expenses = $this->expenses($companyId, $filters);
         $lodging = $filters['category_id'] ? collect() : $this->lodging($companyId, $filters);
         $reservations = $filters['category_id'] ? collect() : $this->reservations($companyId, $filters);
-        $cash = $filters['category_id'] ? collect() : $this->cashRegisters($companyId, $filters);
-
         $incomeRows = collect()
-            ->merge($sales->map(fn (Sale $sale): array => [
-                'type' => 'Venta POS',
-                'date' => $sale->sale_date,
-                'responsible' => $sale->user?->name,
-                'method' => $sale->payments->pluck('payment_method_name')->filter()->unique()->join(', '),
-                'category' => '-',
-                'detail' => $sale->receipt_number,
-                'amount' => $this->saleAmount($sale, $filters),
-            ]))
             ->merge($directIncomes->map(fn (SpaceCashIncome $income): array => [
                 'type' => 'Ingreso directo',
                 'date' => $income->received_at,
@@ -132,57 +114,23 @@ class OperationalReportService
             ->values();
 
         return [
-            'sales' => $sales,
+            'selectedSpace' => $filters['space_id']
+                ? Space::query()->where('company_id', $companyId)->find($filters['space_id'])
+                : null,
             'directIncomes' => $directIncomes,
             'expenses' => $expenses,
             'lodging' => $lodging,
             'reservations' => $reservations,
-            'cashRegisters' => $cash,
             'incomeRows' => $incomeRows,
             'methodSummary' => $this->methodSummary($incomeRows, $expenses),
             'categorySummary' => $this->categorySummary($incomeRows, $expenses),
             'totals' => [
-                'sales' => (float) $sales->sum(fn (Sale $sale): float => $this->saleAmount($sale, $filters)),
                 'direct_incomes' => (float) $directIncomes->sum('amount'),
                 'lodging' => (float) $lodging->sum('amount_bob'),
                 'reservations' => (float) $reservations->sum('amount_bob'),
                 'expenses' => (float) $expenses->sum('amount'),
-                'cash_opening' => (float) $cash->sum('opening_amount'),
-                'cash_closing' => (float) $cash->sum('closing_amount'),
             ],
         ];
-    }
-
-    private function sales(int $companyId, array $filters): Collection
-    {
-        return Sale::query()
-            ->with(['user', 'payments', 'details.extraChargeCategory', 'cashRegister'])
-            ->whereHas('cashRegister', fn (Builder $query) => $query->where('company_id', $companyId))
-            ->whereBetween('sale_date', [$filters['from'], $filters['to']])
-            ->where('status', 'completed')
-            ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('user_id', $id))
-            ->when($filters['payment_method_id'], fn (Builder $query, int $id) => $query->whereHas('payments', fn (Builder $payment) => $payment->where('payment_method_id', $id)))
-            ->when($filters['category_id'], fn (Builder $query, int $id) => $query->whereHas('details', fn (Builder $detail) => $detail->where('extra_charge_category_id', $id)))
-            ->latest('sale_date')
-            ->limit(500)
-            ->get();
-    }
-
-    private function saleAmount(Sale $sale, array $filters): float
-    {
-        if ($filters['category_id']) {
-            return (float) $sale->details
-                ->where('extra_charge_category_id', $filters['category_id'])
-                ->sum('subtotal');
-        }
-
-        if ($filters['payment_method_id']) {
-            return (float) $sale->payments
-                ->where('payment_method_id', $filters['payment_method_id'])
-                ->sum('amount');
-        }
-
-        return (float) $sale->total;
     }
 
     private function directIncomes(int $companyId, array $filters): Collection
@@ -190,6 +138,7 @@ class OperationalReportService
         return SpaceCashIncome::query()
             ->with(['user', 'category', 'paymentMethod'])
             ->where('company_id', $companyId)
+            ->when($filters['space_id'], fn (Builder $query) => $query->whereRaw('1 = 0'))
             ->whereBetween('received_at', [$filters['from'], $filters['to']])
             ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('user_id', $id))
             ->when($filters['payment_method_id'], fn (Builder $query, int $id) => $query->where('payment_method_id', $id))
@@ -201,61 +150,27 @@ class OperationalReportService
 
     private function expenses(int $companyId, array $filters): Collection
     {
-        $pos = CashRegisterExpense::query()
+        return SpaceCashExpense::query()
             ->with(['user', 'category', 'paymentMethod'])
             ->where('company_id', $companyId)
+            ->when($filters['space_id'], fn (Builder $query) => $query->whereRaw('1 = 0'))
             ->whereBetween('spent_at', [$filters['from'], $filters['to']])
             ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('user_id', $id))
             ->when($filters['payment_method_id'], fn (Builder $query, int $id) => $query->where('payment_method_id', $id))
             ->when($filters['category_id'], fn (Builder $query, int $id) => $query->where('extra_charge_category_id', $id))
-            ->get()
-            ->each(fn ($expense) => $expense->source_label = 'POS');
-
-        $space = SpaceCashExpense::query()
-            ->with(['user', 'category', 'paymentMethod'])
-            ->where('company_id', $companyId)
-            ->whereBetween('spent_at', [$filters['from'], $filters['to']])
-            ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('user_id', $id))
-            ->when($filters['payment_method_id'], fn (Builder $query, int $id) => $query->where('payment_method_id', $id))
-            ->when($filters['category_id'], fn (Builder $query, int $id) => $query->where('extra_charge_category_id', $id))
-            ->get()
-            ->each(fn ($expense) => $expense->source_label = 'Hospedaje');
-
-        return $pos->merge($space)->sortByDesc('spent_at')->take(500)->values();
+            ->latest('spent_at')
+            ->limit(500)
+            ->get();
     }
 
     private function lodging(int $companyId, array $filters): Collection
     {
-        $pos = CashRegisterLodgingPayment::query()
-            ->with(['user', 'stay.holderGuest', 'paymentMethod'])
+        return SpaceCashLodgingPayment::query()
+            ->with(['user', 'stay.holderGuest', 'stay.space', 'paymentMethod'])
             ->where('company_id', $companyId)
             ->where('status', 'active')
             ->whereBetween('created_at', [$filters['from'], $filters['to']])
-            ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('user_id', $id))
-            ->when($filters['payment_method_id'], fn (Builder $query, int $id) => $query->where('payment_method_id', $id))
-            ->get()
-            ->each(fn ($payment) => $payment->source_label = 'POS');
-
-        $space = SpaceCashLodgingPayment::query()
-            ->with(['user', 'stay.holderGuest', 'paymentMethod'])
-            ->where('company_id', $companyId)
-            ->where('status', 'active')
-            ->whereBetween('created_at', [$filters['from'], $filters['to']])
-            ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('user_id', $id))
-            ->when($filters['payment_method_id'], fn (Builder $query, int $id) => $query->where('payment_method_id', $id))
-            ->get()
-            ->each(fn ($payment) => $payment->source_label = 'Hospedaje');
-
-        return $pos->merge($space)->sortByDesc('created_at')->take(500)->values();
-    }
-
-    private function reservations(int $companyId, array $filters): Collection
-    {
-        return SpaceCashReservationPayment::query()
-            ->with(['user', 'reservationGroup', 'paymentMethod'])
-            ->where('company_id', $companyId)
-            ->where('status', 'active')
-            ->whereBetween('created_at', [$filters['from'], $filters['to']])
+            ->when($filters['space_id'], fn (Builder $query, int $id) => $query->whereHas('stay', fn (Builder $stay) => $stay->where('space_id', $id)))
             ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('user_id', $id))
             ->when($filters['payment_method_id'], fn (Builder $query, int $id) => $query->where('payment_method_id', $id))
             ->latest('created_at')
@@ -263,31 +178,19 @@ class OperationalReportService
             ->get();
     }
 
-    private function cashRegisters(int $companyId, array $filters): Collection
+    private function reservations(int $companyId, array $filters): Collection
     {
-        $pos = CashRegister::query()
-            ->with('user')
+        return SpaceCashReservationPayment::query()
+            ->with(['user', 'reservationGroup.reservations.space', 'paymentMethod'])
             ->where('company_id', $companyId)
-            ->where('opened_at', '<=', $filters['to'])
-            ->where(fn (Builder $query) => $query
-                ->whereNull('closed_at')
-                ->orWhere('closed_at', '>=', $filters['from']))
+            ->where('status', 'active')
+            ->whereBetween('created_at', [$filters['from'], $filters['to']])
+            ->when($filters['space_id'], fn (Builder $query, int $id) => $query->whereHas('reservationGroup.reservations', fn (Builder $reservation) => $reservation->where('space_id', $id)))
             ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('user_id', $id))
-            ->get()
-            ->each(fn ($register) => $register->source_label = 'POS');
-
-        $space = SpaceCashRegister::query()
-            ->with('user')
-            ->where('company_id', $companyId)
-            ->where('opened_at', '<=', $filters['to'])
-            ->where(fn (Builder $query) => $query
-                ->whereNull('closed_at')
-                ->orWhere('closed_at', '>=', $filters['from']))
-            ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('user_id', $id))
-            ->get()
-            ->each(fn ($register) => $register->source_label = 'Hospedaje');
-
-        return $pos->merge($space)->sortByDesc('opened_at')->take(500)->values();
+            ->when($filters['payment_method_id'], fn (Builder $query, int $id) => $query->where('payment_method_id', $id))
+            ->latest('created_at')
+            ->limit(500)
+            ->get();
     }
 
     public function occupancy(int $companyId, array $filters): array

@@ -39,6 +39,10 @@
                 <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
                     <span class="dropdown-item-text text-muted small">{{ auth()->user()->email ?? '' }}</span>
                     <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="{{ route('my-account.edit') }}">
+                        <i class="ti ti-user-cog me-2"></i>Mi cuenta
+                    </a>
+                    <div class="dropdown-divider"></div>
                     <form class="m-0" method="POST" action="{{ route('logout') }}">
                         @csrf
                         <button class="dropdown-item text-danger" type="submit">

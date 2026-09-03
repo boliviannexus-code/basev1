@@ -5,6 +5,7 @@ namespace Tests\Feature\SpaceCash;
 use App\Models\Company;
 use App\Models\ExtraChargeCategory;
 use App\Models\PaymentMethod;
+use App\Models\SpaceCashIncome;
 use App\Models\SpaceCashRegister;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -183,6 +184,41 @@ class OpenSpaceCashRegisterTest extends TestCase
             'reference' => 'REC-22',
             'amount' => '30.00',
         ]);
+    }
+
+    public function test_user_can_view_history_with_direct_incomes(): void
+    {
+        $user = $this->userWithSpaceCashAccess();
+        Permission::findOrCreate('space-cash.view');
+        $user->givePermissionTo('space-cash.view');
+
+        $category = $this->expenseCategory((int) $user->company_id);
+        $paymentMethod = $this->paymentMethod((int) $user->company_id);
+        $cashRegister = SpaceCashRegister::factory()->create([
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'opening_amount' => 50,
+            'status' => 'open',
+        ]);
+
+        SpaceCashIncome::query()->create([
+            'company_id' => $user->company_id,
+            'space_cash_register_id' => $cashRegister->id,
+            'user_id' => $user->id,
+            'extra_charge_category_id' => $category->id,
+            'payment_method_id' => $paymentMethod->id,
+            'receipt_number' => 'ESP-000001',
+            'detail' => 'Lavanderia',
+            'quantity' => 1,
+            'amount' => 30,
+            'received_at' => now(),
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('space-cash.history'))
+            ->assertOk()
+            ->assertSee('30.00');
     }
 
     public function test_direct_income_uses_pin_owner_cash_register_even_from_another_session(): void

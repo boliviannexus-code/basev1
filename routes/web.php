@@ -23,6 +23,7 @@ use App\Http\Controllers\Web\ExchangeRateController;
 use App\Http\Controllers\Web\ExtraChargeCategoryController;
 use App\Http\Controllers\Web\ExtraChargeController;
 use App\Http\Controllers\Web\InternalReservationController;
+use App\Http\Controllers\Web\MyAccountController;
 use App\Http\Controllers\Web\OccupancyController;
 use App\Http\Controllers\Web\OccupancyGridActionController;
 use App\Http\Controllers\Web\PaymentMethodController;
@@ -68,6 +69,9 @@ Route::middleware('guest')->group(function (): void {
 
 Route::middleware('auth')->group(function (): void {
     Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+    Route::get('my-account', [MyAccountController::class, 'edit'])->name('my-account.edit');
+    Route::patch('my-account/password', [MyAccountController::class, 'updatePassword'])->name('my-account.password.update');
+    Route::patch('my-account/transaction-pin', [MyAccountController::class, 'updateTransactionPin'])->name('my-account.transaction-pin.update');
     Route::get('reservas', [PublicReservationController::class, 'index'])->name('public.reservations.index');
     Route::get('reservas/{reservation}', [PublicReservationController::class, 'show'])->whereNumber('reservation')->name('public.reservations.show');
     Route::get('reservas/{reservation}/editar', [PublicReservationController::class, 'edit'])->whereNumber('reservation')->name('public.reservations.edit');
