@@ -21,10 +21,6 @@ return new class extends Migration
 
     private function setDefault(string $status): void
     {
-        match (DB::getDriverName()) {
-            'mysql', 'mariadb' => DB::statement("ALTER TABLE tour_availabilities ALTER status SET DEFAULT '{$status}'"),
-            'pgsql' => DB::statement("ALTER TABLE tour_availabilities ALTER COLUMN status SET DEFAULT '{$status}'"),
-            default => null,
-        };
+        DB::statement("ALTER TABLE tour_availabilities ALTER COLUMN status SET DEFAULT '{$status}'");
     }
 };

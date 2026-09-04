@@ -4,7 +4,7 @@
 
 - PHP 8.3+
 - Laravel 13
-- MySQL 8
+- PostgreSQL 17
 - Docker/Sail
 - Blade + Bootstrap 5
 - CoreUI

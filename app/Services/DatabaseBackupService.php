@@ -25,7 +25,7 @@ class DatabaseBackupService
     public function backups(): Collection
     {
         return collect(Storage::disk($this->disk)->files($this->directory))
-            ->filter(fn (string $path): bool => Str::endsWith($path, ['.sql', '.sqlite']))
+            ->filter(fn (string $path): bool => Str::endsWith($path, '.sql'))
             ->map(fn (string $path): array => [
                 'name' => basename($path),
                 'path' => $path,
@@ -43,21 +43,19 @@ class DatabaseBackupService
         $connectionName = (string) Config::get('database.default');
         $connection = Config::get("database.connections.{$connectionName}", []);
         $driver = (string) ($connection['driver'] ?? '');
-        $extension = $driver === 'sqlite' ? 'sqlite' : 'sql';
+
+        if ($driver !== 'pgsql') {
+            throw new RuntimeException('Los respaldos requieren una conexion PostgreSQL.');
+        }
+
         $filename = sprintf(
-            '%s_%s.%s',
+            '%s_%s.sql',
             Str::slug((string) Config::get('app.name', 'nexgol')),
-            now()->format('Ymd_His'),
-            $extension
+            now()->format('Ymd_His')
         );
         $path = Storage::disk($this->disk)->path("{$this->directory}/{$filename}");
 
-        match ($driver) {
-            'pgsql' => $this->dumpPostgres($connection, $path),
-            'mysql', 'mariadb' => $this->dumpMysql($connection, $path),
-            'sqlite' => $this->dumpSqlite($connection, $path),
-            default => throw new RuntimeException("El motor de base de datos [{$driver}] no esta soportado para respaldos."),
-        };
+        $this->dumpPostgres($connection, $path);
 
         $this->prependManifest($path, $driver);
 
@@ -105,12 +103,11 @@ class DatabaseBackupService
         $driver = (string) ($connection['driver'] ?? '');
         $manifest = $this->manifestFromBackup($path);
 
-        match ($driver) {
-            'pgsql' => $this->restorePostgres($connection, $path),
-            'mysql', 'mariadb' => $this->restoreMysql($connection, $path),
-            'sqlite' => $this->restoreSqlite($connection, $path),
-            default => throw new RuntimeException("El motor de base de datos [{$driver}] no esta soportado para restauracion."),
-        };
+        if ($driver !== 'pgsql') {
+            throw new RuntimeException('La restauracion requiere una conexion PostgreSQL.');
+        }
+
+        $this->restorePostgres($connection, $path);
 
         $this->verifyRestoredCounts($manifest);
     }
@@ -167,47 +164,6 @@ class DatabaseBackupService
         $this->run($command, ['PGPASSWORD' => (string) ($connection['password'] ?? '')]);
     }
 
-    private function dumpMysql(array $connection, string $path): void
-    {
-        $command = [
-            'mysqldump',
-            '--host='.$connection['host'],
-            '--port='.(string) $connection['port'],
-            '--user='.$connection['username'],
-            '--single-transaction',
-            '--routines',
-            '--triggers',
-            '--result-file='.$path,
-            $connection['database'],
-        ];
-
-        $this->run($command, ['MYSQL_PWD' => (string) ($connection['password'] ?? '')]);
-    }
-
-    private function restoreMysql(array $connection, string $path): void
-    {
-        $command = [
-            'mysql',
-            '--host='.$connection['host'],
-            '--port='.(string) $connection['port'],
-            '--user='.$connection['username'],
-            '--binary-mode',
-            $connection['database'],
-        ];
-
-        $this->run($command, ['MYSQL_PWD' => (string) ($connection['password'] ?? '')], File::get($path));
-    }
-
-    private function dumpSqlite(array $connection, string $path): void
-    {
-        File::copy($connection['database'], $path);
-    }
-
-    private function restoreSqlite(array $connection, string $path): void
-    {
-        File::copy($path, $connection['database']);
-    }
-
     private function run(array $command, array $env = [], ?string $input = null): void
     {
         $result = Process::timeout(600)
@@ -222,10 +178,6 @@ class DatabaseBackupService
 
     private function prependManifest(string $path, string $driver): void
     {
-        if ($driver === 'sqlite') {
-            return;
-        }
-
         $manifest = [
             'driver' => $driver,
             'created_at' => now()->toIso8601String(),
@@ -308,16 +260,9 @@ class DatabaseBackupService
 
     private function tableCounts(string $driver): array
     {
-        $tables = match ($driver) {
-            'pgsql' => collect(DB::select(
-                "select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' order by table_name"
-            ))->pluck('table_name')->all(),
-            'mysql', 'mariadb' => collect(DB::select(
-                'select table_name from information_schema.tables where table_schema = database() and table_type = ? order by table_name',
-                ['BASE TABLE']
-            ))->pluck('table_name')->all(),
-            default => [],
-        };
+        $tables = collect(DB::select(
+            "select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' order by table_name"
+        ))->pluck('table_name')->all();
 
         return collect($tables)
             ->mapWithKeys(fn (string $table): array => [$table => DB::table($table)->count()])
@@ -328,7 +273,7 @@ class DatabaseBackupService
     {
         $name = basename($backup);
 
-        if (! preg_match('/^[A-Za-z0-9._-]+\\.(sql|sqlite)$/', $name)) {
+        if (! preg_match('/^[A-Za-z0-9._-]+\\.sql$/', $name)) {
             throw new RuntimeException('Nombre de respaldo invalido.');
         }
 

@@ -21,7 +21,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app['config']->set('database.connections', [
+            'pgsql' => $this->app['config']->get('database.connections.pgsql'),
+        ]);
     }
 
     /**

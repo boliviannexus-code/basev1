@@ -77,7 +77,6 @@ RUN apt-get update \
         gd \
         intl \
         pcntl \
-        pdo_mysql \
         pdo_pgsql \
         pgsql \
         zip \
