@@ -82,7 +82,7 @@ class FixtureSetupController extends Controller
 
         return redirect()
             ->route('fixtures.report', $generation)
-            ->with('success', 'Fixture generado correctamente con '.$generation->matches_count.' partidos pendientes de programacion.');
+            ->with('success', 'Primera fase generada correctamente. El fixture tiene '.$generation->matches_count.' partidos en total.');
     }
 
     public function report(FixtureGeneration $fixtureGeneration): View

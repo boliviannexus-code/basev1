@@ -21,29 +21,33 @@ class FixtureGenerationService
     {
         $this->setup->ensureVisible($tournament);
 
-        $series = $this->setup->seriesFor($tournament, $category);
-        $this->validateFirstPhaseConfig($series);
-        $this->ensureNoActiveGeneration($tournament, $category);
+        return DB::transaction(function () use ($tournament, $category, $config): FixtureGeneration {
+            Tournament::query()->whereKey($tournament->id)->lockForUpdate()->firstOrFail();
 
-        return DB::transaction(function () use ($tournament, $category, $series, $config): FixtureGeneration {
-            FixtureGeneration::query()
+            $generation = FixtureGeneration::query()
                 ->where('tournament_id', $tournament->id)
                 ->where('category_id', $category->id)
                 ->where('status', 'active')
-                ->update(['status' => 'superseded']);
+                ->lockForUpdate()
+                ->first();
 
-            $generation = FixtureGeneration::query()->create([
-                'company_id' => $tournament->company_id,
-                'tournament_id' => $tournament->id,
-                'category_id' => $category->id,
-                'generated_by' => auth()->id(),
-                'status' => 'active',
-                'config' => $this->normalizedConfig($config),
-                'generated_at' => now(),
-            ]);
+            $series = $this->setup->pendingSeries($this->setup->seriesFor($tournament, $category), $generation);
+            $this->validateFirstPhaseConfig($series);
 
-            $matchNumber = 1;
-            $this->generateGroupPhase($generation, $tournament, $category, $series, (int) $config['first_phase_rounds'], $matchNumber);
+            if (! $generation) {
+                $generation = FixtureGeneration::query()->create([
+                    'company_id' => $tournament->company_id,
+                    'tournament_id' => $tournament->id,
+                    'category_id' => $category->id,
+                    'generated_by' => auth()->id(),
+                    'status' => 'active',
+                    'config' => $this->normalizedConfig($config),
+                    'generated_at' => now(),
+                ]);
+            }
+
+            $matchNumber = ((int) $generation->matches()->max('match_number')) + 1;
+            $this->generateGroupPhase($generation, $tournament, $category, $series, (int) $generation->config['first_phase_rounds'], $matchNumber);
             $generation->update([
                 'matches_count' => FixtureMatch::query()->where('fixture_generation_id', $generation->id)->count(),
             ]);
@@ -231,21 +235,6 @@ class FixtureGenerationService
                     }
                 }
             }
-        }
-    }
-
-    private function ensureNoActiveGeneration(Tournament $tournament, DivisionCategory $category): void
-    {
-        $exists = FixtureGeneration::query()
-            ->where('tournament_id', $tournament->id)
-            ->where('category_id', $category->id)
-            ->where('status', 'active')
-            ->exists();
-
-        if ($exists) {
-            throw ValidationException::withMessages([
-                'fixture' => 'Esta categoria ya tiene un fixture generado. No se puede volver a generar.',
-            ]);
         }
     }
 
@@ -540,7 +529,7 @@ class FixtureGenerationService
     private function validateFirstPhaseConfig(Collection $series): void
     {
         if ($series->isEmpty()) {
-            throw ValidationException::withMessages(['series' => 'No hay series con equipos para generar fixture.']);
+            throw ValidationException::withMessages(['series' => 'No hay series nuevas con al menos dos equipos para generar la primera fase.']);
         }
     }
 

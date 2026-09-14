@@ -21,6 +21,20 @@
         </div>
     </div>
 
+    @if ($activeGeneration && $pendingSeries->isNotEmpty())
+        <x-ui.table-card title="Generar primera fase de series nuevas">
+            <p>Series pendientes: <strong>{{ $pendingSeries->pluck('label')->implode(', ') }}</strong>.</p>
+            <p>Se usara la modalidad {{ (int) ($activeGeneration->config['first_phase_rounds'] ?? 1) === 2 ? 'ida y vuelta' : 'solo ida' }} del fixture actual. Los partidos existentes se conservaran.</p>
+            @can('fixtures.generate')
+                <form method="POST" action="{{ route('fixtures.generate', ['tournament' => $tournament, 'category' => $category]) }}">
+                    @csrf
+                    <input type="hidden" name="first_phase_rounds" value="{{ $activeGeneration->config['first_phase_rounds'] ?? 1 }}">
+                    <button class="btn btn-success" type="submit">Generar primera fase de series nuevas</button>
+                </form>
+            @endcan
+        </x-ui.table-card>
+    @endif
+
     @if (! $activeGeneration)
         <x-ui.table-card title="Generar primera fase">
             <div class="alert alert-info">

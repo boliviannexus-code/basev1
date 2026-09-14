@@ -282,6 +282,63 @@ class FixtureSetupTest extends TestCase
             ->assertSee('La primera y segunda fase ya estan definidas');
     }
 
+    public function test_new_series_can_append_first_phase_without_changing_existing_matches(): void
+    {
+        [$company, , $user] = $this->leagueUser(['fixtures.view', 'fixtures.generate']);
+        $tournament = $this->tournamentFor($company);
+        $route = route('fixtures.generate', ['tournament' => $tournament, 'category' => $tournament->category]);
+        $configureRoute = route('fixtures.configure', ['tournament' => $tournament, 'category' => $tournament->category]);
+
+        foreach (['serie_a', 'serie_b'] as $series) {
+            foreach (range(1, 2) as $number) {
+                TournamentRegistration::factory()->create([
+                    'company_id' => $company->id,
+                    'tournament_id' => $tournament->id,
+                    'division_id' => $tournament->division_id,
+                    'category_id' => $tournament->category_id,
+                    'team_id' => Team::factory()->create(['company_id' => $company->id])->id,
+                    'series' => $series,
+                    'team_number' => $number,
+                ]);
+            }
+
+            if ($series === 'serie_a') {
+                $this->actingAs($user)->post($route, ['first_phase_rounds' => 2])->assertSessionHasNoErrors();
+                $generation = FixtureGeneration::query()->firstOrFail();
+                $match = $generation->matches()->firstOrFail();
+                $match->update(['status' => 'completed']);
+                $report = MatchReport::query()->create([
+                    'company_id' => $company->id,
+                    'fixture_match_id' => $match->id,
+                    'home_score' => 2,
+                    'away_score' => 1,
+                    'status' => 'completed',
+                ]);
+                $existingMatches = $generation->matches()->orderBy('id')->get()->toArray();
+                $existingConfig = $generation->config;
+                $this->get($configureRoute)->assertDontSee('Generar primera fase de series nuevas');
+            }
+        }
+
+        $this->get($configureRoute)->assertOk()->assertSee('Generar primera fase de series nuevas');
+        $this->post($route, ['first_phase_rounds' => 1])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('fixtures.report', $generation));
+
+        $this->assertDatabaseCount('fixture_generations', 1);
+        $this->assertSame(4, $generation->refresh()->matches_count);
+        $this->assertSame($existingConfig, $generation->config);
+        $this->assertSame($existingMatches, $generation->matches()->where('series', 'serie_a')->orderBy('id')->get()->toArray());
+        $this->assertSame(2, $generation->matches()->where('series', 'serie_b')->count());
+        $this->assertSame([1, 2, 3, 4], $generation->matches()->orderBy('match_number')->pluck('match_number')->all());
+        $this->assertSame(0, $generation->matches()->where('phase', '!=', 'group')->count());
+        $this->assertDatabaseHas('match_reports', ['id' => $report->id, 'home_score' => 2, 'away_score' => 1]);
+
+        $this->post($route, ['first_phase_rounds' => 2])->assertSessionHasErrors('series');
+        $this->assertDatabaseCount('fixture_matches', 4);
+        $this->get($configureRoute)->assertDontSee('Generar primera fase de series nuevas');
+    }
+
     public function test_complete_fixture_deletion_removes_played_and_scheduled_matches(): void
     {
         [$company, , $user] = $this->leagueUser(['fixtures.view', 'fixtures.generate']);
