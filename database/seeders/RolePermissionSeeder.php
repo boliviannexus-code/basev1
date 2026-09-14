@@ -36,6 +36,10 @@ class RolePermissionSeeder extends Seeder
             'permissions.create',
             'permissions.edit',
             'permissions.delete',
+            'database-backups.view',
+            'database-backups.create',
+            'database-backups.restore',
+            'database-backups.delete',
             'companies.view',
             'companies.create',
             'companies.update',
@@ -71,6 +75,8 @@ class RolePermissionSeeder extends Seeder
             'tournament-registrations.create',
             'tournament-registrations.update',
             'tournament-registrations.delete',
+            'tournament-modifications.view',
+            'tournament-modifications.create',
             'fixtures.view',
             'fixtures.generate',
             'matchdays.view',
@@ -107,6 +113,10 @@ class RolePermissionSeeder extends Seeder
             'player-transfers.settings',
             'league-settings.view',
             'league-settings.update',
+            'court-fee-items.view',
+            'court-fee-items.create',
+            'court-fee-items.update',
+            'court-fee-items.delete',
             'categories.view',
             'categories.create',
             'categories.update',
@@ -142,6 +152,12 @@ class RolePermissionSeeder extends Seeder
                 'guard_name' => $guard,
             ]);
         }
+
+        $permissionModels = Permission::query()
+            ->where('guard_name', $guard)
+            ->whereIn('name', $permissions)
+            ->get()
+            ->keyBy('name');
 
         Permission::query()
             ->whereNotIn('name', $permissions)
@@ -186,6 +202,8 @@ class RolePermissionSeeder extends Seeder
             'fingerprint-templates.update',
             'roles.view',
             'permissions.view',
+            'database-backups.view',
+            'database-backups.create',
             'companies.view',
             'companies.create',
             'companies.update',
@@ -212,6 +230,8 @@ class RolePermissionSeeder extends Seeder
             'tournament-registrations.view',
             'tournament-registrations.create',
             'tournament-registrations.update',
+            'tournament-modifications.view',
+            'tournament-modifications.create',
             'fixtures.view',
             'fixtures.generate',
             'matchdays.view',
@@ -242,6 +262,10 @@ class RolePermissionSeeder extends Seeder
             'player-transfers.settings',
             'league-settings.view',
             'league-settings.update',
+            'court-fee-items.view',
+            'court-fee-items.create',
+            'court-fee-items.update',
+            'court-fee-items.delete',
             'categories.view',
             'categories.create',
             'categories.update',
@@ -290,6 +314,7 @@ class RolePermissionSeeder extends Seeder
             'player-imports.view',
             'tournaments.view',
             'tournament-registrations.view',
+            'tournament-modifications.view',
             'fixtures.view',
             'matchdays.view',
             'match-reports.view',
@@ -303,6 +328,7 @@ class RolePermissionSeeder extends Seeder
             'player-habilitations.view',
             'player-transfers.view',
             'league-settings.view',
+            'court-fee-items.view',
             'categories.view',
             'categories.view',
             'guide_types.view',

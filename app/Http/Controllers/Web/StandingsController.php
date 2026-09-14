@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Standing\StoreStandingAdjustmentRequest;
 use App\Models\StandingAdjustment;
+use App\Models\FixtureMatch;
+use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentRegistration;
 use App\Services\StandingPdfReportService;
@@ -142,6 +144,52 @@ class StandingsController extends Controller
             'standings' => $standings,
             'topScorers' => $topScorers,
             'adjustments' => $adjustments,
+        ]);
+    }
+
+    public function teamMatchesPdf(
+        Tournament $tournament,
+        int $category,
+        string $series,
+        Team $team,
+        StandingPdfReportService $pdfReport
+    ): Response {
+        abort_unless(auth()->user()?->can('standings.view'), 403);
+        abort_unless(CompanyContext::belongsToUser($tournament->company_id, auth()->user()), 403);
+        abort_unless((int) $team->company_id === (int) $tournament->company_id, 404);
+
+        $registration = TournamentRegistration::query()
+            ->with('category')
+            ->where('company_id', $tournament->company_id)
+            ->where('tournament_id', $tournament->id)
+            ->where('category_id', $category)
+            ->where('series', $series)
+            ->where('team_id', $team->id)
+            ->where('status', 'registered')
+            ->firstOrFail();
+
+        $matches = FixtureMatch::query()
+            ->with(['homeTeam', 'awayTeam', 'matchdayDate.court', 'report'])
+            ->where('company_id', $tournament->company_id)
+            ->where('tournament_id', $tournament->id)
+            ->where('category_id', $category)
+            ->where(fn ($query) => $query
+                ->where('home_team_id', $team->id)
+                ->orWhere('away_team_id', $team->id))
+            ->where(fn ($query) => $query
+                ->where('series', $series)
+                ->orWhere('phase', '!=', 'group'))
+            ->orderBy('stage_order')
+            ->orderBy('round_number')
+            ->orderBy('match_number')
+            ->get();
+
+        return $pdfReport->teamMatches([
+            'tournament' => $tournament,
+            'category' => $registration->category,
+            'series' => TournamentRegistration::SERIES[$series] ?? str($series)->headline()->toString(),
+            'team' => $team,
+            'matches' => $matches,
         ]);
     }
 

@@ -1,0 +1,1 @@
+<form method="POST" action="{{ route('extra-charges.store') }}" data-ajax-form>@csrf @include('extra-charges.partials.fields', ['extraCharge' => null])<div class="d-flex justify-content-end gap-2 mt-4"><a class="btn btn-outline-secondary" href="{{ route('extra-charges.index') }}">Cancelar</a><button class="btn btn-primary">Crear cargo</button></div></form>

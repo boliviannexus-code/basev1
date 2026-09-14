@@ -15,6 +15,11 @@ class PlayerService
 
         return Player::query()
             ->forCompany(CompanyContext::id())
+            ->with(['teamPlayers' => fn ($builder) => $builder
+                ->where('company_id', CompanyContext::id())
+                ->where('status', 'active')
+                ->whereNull('deleted_at')
+                ->with('team')])
             ->when($query !== '', fn ($builder) => $this->applySearch($builder, $query))
             ->latest()
             ->paginate($perPage)
@@ -24,8 +29,8 @@ class PlayerService
     public function create(array $data): Player
     {
         $data = $this->normalize($data, true);
-        $data = CompanyContext::applyToData($data);
         unset($data['internal_code']);
+        unset($data['company_id']);
 
         $player = Player::query()->create($data);
 
@@ -41,7 +46,6 @@ class PlayerService
         }
 
         return Player::query()
-            ->forCompany(CompanyContext::id())
             ->where('ci_normalized', $normalizedCi)
             ->first();
     }

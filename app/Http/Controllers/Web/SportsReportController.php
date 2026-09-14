@@ -113,7 +113,10 @@ class SportsReportController extends Controller
         abort_unless($request->filled('player_id'), 404);
         $this->authorizeReports();
 
-        $player = Player::query()->with('company')->findOrFail($request->integer('player_id'));
+        $player = Player::query()
+            ->with('company')
+            ->forCompany(CompanyContext::id())
+            ->findOrFail($request->integer('player_id'));
         $context = $this->playerKardexContext($player);
 
         return $pdf->kardex($player, $context, 'kardex-'.$player->full_name);
@@ -135,7 +138,7 @@ class SportsReportController extends Controller
         if ($request->filled('player_id')) {
             $player = Player::query()
                 ->with('company')
-                ->when(CompanyContext::id(), fn ($query, int $companyId) => $query->where('company_id', $companyId))
+                ->forCompany(CompanyContext::id())
                 ->whereKey($request->integer('player_id'))
                 ->firstOrFail();
 
@@ -283,38 +286,47 @@ class SportsReportController extends Controller
 
     private function playerKardexContext(Player $player): array
     {
+        $companyId = CompanyContext::id();
+
         $teamHistory = TeamPlayer::query()
             ->with(['team', 'division'])
             ->where('player_id', $player->id)
+            ->when($companyId, fn ($query, int $companyId) => $query->where('company_id', $companyId))
             ->orderByDesc('joined_at')
             ->get();
         $habilitations = TournamentTeamPlayer::query()
             ->with(['team', 'tournament', 'tournamentRegistration.category', 'enabledBy'])
             ->where('player_id', $player->id)
+            ->when($companyId, fn ($query, int $companyId) => $query->where('company_id', $companyId))
             ->orderByDesc('enabled_at')
             ->get();
         $transfers = PlayerTransferRequest::query()
             ->with(['fromTeam', 'toTeam', 'division', 'requester', 'reviewer'])
             ->where('player_id', $player->id)
+            ->when($companyId, fn ($query, int $companyId) => $query->where('company_id', $companyId))
             ->orderByDesc('created_at')
             ->get();
         $redCards = RedCardSanction::query()
             ->with(['fixtureMatch.tournament', 'fixtureMatch.category', 'fixtureMatch.matchdayDate', 'team', 'article'])
             ->where('player_id', $player->id)
+            ->when($companyId, fn ($query, int $companyId) => $query->where('company_id', $companyId))
             ->orderByDesc('created_at')
             ->get();
         $punishments = PlayerPunishment::query()
             ->with('article')
             ->where('player_id', $player->id)
+            ->when($companyId, fn ($query, int $companyId) => $query->where('company_id', $companyId))
             ->orderByDesc('created_at')
             ->get();
         $matchStats = MatchReportPlayer::query()
             ->with(['team', 'matchReport.fixtureMatch.tournament', 'matchReport.fixtureMatch.category', 'matchReport.fixtureMatch.matchdayDate', 'matchReport.fixtureMatch.homeTeam', 'matchReport.fixtureMatch.awayTeam'])
             ->where('player_id', $player->id)
+            ->when($companyId, fn ($query, int $companyId) => $query->where('company_id', $companyId))
             ->orderByDesc('created_at')
             ->get();
 
         return [
+            'company' => CompanyContext::activeCompany(auth()->user()) ?? $teamHistory->first()?->team?->company,
             'teamHistory' => $teamHistory,
             'habilitations' => $habilitations,
             'transfers' => $transfers,
@@ -891,8 +903,7 @@ class SportsReportController extends Controller
     private function playerOptions()
     {
         return Player::query()
-            ->with('company')
-            ->when(CompanyContext::id(), fn ($query, int $companyId) => $query->where('company_id', $companyId))
+            ->forCompany(CompanyContext::id())
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->get();

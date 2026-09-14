@@ -220,12 +220,12 @@ class PlayerTransferService
             throw ValidationException::withMessages(['to_team_id' => 'Selecciona un equipo solicitante de la liga activa.']);
         }
 
-        if (! $player || ! CompanyContext::belongsToUser($player->company_id, auth()->user())) {
+        if (! $player) {
             throw ValidationException::withMessages(['player_id' => 'Selecciona un jugador de la liga activa.']);
         }
 
-        if ((int) $tournament->company_id !== (int) $toTeam->company_id || (int) $player->company_id !== (int) $tournament->company_id) {
-            throw ValidationException::withMessages(['player_id' => 'El jugador, equipo y torneo deben pertenecer a la misma liga.']);
+        if ((int) $tournament->company_id !== (int) $toTeam->company_id) {
+            throw ValidationException::withMessages(['player_id' => 'El equipo y torneo deben pertenecer a la misma liga.']);
         }
 
         $registered = TournamentRegistration::query()

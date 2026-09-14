@@ -5,13 +5,15 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Matchday\ReorderMatchdayDateRequest;
 use App\Http\Requests\Matchday\ScheduleFixtureMatchRequest;
-use App\Http\Requests\Matchday\StoreMatchdayFiscalRequest;
 use App\Http\Requests\Matchday\StoreMatchdayDatesRequest;
+use App\Http\Requests\Matchday\StoreMatchdayFiscalRequest;
 use App\Http\Requests\Matchday\UpdateMatchdayDateRequest;
+use App\Http\Requests\Matchday\UpdateMatchdayFiscalRequest;
 use App\Http\Requests\Matchday\UpdateScheduledMatchTimeRequest;
 use App\Models\FixtureMatch;
 use App\Models\Matchday;
 use App\Models\MatchdayDate;
+use App\Models\MatchdayDateFiscal;
 use App\Models\Season;
 use App\Services\MatchdayPdfReportService;
 use App\Services\MatchdayService;
@@ -70,6 +72,13 @@ class MatchdayController extends Controller
         return $this->matchdayPdf->fixture($this->matchdays->previewContext($matchday));
     }
 
+    public function printable(Matchday $matchday): View
+    {
+        abort_unless($matchday->status === 'finalized', 422, 'Solo se puede imprimir una jornada finalizada.');
+
+        return view('matchdays.printable', $this->matchdays->previewContext($matchday));
+    }
+
     public function storeDates(StoreMatchdayDatesRequest $request, Matchday $matchday): RedirectResponse
     {
         $this->matchdays->addDate(
@@ -92,6 +101,15 @@ class MatchdayController extends Controller
             ->with('success', 'Jornada finalizada correctamente.');
     }
 
+    public function reopen(Matchday $matchday): RedirectResponse
+    {
+        $this->matchdays->reopen($matchday);
+
+        return redirect()
+            ->route('matchdays.configure', $matchday)
+            ->with('success', 'Jornada reabierta. Ya puedes agregar fechas o partidos y luego finalizarla nuevamente.');
+    }
+
     public function updateDate(UpdateMatchdayDateRequest $request, MatchdayDate $date): RedirectResponse
     {
         $this->matchdays->updateDate(
@@ -103,6 +121,17 @@ class MatchdayController extends Controller
         return redirect()
             ->route('matchdays.configure', $date->matchday)
             ->with('success', 'Fecha de jornada actualizada correctamente.');
+    }
+
+    public function destroyDate(MatchdayDate $date): RedirectResponse
+    {
+        $matchday = $date->matchday;
+
+        $this->matchdays->deleteDate($date);
+
+        return redirect()
+            ->route('matchdays.configure', $matchday)
+            ->with('success', 'Fecha eliminada correctamente.');
     }
 
     public function reorderDate(ReorderMatchdayDateRequest $request, Matchday $matchday): RedirectResponse
@@ -238,7 +267,7 @@ class MatchdayController extends Controller
         ]);
     }
 
-    public function destroyFiscal(Request $request, MatchdayDate $date, \App\Models\MatchdayDateFiscal $fiscal): RedirectResponse
+    public function destroyFiscal(Request $request, MatchdayDate $date, MatchdayDateFiscal $fiscal): RedirectResponse
     {
         $this->matchdays->deleteFiscal($date, $fiscal);
 
@@ -255,6 +284,30 @@ class MatchdayController extends Controller
                 'show_fiscals',
             ])))
             ->with('success', 'Fiscal de turno eliminado correctamente.');
+    }
+
+    public function updateFiscal(UpdateMatchdayFiscalRequest $request, MatchdayDate $date, MatchdayDateFiscal $fiscal): RedirectResponse
+    {
+        $this->matchdays->updateFiscalTimes(
+            $date,
+            $fiscal,
+            $request->validated('start_time'),
+            $request->validated('end_time')
+        );
+
+        return redirect()
+            ->route('matchdays.dates.configure', array_merge(['date' => $date], $request->only([
+                'tournament_id',
+                'fixture_group',
+                'category_id',
+                'series',
+                'fiscal_tournament_id',
+                'fiscal_fixture_group',
+                'fiscal_category_id',
+                'fiscal_series',
+                'show_fiscals',
+            ])))
+            ->with('success', 'Horario de fiscalia actualizado correctamente.');
     }
 
     public function unscheduleMatch(MatchdayDate $date, FixtureMatch $fixtureMatch): RedirectResponse

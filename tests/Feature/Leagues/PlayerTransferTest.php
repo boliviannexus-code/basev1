@@ -111,6 +111,31 @@ class PlayerTransferTest extends TestCase
         $this->assertDatabaseCount('player_transfer_requests', 1);
     }
 
+    public function test_global_player_from_another_roster_team_can_request_transfer_before_habilitation(): void
+    {
+        $scenario = $this->transferScenario(['player-transfers.create'], ['player_company_id' => null]);
+
+        $this
+            ->actingAs($scenario['user'])
+            ->postJson(route('player-transfers.store'), [
+                'tournament_id' => $scenario['tournament']->id,
+                'to_team_id' => $scenario['toTeam']->id,
+                'player_id' => $scenario['player']->id,
+                'requested_note' => 'Solicitamos el pase antes de habilitar al jugador.',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.code', 'ABCPASE00001');
+
+        $this->assertDatabaseHas('player_transfer_requests', [
+            'company_id' => $scenario['company']->id,
+            'division_id' => $scenario['division']->id,
+            'from_team_id' => $scenario['fromTeam']->id,
+            'to_team_id' => $scenario['toTeam']->id,
+            'player_id' => $scenario['player']->id,
+            'status' => PlayerTransferRequest::STATUS_PENDING,
+        ]);
+    }
+
     public function test_approving_transfer_moves_active_roster_and_records_collection(): void
     {
         $scenario = $this->transferScenario(['player-transfers.create', 'player-transfers.review']);
@@ -186,14 +211,14 @@ class PlayerTransferTest extends TestCase
         return PlayerTransferRequest::query()->firstOrFail();
     }
 
-    private function transferScenario(array $permissions): array
+    private function transferScenario(array $permissions, array $overrides = []): array
     {
         [$company, , $user] = $this->leagueUser($permissions);
         $division = Division::factory()->create(['company_id' => $company->id, 'min_age' => 15, 'max_age' => 35]);
         $fromTeam = Team::factory()->create(['company_id' => $company->id, 'name' => 'Club Origen']);
         $toTeam = Team::factory()->create(['company_id' => $company->id, 'name' => 'Club Destino']);
         $tournament = $this->tournamentFor($company, $division);
-        $player = Player::factory()->create(['company_id' => $company->id]);
+        $player = Player::factory()->create(['company_id' => $overrides['player_company_id'] ?? $company->id]);
         $teamPlayer = TeamPlayer::factory()->create([
             'company_id' => $company->id,
             'division_id' => $division->id,

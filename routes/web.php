@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Web\AccreditationController;
+use App\Http\Controllers\Web\ActivityTypeController;
 use App\Http\Controllers\Web\AdminDataTableController;
 use App\Http\Controllers\Web\AuditController;
 use App\Http\Controllers\Web\AuthController;
@@ -8,12 +9,18 @@ use App\Http\Controllers\Web\BiometricTestController;
 use App\Http\Controllers\Web\CategoryController;
 use App\Http\Controllers\Web\CompanyController;
 use App\Http\Controllers\Web\CourtController;
+use App\Http\Controllers\Web\CourtFeeItemController;
+use App\Http\Controllers\Web\CourtFeeController;
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\DatabaseBackupController;
 use App\Http\Controllers\Web\DivisionController;
 use App\Http\Controllers\Web\FingerprintTemplateController;
 use App\Http\Controllers\Web\FixtureSetupController;
+use App\Http\Controllers\Web\GuideTypeController;
 use App\Http\Controllers\Web\LeagueSettingController;
 use App\Http\Controllers\Web\MatchdayController;
+use App\Http\Controllers\Web\MatchdayCourtFeeController;
+use App\Http\Controllers\Web\ExtraChargeController;
 use App\Http\Controllers\Web\MatchReportController;
 use App\Http\Controllers\Web\MeetingController;
 use App\Http\Controllers\Web\PermissionController;
@@ -23,6 +30,8 @@ use App\Http\Controllers\Web\PlayerHabilitationController;
 use App\Http\Controllers\Web\PlayerImportController;
 use App\Http\Controllers\Web\PlayerPunishmentController;
 use App\Http\Controllers\Web\PlayerTransferController;
+use App\Http\Controllers\Web\Public\TourBookingController;
+use App\Http\Controllers\Web\Public\TouristPanelController;
 use App\Http\Controllers\Web\PublicLeaguePageController;
 use App\Http\Controllers\Web\RedCardArticleController;
 use App\Http\Controllers\Web\RedCardController;
@@ -32,21 +41,8 @@ use App\Http\Controllers\Web\SportsReportController;
 use App\Http\Controllers\Web\StandingsController;
 use App\Http\Controllers\Web\TeamController;
 use App\Http\Controllers\Web\TournamentController;
+use App\Http\Controllers\Web\TournamentModificationController;
 use App\Http\Controllers\Web\TournamentRegistrationController;
-use App\Http\Controllers\Web\CategoryController;
-use App\Http\Controllers\Web\CompanyController;
-use App\Http\Controllers\Web\DashboardController;
-use App\Http\Controllers\Web\GuideTypeController;
-use App\Http\Controllers\Web\LocationSearchController;
-use App\Http\Controllers\Web\PermissionController;
-use App\Http\Controllers\Web\Public\PublicTourController;
-use App\Http\Controllers\Web\Public\TourBookingController;
-use App\Http\Controllers\Web\Public\TouristAuthController;
-use App\Http\Controllers\Web\Public\TouristPanelController;
-use App\Http\Controllers\Web\RoleController;
-use App\Http\Controllers\Web\TourAvailabilityController;
-use App\Http\Controllers\Web\TourBookingAdminController;
-use App\Http\Controllers\Web\TourController;
 use App\Http\Controllers\Web\TransportTypeController;
 use App\Http\Controllers\Web\UserController;
 use App\Http\Controllers\Web\WebsitePageController;
@@ -55,16 +51,17 @@ use Illuminate\Support\Facades\Route;
 Route::domain('{tenant}.'.config('tenancy.base_domain'))->group(function (): void {
     Route::get('/', PublicLeaguePageController::class)->name('public.league');
     Route::get('tabla-posiciones', [PublicLeaguePageController::class, 'standings'])->name('public.standings');
+    Route::get('tabla-posiciones/{tournament}/categorias/{category}/series/{series}/equipos/{team}/partidos.pdf', [PublicLeaguePageController::class, 'teamMatchesPdf'])->name('public.standings.team-matches.pdf');
     Route::get('partidos', [PublicLeaguePageController::class, 'matches'])->name('public.matches');
     Route::get('kardex', [PublicLeaguePageController::class, 'kardex'])->name('public.kardex');
     Route::get('pagina-imagen/{field}', [PublicLeaguePageController::class, 'image'])->name('public.image');
 });
 
+Route::redirect('/', '/login');
+
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('login', [AuthController::class, 'login'])->name('login.store');
-    Route::get('registro', [TouristAuthController::class, 'showRegister'])->name('tourist.register');
-    Route::post('registro', [TouristAuthController::class, 'register'])->name('tourist.register.store');
 });
 
 Route::middleware('auth')->group(function (): void {
@@ -93,6 +90,13 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
     Route::post('biometrico/identify', [BiometricTestController::class, 'identify'])->name('biometric.identify');
     Route::get('audits', [AuditController::class, 'index'])->middleware('permission:audits.view')->name('audits.index');
     Route::get('audits/{audit}', [AuditController::class, 'show'])->middleware('permission:audits.view')->name('audits.show');
+    Route::prefix('database-backups')->name('database-backups.')->group(function (): void {
+        Route::get('/', [DatabaseBackupController::class, 'index'])->middleware('permission:database-backups.view')->name('index');
+        Route::post('/', [DatabaseBackupController::class, 'store'])->middleware('permission:database-backups.create')->name('store');
+        Route::post('restore', [DatabaseBackupController::class, 'restore'])->middleware('permission:database-backups.restore')->name('restore');
+        Route::get('{backup}/download', [DatabaseBackupController::class, 'download'])->middleware('permission:database-backups.view')->name('download');
+        Route::delete('{backup}', [DatabaseBackupController::class, 'destroy'])->middleware('permission:database-backups.delete')->name('destroy');
+    });
     Route::prefix('companies')->name('companies.')->group(function (): void {
         Route::get('/', [CompanyController::class, 'index'])->middleware('permission:companies.view')->name('index');
         Route::get('create', [CompanyController::class, 'create'])->middleware('permission:companies.create')->name('create');
@@ -129,6 +133,44 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         Route::get('{court}/edit', [CourtController::class, 'edit'])->middleware('permission:courts.update')->name('edit');
         Route::put('{court}', [CourtController::class, 'update'])->middleware('permission:courts.update')->name('update');
         Route::delete('{court}', [CourtController::class, 'destroy'])->middleware('permission:courts.delete')->name('destroy');
+    });
+    Route::prefix('court-fees')->name('court-fees.')->group(function (): void {
+        Route::get('/', [CourtFeeController::class, 'index'])->middleware('permission:court-fee-items.view')->name('index');
+        Route::get('create', [CourtFeeController::class, 'create'])->middleware('permission:court-fee-items.create')->name('create');
+        Route::post('/', [CourtFeeController::class, 'store'])->middleware('permission:court-fee-items.create')->name('store');
+        Route::get('{courtFee}', [CourtFeeController::class, 'show'])->middleware('permission:court-fee-items.view')->name('show');
+        Route::get('{courtFee}/edit', [CourtFeeController::class, 'edit'])->middleware('permission:court-fee-items.update')->name('edit');
+        Route::put('{courtFee}', [CourtFeeController::class, 'update'])->middleware('permission:court-fee-items.update')->name('update');
+        Route::delete('{courtFee}', [CourtFeeController::class, 'destroy'])->middleware('permission:court-fee-items.delete')->name('destroy');
+        Route::get('{courtFee}/tournaments/edit', [CourtFeeController::class, 'editTournaments'])->middleware('permission:court-fee-items.update')->name('tournaments.edit');
+        Route::put('{courtFee}/tournaments', [CourtFeeController::class, 'syncTournaments'])->middleware('permission:court-fee-items.update')->name('tournaments.update');
+        Route::get('{courtFee}/items/create', [CourtFeeItemController::class, 'create'])->middleware('permission:court-fee-items.create')->name('items.create');
+        Route::post('{courtFee}/items', [CourtFeeItemController::class, 'store'])->middleware('permission:court-fee-items.create')->name('items.store');
+    });
+    Route::prefix('matchday-court-fees')->name('matchday-court-fees.')->group(function (): void {
+        Route::get('/', [MatchdayCourtFeeController::class, 'index'])->middleware('permission:court-fee-items.view')->name('index');
+        Route::get('{matchday}', [MatchdayCourtFeeController::class, 'show'])->middleware('permission:court-fee-items.view')->name('show');
+        Route::get('{matchday}/pdf', [MatchdayCourtFeeController::class, 'pdf'])->middleware('permission:court-fee-items.view')->name('pdf');
+        Route::get('{matchday}/generate', [MatchdayCourtFeeController::class, 'generateForm'])->middleware('permission:court-fee-items.update')->name('generate-form');
+        Route::post('{matchday}/generate', [MatchdayCourtFeeController::class, 'generate'])->middleware('permission:court-fee-items.update')->name('generate');
+        Route::post('{matchday}/consolidate', [MatchdayCourtFeeController::class, 'consolidate'])->middleware('permission:court-fee-items.update')->name('consolidate');
+        Route::patch('{matchday}/reopen', [MatchdayCourtFeeController::class, 'reopen'])->middleware('permission:court-fee-items.update')->name('reopen');
+        Route::delete('installments/{installment}', [MatchdayCourtFeeController::class, 'destroyInstallment'])->middleware('permission:court-fee-items.update')->name('installments.destroy');
+        Route::delete('{matchday}/installments/charge/{extraCharge}', [MatchdayCourtFeeController::class, 'destroyChargeInstallments'])->middleware('permission:court-fee-items.update')->name('installments.destroy-charge');
+    });
+    Route::prefix('extra-charges')->name('extra-charges.')->group(function (): void {
+        Route::get('/', [ExtraChargeController::class, 'index'])->middleware('permission:court-fee-items.view')->name('index');
+        Route::get('create', [ExtraChargeController::class, 'create'])->middleware('permission:court-fee-items.create')->name('create');
+        Route::post('/', [ExtraChargeController::class, 'store'])->middleware('permission:court-fee-items.create')->name('store');
+        Route::get('{extraCharge}/edit', [ExtraChargeController::class, 'edit'])->middleware('permission:court-fee-items.update')->name('edit');
+        Route::put('{extraCharge}', [ExtraChargeController::class, 'update'])->middleware('permission:court-fee-items.update')->name('update');
+        Route::get('{extraCharge}/assignments/edit', [ExtraChargeController::class, 'editAssignments'])->middleware('permission:court-fee-items.update')->name('assignments.edit');
+        Route::put('{extraCharge}/assignments', [ExtraChargeController::class, 'syncAssignments'])->middleware('permission:court-fee-items.update')->name('assignments.update');
+    });
+    Route::prefix('court-fee-items')->name('court-fee-items.')->group(function (): void {
+        Route::get('{courtFeeItem}/edit', [CourtFeeItemController::class, 'edit'])->middleware('permission:court-fee-items.update')->name('edit');
+        Route::put('{courtFeeItem}', [CourtFeeItemController::class, 'update'])->middleware('permission:court-fee-items.update')->name('update');
+        Route::delete('{courtFeeItem}', [CourtFeeItemController::class, 'destroy'])->middleware('permission:court-fee-items.delete')->name('destroy');
     });
     Route::prefix('teams')->name('teams.')->group(function (): void {
         Route::get('/', [TeamController::class, 'index'])->middleware('permission:teams.view')->name('index');
@@ -183,14 +225,20 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         Route::put('{tournamentRegistration}', [TournamentRegistrationController::class, 'update'])->middleware('permission:tournament-registrations.update')->name('update');
         Route::delete('{tournamentRegistration}', [TournamentRegistrationController::class, 'destroy'])->middleware('permission:tournament-registrations.delete')->name('destroy');
     });
+    Route::prefix('tournament-modifications')->name('tournament-modifications.')->group(function (): void {
+        Route::get('/', [TournamentModificationController::class, 'index'])->middleware('permission:tournament-modifications.view')->name('index');
+        Route::post('team-substitutions', [TournamentModificationController::class, 'substitute'])->middleware('permission:tournament-modifications.create')->name('team-substitutions.store');
+    });
     Route::prefix('fixtures')->name('fixtures.')->middleware('permission:fixtures.view')->group(function (): void {
         Route::get('/', [FixtureSetupController::class, 'index'])->name('index');
         Route::get('patterns/pdf', [FixtureSetupController::class, 'patternsPdf'])->name('patterns.pdf');
         Route::get('patterns', [FixtureSetupController::class, 'patterns'])->name('patterns');
         Route::patch('generations/{fixtureGeneration}/resolve-seeds', [FixtureSetupController::class, 'resolveSeeds'])->middleware('permission:fixtures.generate')->name('resolve-seeds');
+        Route::post('generations/{fixtureGeneration}/second-phase', [FixtureSetupController::class, 'generateSecondPhase'])->middleware('permission:fixtures.generate')->name('second-phase.generate');
         Route::get('generations/{fixtureGeneration}/teams-pdf', [FixtureSetupController::class, 'reportTeamsPdf'])->name('report.teams-pdf');
         Route::get('generations/{fixtureGeneration}/pdf', [FixtureSetupController::class, 'reportPdf'])->name('report.pdf');
         Route::get('generations/{fixtureGeneration}/report', [FixtureSetupController::class, 'report'])->name('report');
+        Route::delete('generations/{fixtureGeneration}', [FixtureSetupController::class, 'destroy'])->middleware('permission:fixtures.generate')->name('destroy');
         Route::get('{tournament}/categories', [FixtureSetupController::class, 'categories'])->name('categories');
         Route::get('{tournament}/categories/{category}/series', [FixtureSetupController::class, 'series'])->name('series');
         Route::get('{tournament}/categories/{category}/series/{series}/teams', [FixtureSetupController::class, 'seriesTeams'])->name('series.teams');
@@ -202,17 +250,21 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         Route::get('days/{matchday}/configure', [MatchdayController::class, 'configure'])->middleware('permission:matchdays.view')->name('configure');
         Route::get('days/{matchday}/preview', [MatchdayController::class, 'preview'])->middleware('permission:matchdays.view')->name('preview');
         Route::get('days/{matchday}/print', [MatchdayController::class, 'print'])->middleware('permission:matchdays.view')->name('print');
+        Route::get('days/{matchday}/printable', [MatchdayController::class, 'printable'])->middleware('permission:matchdays.view')->name('printable');
         Route::post('days/{matchday}/dates', [MatchdayController::class, 'storeDates'])->middleware('permission:matchdays.update')->name('dates.store');
         Route::patch('days/{matchday}/dates/reorder', [MatchdayController::class, 'reorderDate'])->middleware('permission:matchdays.update')->name('dates.reorder');
+        Route::patch('days/{matchday}/reopen', [MatchdayController::class, 'reopen'])->middleware('permission:matchdays.update')->name('reopen');
         Route::patch('days/{matchday}/finish', [MatchdayController::class, 'finish'])->middleware('permission:matchdays.update')->name('finish');
         Route::get('dates/{date}/configure', [MatchdayController::class, 'configureDate'])->middleware('permission:matchdays.view')->name('dates.configure');
         Route::patch('dates/{date}', [MatchdayController::class, 'updateDate'])->middleware('permission:matchdays.update')->name('dates.update');
+        Route::delete('dates/{date}', [MatchdayController::class, 'destroyDate'])->middleware('permission:matchdays.update')->name('dates.destroy');
         Route::post('dates/{date}/matches', [MatchdayController::class, 'scheduleMatch'])->middleware('permission:matchdays.update')->name('dates.matches.store');
         Route::get('dates/{date}/matches/options', [MatchdayController::class, 'fixtureMatchOptions'])->middleware('permission:matchdays.view')->name('dates.matches.options');
         Route::patch('dates/{date}/matches/{fixtureMatch}/time', [MatchdayController::class, 'updateScheduledTime'])->middleware('permission:matchdays.update')->name('dates.matches.time');
         Route::delete('dates/{date}/matches/{fixtureMatch}', [MatchdayController::class, 'unscheduleMatch'])->middleware('permission:matchdays.update')->name('dates.matches.destroy');
         Route::get('dates/{date}/fiscals/options', [MatchdayController::class, 'fiscalOptions'])->middleware('permission:matchdays.view')->name('dates.fiscals.options');
         Route::post('dates/{date}/fiscals', [MatchdayController::class, 'storeFiscal'])->middleware('permission:matchdays.update')->name('dates.fiscals.store');
+        Route::patch('dates/{date}/fiscals/{fiscal}', [MatchdayController::class, 'updateFiscal'])->middleware('permission:matchdays.update')->name('dates.fiscals.update');
         Route::delete('dates/{date}/fiscals/{fiscal}', [MatchdayController::class, 'destroyFiscal'])->middleware('permission:matchdays.update')->name('dates.fiscals.destroy');
         Route::get('{season}', [MatchdayController::class, 'show'])->middleware('permission:matchdays.view')->name('show');
         Route::post('{season}', [MatchdayController::class, 'store'])->middleware('permission:matchdays.create')->name('store');
@@ -263,6 +315,7 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
     });
     Route::get('standings', [StandingsController::class, 'index'])->middleware('permission:standings.view')->name('standings.index');
     Route::get('standings/pdf', [StandingsController::class, 'pdf'])->middleware('permission:standings.view')->name('standings.pdf');
+    Route::get('standings/{tournament}/categories/{category}/series/{series}/teams/{team}/matches-pdf', [StandingsController::class, 'teamMatchesPdf'])->middleware('permission:standings.view')->name('standings.team-matches.pdf');
     Route::prefix('sports-reports')->name('sports-reports.')->middleware('permission:sports-reports.view')->group(function (): void {
         Route::get('registered-teams', [SportsReportController::class, 'registeredTeams'])->name('registered-teams');
         Route::get('registered-teams/pdf', [SportsReportController::class, 'registeredTeamsPdf'])->name('registered-teams.pdf');
@@ -310,6 +363,10 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
     Route::prefix('league-settings')->name('league-settings.')->group(function (): void {
         Route::get('/', [LeagueSettingController::class, 'index'])->middleware('permission:league-settings.view')->name('index');
         Route::post('/', [LeagueSettingController::class, 'update'])->middleware('permission:league-settings.update')->name('update');
+        Route::get('appearance', [LeagueSettingController::class, 'appearance'])->middleware('permission:league-settings.view')->name('appearance');
+        Route::post('appearance', [LeagueSettingController::class, 'updateAppearance'])->middleware('permission:league-settings.update')->name('appearance.update');
+        Route::get('match-control-items', [LeagueSettingController::class, 'matchControlItems'])->middleware('permission:league-settings.view')->name('match-control-items');
+        Route::post('match-control-items', [LeagueSettingController::class, 'updateMatchControlItems'])->middleware('permission:league-settings.update')->name('match-control-items.update');
     });
     Route::prefix('categories')->name('categories.')->group(function (): void {
         Route::get('/', [CategoryController::class, 'index'])->middleware('permission:categories.view')->name('index');
@@ -324,6 +381,7 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         Route::get('audits', [AdminDataTableController::class, 'audits'])->name('audits');
         Route::get('players', [AdminDataTableController::class, 'players'])->name('players');
         Route::get('teams', [AdminDataTableController::class, 'teams'])->name('teams');
+    });
     Route::prefix('guide-types')->name('guide-types.')->group(function (): void {
         Route::get('/', [GuideTypeController::class, 'index'])->middleware('permission:guide_types.view')->name('index');
         Route::get('create', [GuideTypeController::class, 'create'])->middleware('permission:guide_types.create')->name('create');

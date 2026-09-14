@@ -7,10 +7,10 @@
 @section('content')
     <div class="card mb-3">
         <div class="card-body">
-            <form class="row g-3 align-items-end" method="GET" action="{{ route('standings.index') }}">
-                <div class="col-lg-5">
+            <form class="row g-3 align-items-end" method="GET" action="{{ route('standings.index') }}" data-standings-filter>
+                <div class="col-lg-6">
                     <label class="form-label" for="standings-tournament">Torneo</label>
-                    <select class="form-select" id="standings-tournament" name="tournament_id" onchange="this.form.submit()">
+                    <select class="form-select" id="standings-tournament" name="tournament_id" data-standings-tournament>
                         @foreach ($tournaments as $tournament)
                             <option value="{{ $tournament->id }}" @selected($selectedTournament?->is($tournament))>
                                 {{ $tournament->name }} · {{ $tournament->season?->name ?? 'Sin gestion' }}
@@ -18,9 +18,9 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-lg-5">
+                <div class="col-lg-6">
                     <label class="form-label" for="standings-group">Categoria y serie</label>
-                    <select class="form-select" id="standings-group" name="group" @disabled($groups->isEmpty())>
+                    <select class="form-select" id="standings-group" name="group" data-standings-group @disabled($groups->isEmpty())>
                         @foreach ($groups as $group)
                             <option value="{{ $group['value'] }}" @selected(($selectedGroup['value'] ?? null) === $group['value'])>
                                 {{ $group['label'] }} · {{ $group['teams_count'] }} equipos
@@ -28,16 +28,11 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-lg-2">
-                    <button class="btn btn-primary w-100" type="submit">
-                        <i class="ti ti-filter me-1"></i>
-                        Ver tabla
-                    </button>
-                </div>
             </form>
         </div>
     </div>
 
+    <div data-standings-results aria-live="polite">
     @if (! $selectedTournament)
         <div class="alert alert-info">No hay torneos registrados para mostrar posiciones.</div>
     @elseif (! $selectedGroup)
@@ -98,6 +93,7 @@
                             @can('standings.adjust')
                                 <th class="text-end" style="width: 7rem;">Ajuste</th>
                             @endcan
+                            <th class="text-end" style="width: 7rem;">Partidos</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -139,9 +135,20 @@
                                         </button>
                                     </td>
                                 @endcan
+                                <td class="text-end">
+                                    <a class="btn btn-outline-success btn-sm" href="{{ route('standings.team-matches.pdf', [
+                                        'tournament' => $selectedTournament,
+                                        'category' => $selectedGroup['category_id'],
+                                        'series' => $selectedGroup['series'],
+                                        'team' => $row['team_id'],
+                                    ]) }}" target="_blank" rel="noopener" title="Imprimir partidos de {{ $row['team_name'] }}">
+                                        <i class="ti ti-printer me-1"></i>
+                                        Partidos
+                                    </a>
+                                </td>
                             </tr>
                         @empty
-                            <x-ui.empty-row colspan="{{ auth()->user()?->can('standings.adjust') ? 14 : 13 }}" message="No hay equipos inscritos para esta serie." />
+                            <x-ui.empty-row colspan="{{ auth()->user()?->can('standings.adjust') ? 15 : 14 }}" message="No hay equipos inscritos para esta serie." />
                         @endforelse
                     </tbody>
                 </table>
@@ -249,4 +256,5 @@
             </div>
         </x-ui.table-card>
     @endif
+    </div>
 @endsection

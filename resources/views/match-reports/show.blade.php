@@ -56,9 +56,15 @@
                             </td>
                             <td class="text-end">
                                 @if ($match->report?->status === 'started')
-                                    <a class="btn btn-primary btn-sm" href="{{ route('match-reports.matches.play', $match) }}">
-                                        Continuar
-                                    </a>
+                                    <div class="d-inline-flex justify-content-end gap-1">
+                                        <a class="btn btn-outline-primary btn-sm" href="{{ route('match-reports.matches.edit', $match) }}">
+                                            <i class="ti ti-checklist me-1"></i>
+                                            Datos iniciales
+                                        </a>
+                                        <a class="btn btn-primary btn-sm" href="{{ route('match-reports.matches.play', $match) }}">
+                                            Continuar
+                                        </a>
+                                    </div>
                                 @elseif (in_array($match->report?->status, ['completed', 'walkover'], true))
                                     <div class="d-inline-flex justify-content-end gap-1">
                                         <a class="btn btn-success btn-sm" href="{{ route('match-reports.reports.pdf', $match->report) }}" target="_blank">

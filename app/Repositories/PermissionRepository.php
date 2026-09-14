@@ -42,6 +42,7 @@ class PermissionRepository
             'player-habilitations',
             'player-transfers',
             'league-settings',
+            'court-fee-items',
             'audits',
         ])->flip();
 

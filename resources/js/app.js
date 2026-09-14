@@ -509,6 +509,13 @@ function renderAffiliatePlayerSummary(container, payload) {
         wrapper.append(ageWarning);
     }
 
+    if (!habilitation && actions.habilitation_blocked_reason) {
+        const habilitationWarning = document.createElement('div');
+        habilitationWarning.className = 'alert alert-warning py-2 mt-2 mb-0';
+        habilitationWarning.textContent = actions.habilitation_blocked_reason;
+        wrapper.append(habilitationWarning);
+    }
+
     container.append(wrapper);
 }
 
@@ -1380,6 +1387,15 @@ function initTomSelects(scope = document) {
         if (select.matches('[data-remote-team-select]')) {
             const form = select.closest('form') ?? document;
             const tournament = form.querySelector('[data-registration-tournament]');
+
+            tournament?.addEventListener('change', () => {
+                select.tomselect?.clear(true);
+                select.tomselect?.clearOptions();
+            });
+        }
+    });
+}
+
 function initLocalLocationAutocomplete(scope = document) {
     scope.querySelectorAll('input[data-location-country-picker]').forEach((input) => {
         if (input.tomselect) {
@@ -1572,18 +1588,6 @@ function initPublicPopup() {
         if (event.target === popup) {
             popup.hidden = true;
             sessionStorage.setItem('public-popup-closed', '1');
-        }
-    });
-}
-
-function selectedOption(select) {
-    return select?.selectedOptions?.[0] ?? null;
-}
-
-            tournament?.addEventListener('change', () => {
-                select.tomselect?.clear(true);
-                select.tomselect?.clearOptions();
-            });
         }
     });
 }
@@ -2067,7 +2071,9 @@ function initFixtureSteppers(scope = document) {
             thirdPlacePanel?.classList.toggle('d-none', secondPhase !== 'knockout' || bracket.target < 4);
 
             if (summaryFirstPhase) {
-                summaryFirstPhase.textContent = optionTitle(selectedFirstPhase());
+                summaryFirstPhase.textContent = selectedFirstPhase()
+                    ? optionTitle(selectedFirstPhase())
+                    : (stepper.dataset.firstPhaseLabel ?? '-');
             }
 
             if (summaryQualifiers && qualifiersInput) {
@@ -3437,12 +3443,15 @@ function initUserDropdowns() {
 function initSidebarToggle() {
     const toggle = document.querySelector('[data-sidebar-toggle]');
     const sidebar = document.querySelector('.app-sidebar');
+    const closeButton = document.querySelector('[data-sidebar-close]');
 
     if (!toggle || toggle.dataset.sidebarToggleInitialized === '1') {
         return;
     }
 
     const icon = toggle.querySelector('i');
+    const isMobile = () => window.matchMedia('(max-width: 991.98px)').matches;
+
     document.querySelectorAll('.app-sidebar .nav-link, .app-sidebar .app-menu-toggle').forEach((item) => {
         const label = item.querySelector('.nav-link-title')?.textContent?.trim();
 
@@ -3452,6 +3461,18 @@ function initSidebarToggle() {
     });
 
     const syncState = () => {
+        if (isMobile()) {
+            const open = document.body.classList.contains('app-sidebar-mobile-open');
+            toggle.setAttribute('aria-label', open ? 'Cerrar menu' : 'Abrir menu');
+            toggle.setAttribute('title', open ? 'Cerrar menu' : 'Abrir menu');
+
+            if (icon) {
+                icon.className = open ? 'ti ti-x' : 'ti ti-menu-2';
+            }
+
+            return;
+        }
+
         const collapsed = document.body.classList.contains('app-sidebar-collapsed');
         toggle.setAttribute('aria-label', collapsed ? 'Expandir menu' : 'Replegar menu');
         toggle.setAttribute('title', collapsed ? 'Expandir menu' : 'Replegar menu');
@@ -3461,7 +3482,20 @@ function initSidebarToggle() {
         }
     };
 
+    const closeMobileSidebar = () => {
+        document.body.classList.remove('app-sidebar-mobile-open');
+        syncState();
+    };
+
     toggle.addEventListener('click', () => {
+        if (isMobile()) {
+            document.body.classList.toggle('app-sidebar-mobile-open');
+            document.body.classList.remove('app-sidebar-peek');
+            syncState();
+
+            return;
+        }
+
         document.body.classList.toggle('app-sidebar-collapsed');
         document.body.classList.remove('app-sidebar-peek');
         localStorage.setItem('app-sidebar-collapsed', document.body.classList.contains('app-sidebar-collapsed') ? '1' : '0');
@@ -3485,6 +3519,16 @@ function initSidebarToggle() {
     };
 
     sidebar?.addEventListener('click', (event) => {
+        if (isMobile()) {
+            const link = event.target.closest('a.nav-link');
+
+            if (link) {
+                closeMobileSidebar();
+            }
+
+            return;
+        }
+
         if (!document.body.classList.contains('app-sidebar-collapsed')) {
             return;
         }
@@ -3527,10 +3571,21 @@ function initSidebarToggle() {
         closePeek();
     });
 
+    closeButton?.addEventListener('click', closeMobileSidebar);
+
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             closePeek();
+            closeMobileSidebar();
         }
+    });
+
+    window.addEventListener('resize', () => {
+        if (!isMobile()) {
+            document.body.classList.remove('app-sidebar-mobile-open');
+        }
+
+        syncState();
     });
 
     syncState();
@@ -4893,6 +4948,94 @@ function initMeetingAttendance(scope = document) {
 
 showInitialAlerts();
 disableBusinessFormAutocomplete();
+function initStandingsFilters(scope = document) {
+    scope.querySelectorAll('[data-standings-filter]').forEach((form) => {
+        if (form.dataset.standingsFilterInitialized === '1') {
+            return;
+        }
+
+        const tournamentSelect = form.querySelector('[data-standings-tournament]');
+        const groupSelect = form.querySelector('[data-standings-group]');
+        const results = document.querySelector('[data-standings-results]');
+
+        if (!tournamentSelect || !groupSelect || !results) {
+            return;
+        }
+
+        let requestController;
+
+        const loadStandings = async (tournamentChanged = false) => {
+            requestController?.abort();
+            const controller = new AbortController();
+            requestController = controller;
+
+            const url = new URL(form.action, window.location.origin);
+            url.searchParams.set('tournament_id', tournamentSelect.value);
+            if (!tournamentChanged && groupSelect.value) {
+                url.searchParams.set('group', groupSelect.value);
+            }
+
+            tournamentSelect.disabled = true;
+            groupSelect.disabled = true;
+            results.setAttribute('aria-busy', 'true');
+            results.style.opacity = '0.55';
+
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        Accept: 'text/html',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    signal: controller.signal,
+                });
+
+                if (!response.ok) {
+                    throw new Error('No se pudo cargar la tabla de posiciones.');
+                }
+
+                const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+                const nextGroup = page.querySelector('[data-standings-group]');
+                const nextResults = page.querySelector('[data-standings-results]');
+
+                if (!nextGroup || !nextResults) {
+                    throw new Error('La respuesta de la tabla no es valida.');
+                }
+
+                groupSelect.innerHTML = nextGroup.innerHTML;
+                groupSelect.disabled = nextGroup.disabled;
+                results.innerHTML = nextResults.innerHTML;
+                if (nextGroup.value) {
+                    url.searchParams.set('group', nextGroup.value);
+                }
+                window.history.replaceState({}, '', `${url.pathname}${url.search}`);
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    Swal.fire({ icon: 'error', title: 'No se pudo actualizar', text: error.message });
+                }
+            } finally {
+                if (requestController !== controller) {
+                    return;
+                }
+
+                tournamentSelect.disabled = false;
+                if (!groupSelect.options.length) {
+                    groupSelect.disabled = true;
+                }
+                results.removeAttribute('aria-busy');
+                results.style.opacity = '';
+            }
+        };
+
+        tournamentSelect.addEventListener('change', () => loadStandings(true));
+        groupSelect.addEventListener('change', () => loadStandings(false));
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            loadStandings(false);
+        });
+        form.dataset.standingsFilterInitialized = '1';
+    });
+}
+
 initTomSelects();
 initPunishmentPlayerFilters();
 initRegistrationCategorySelects();
@@ -4917,6 +5060,7 @@ initTransferForms();
 initStockAdjustmentForms();
 initPermissionManagers();
 initMeetingAttendance();
+initStandingsFilters();
 initUserDropdowns();
 initSidebarToggle();
 initCashExpenseModal();

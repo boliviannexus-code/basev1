@@ -1,0 +1,7 @@
+<div class="row g-3">
+<div class="col-md-7"><label class="form-label">Nombre</label><input class="form-control" name="name" value="{{ old('name', $extraCharge->name ?? '') }}" required><div class="invalid-feedback" data-error-for="name"></div></div>
+<div class="col-md-3"><label class="form-label">Monto por equipo (Bs)</label><input class="form-control text-end" name="amount_per_team" type="number" min="0.01" step="0.01" value="{{ old('amount_per_team', $extraCharge->amount_per_team ?? '') }}" required><div class="invalid-feedback" data-error-for="amount_per_team"></div></div>
+<div class="col-md-2"><label class="form-label">N.º cuotas</label><input class="form-control text-end" name="installments" type="number" min="1" max="999" value="{{ old('installments', $extraCharge->installments ?? 1) }}" required><div class="invalid-feedback" data-error-for="installments"></div></div>
+<div class="col-12"><label class="form-label">Descripción</label><textarea class="form-control" name="description" rows="2">{{ old('description', $extraCharge->description ?? '') }}</textarea><div class="invalid-feedback" data-error-for="description"></div></div>
+<div class="col-12"><input type="hidden" name="is_active" value="0"><label class="form-check form-switch"><input class="form-check-input" name="is_active" type="checkbox" value="1" @checked(old('is_active', $extraCharge->is_active ?? true))><span class="form-check-label">Activo</span></label></div>
+</div>

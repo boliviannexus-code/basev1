@@ -9,6 +9,7 @@ class LegacyReference extends Model
 {
     protected $fillable = [
         'batch_id',
+        'company_id',
         'source_system',
         'source_table',
         'source_id',

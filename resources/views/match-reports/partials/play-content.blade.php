@@ -10,6 +10,10 @@
             Partidos
         </a>
         <div class="d-flex gap-2">
+            <a class="btn btn-outline-primary btn-sm" href="{{ route('match-reports.matches.edit', $match) }}">
+                <i class="ti ti-checklist me-1"></i>
+                Revisar datos iniciales
+            </a>
             <form method="POST" action="{{ route('match-reports.finish', $report) }}" data-confirm-match-finish>
                 @csrf
                 <button class="btn btn-success btn-sm" type="submit">

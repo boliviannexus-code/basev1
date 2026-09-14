@@ -75,12 +75,14 @@ class FixtureSetupService
     {
         $series = $this->seriesFor($tournament, $category);
         $minTeamCount = (int) ($series->min('team_count') ?? 0);
+        $activeGeneration = $this->activeGeneration($tournament, $category);
 
         return [
             'tournament' => $tournament->loadMissing(['season', 'division']),
             'category' => $category,
             'series' => $series,
-            'activeGeneration' => $this->activeGeneration($tournament, $category),
+            'activeGeneration' => $activeGeneration,
+            'pendingSeries' => $this->pendingSeries($series, $activeGeneration),
             'seriesCount' => $series->count(),
             'totalTeams' => $series->sum('team_count'),
             'minTeamCount' => $minTeamCount,
@@ -91,6 +93,16 @@ class FixtureSetupService
                 ->pluck('label')
                 ->implode(', '),
         ];
+    }
+
+    public function pendingSeries(SupportCollection $series, ?FixtureGeneration $generation): SupportCollection
+    {
+        $generatedSeries = $generation
+            ? $generation->matches()->where('phase', 'group')->distinct()->pluck('series')
+            : collect();
+
+        return $series->filter(fn (array $serie): bool => $serie['team_count'] >= 2
+            && ! $generatedSeries->contains($serie['key']))->values();
     }
 
     public function seriesTeamContext(Tournament $tournament, DivisionCategory $category, string $series): array

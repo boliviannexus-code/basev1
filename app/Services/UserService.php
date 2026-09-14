@@ -13,7 +13,8 @@ use Illuminate\Validation\ValidationException;
 class UserService
 {
     public function __construct(
-        private readonly UserRepository $users
+        private readonly UserRepository $users,
+        private readonly UserSessionSecurityService $sessionSecurity
     ) {}
 
     public function paginate(int $perPage = 15, bool $withTrashed = false): LengthAwarePaginator
@@ -55,7 +56,12 @@ class UserService
             $this->ensureCanDeactivate($user);
         }
 
+        $wasActive = $user->is_active;
         $user = $this->users->update($user, $data);
+
+        if ($wasActive && ! $user->is_active) {
+            $this->sessionSecurity->revokeForUser($user);
+        }
 
         if (is_array($roles)) {
             $this->syncRoles($user, $roles);
@@ -70,9 +76,14 @@ class UserService
             $this->ensureCanDeactivate($user);
         }
 
+        $wasActive = $user->is_active;
         $user = $this->users->update($user, [
             'is_active' => ! $user->is_active,
         ]);
+
+        if ($wasActive && ! $user->is_active) {
+            $this->sessionSecurity->revokeForUser($user);
+        }
 
         Log::warning('User status toggled', ['user_id' => $user->id, 'is_active' => $user->is_active]);
 
@@ -84,6 +95,8 @@ class UserService
         $user = $this->users->update($user, [
             'password' => Hash::make($password),
         ]);
+
+        $this->sessionSecurity->revokeForUser($user);
 
         Log::warning('User password changed', ['user_id' => $user->id]);
 
@@ -123,6 +136,8 @@ class UserService
         }
 
         $deleted = $this->users->delete($user);
+
+        $this->sessionSecurity->revokeForUser($user);
 
         Log::warning('User deleted', ['user_id' => $user->id, 'actor_id' => $actor?->id]);
 

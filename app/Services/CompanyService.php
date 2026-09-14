@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Storage;
 
 class CompanyService
 {
+    public function __construct(private readonly UserSessionSecurityService $sessionSecurity) {}
+
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
         return CompanyContext::scope(Company::query(), column: 'id')
@@ -53,9 +55,14 @@ class CompanyService
         unset($data['logo'], $data['remove_logo'], $data['legal_name'], $data['tax_id']);
 
         $oldCode = $company->code;
+        $wasActive = $company->is_active;
 
         $company->update($data);
         $company->refresh();
+
+        if ($wasActive && ! $company->is_active) {
+            $this->sessionSecurity->revokeForCompany($company);
+        }
 
         if ($oldCode !== $company->code) {
             $this->refreshPlayerCodes($company);
@@ -95,12 +102,11 @@ class CompanyService
     private function refreshPlayerCodes(Company $company): void
     {
         Player::query()
-            ->where('company_id', $company->id)
+            ->whereHas('teamPlayers', fn ($query) => $query->where('company_id', $company->id))
             ->orderBy('id')
-            ->select(['id', 'company_id'])
-            ->chunkById(500, function ($players) use ($company): void {
+            ->select(['id'])
+            ->chunkById(500, function ($players): void {
                 foreach ($players as $player) {
-                    $player->setRelation('company', $company);
                     $player->forceFill([
                         'internal_code' => Player::internalCodeFor($player),
                     ])->saveQuietly();

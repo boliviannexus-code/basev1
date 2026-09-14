@@ -15,9 +15,13 @@
                 {{ $matchday->status === 'finalized' ? 'Finalizada' : 'Borrador' }}
             </span>
             @if ($matchday->status === 'finalized')
-                <a class="btn btn-outline-primary btn-sm" href="{{ route('matchdays.print', $matchday) }}" target="_blank" rel="noopener">
+                <a class="btn btn-primary btn-sm" href="{{ route('matchdays.printable', $matchday) }}" target="_blank" rel="noopener">
                     <i class="ti ti-printer me-1"></i>
                     Imprimir
+                </a>
+                <a class="btn btn-outline-primary btn-sm" href="{{ route('matchdays.print', $matchday) }}" target="_blank" rel="noopener">
+                    <i class="ti ti-file-type-pdf me-1"></i>
+                    PDF clasico
                 </a>
             @else
                 <a class="btn btn-outline-primary btn-sm" href="{{ route('matchdays.preview', $matchday) }}">
@@ -26,7 +30,16 @@
                 </a>
             @endif
             @can('matchdays.update')
-                @if ($matchday->status !== 'finalized')
+                @if ($matchday->status === 'finalized')
+                    <form method="POST" action="{{ route('matchdays.reopen', $matchday) }}" data-confirm-delete="¿Reabrir jornada?" data-confirm-button-text="Sí, reabrir" data-confirm-text="La jornada volverá a borrador para agregar fechas o partidos. Después deberás finalizarla nuevamente." data-confirm-color="#d97706">
+                        @csrf
+                        @method('PATCH')
+                        <button class="btn btn-warning btn-sm" type="submit">
+                            <i class="ti ti-lock-open me-1"></i>
+                            Reabrir jornada
+                        </button>
+                    </form>
+                @else
                     <form method="POST" action="{{ route('matchdays.finish', $matchday) }}" data-confirm-delete="Finalizar jornada?" data-confirm-button-text="Si, finalizar" data-confirm-text="Estas seguro? Se validara que todas las fechas tengan partidos y fiscalias asignadas. Luego ya no se podran modificar fechas ni partidos programados." data-confirm-color="#198754">
                         @csrf
                         @method('PATCH')
@@ -104,6 +117,9 @@
                 @error('fiscales')
                     <div class="alert alert-danger">{{ $message }}</div>
                 @enderror
+                @error('fecha')
+                    <div class="alert alert-danger">{{ $message }}</div>
+                @enderror
                 <table class="table table-hover align-middle">
                     <thead>
                         <tr>
@@ -173,6 +189,15 @@
                                             <button class="btn btn-outline-primary btn-icon btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#matchday-date-edit-{{ $date->id }}" title="Modificar fecha y cancha" aria-label="Modificar fecha y cancha">
                                                 <i class="ti ti-edit"></i>
                                             </button>
+                                            @if ($date->fixtureMatches->isEmpty() && $date->fiscals->isEmpty())
+                                                <form class="d-inline" method="POST" action="{{ route('matchdays.dates.destroy', $date) }}" data-confirm-delete="¿Eliminar fecha?" data-confirm-button-text="Sí, eliminar" data-confirm-text="La fecha se eliminará de esta jornada." data-confirm-color="#d63939">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button class="btn btn-outline-danger btn-icon btn-sm" type="submit" title="Eliminar fecha" aria-label="Eliminar fecha">
+                                                        <i class="ti ti-trash"></i>
+                                                    </button>
+                                                </form>
+                                            @endif
                                         @endcan
                                         <a class="btn btn-outline-primary btn-sm" href="{{ route('matchdays.dates.configure', $date) }}">
                                             Configurar fecha

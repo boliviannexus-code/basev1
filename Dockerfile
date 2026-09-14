@@ -45,10 +45,21 @@ FROM php:8.4-apache-bookworm AS app
 WORKDIR /var/www/html
 
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
+ARG POSTGRES_CLIENT_MAJOR=17
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
         git \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl --fail --silent --show-error \
+        -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+        https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
         libfreetype6-dev \
         libicu-dev \
         libjpeg62-turbo-dev \
@@ -56,6 +67,7 @@ RUN apt-get update \
         libpq-dev \
         libwebp-dev \
         libzip-dev \
+        postgresql-client-${POSTGRES_CLIENT_MAJOR} \
         unzip \
         zip \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
@@ -82,7 +94,7 @@ COPY --chown=www-data:www-data . .
 COPY --from=vendor --chown=www-data:www-data /app/vendor ./vendor
 COPY --from=assets --chown=www-data:www-data /app/public/build ./public/build
 
-RUN rm -f public/hot \
+RUN rm -f public/hot bootstrap/cache/*.php \
     && mkdir -p \
         storage/app/public \
         storage/framework/cache \

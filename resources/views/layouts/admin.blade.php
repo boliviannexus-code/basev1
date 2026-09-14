@@ -11,6 +11,7 @@
     <script src="{{ asset('vendor/digitalpersona/services.umd.js') }}"></script>
     <script src="{{ asset('vendor/digitalpersona/devices.umd.js') }}"></script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('layouts.partials.interface-theme')
     @stack('styles')
 </head>
 <body class="layout-fluid">
@@ -21,6 +22,7 @@
 </script>
 <div class="page">
     @include('layouts.partials.sidebar')
+    <button class="app-sidebar-backdrop" type="button" data-sidebar-close aria-label="Cerrar menu"></button>
 
     <div class="page-wrapper app-wrapper">
         @include('layouts.partials.navbar')

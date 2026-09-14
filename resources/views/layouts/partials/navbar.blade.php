@@ -4,7 +4,7 @@
 
 <header class="navbar navbar-expand-md d-print-none app-navbar">
     <div class="container-xl">
-        <button class="btn btn-icon d-none d-lg-inline-flex me-3" type="button" data-sidebar-toggle aria-label="Replegar menu" title="Replegar menu">
+        <button class="btn btn-icon d-inline-flex me-3" type="button" data-sidebar-toggle aria-label="Abrir menu" title="Abrir menu">
             <i class="ti ti-layout-sidebar-left-collapse"></i>
         </button>
 
@@ -28,7 +28,14 @@
 
         <div class="navbar-nav flex-row align-items-center order-md-last ms-auto">
             <div class="nav-item dropdown">
-                <button class="nav-link d-flex lh-1 text-reset p-0 border-0 bg-transparent" type="button" data-user-dropdown-toggle aria-expanded="false" aria-label="Abrir menu de usuario">
+                <button
+                    class="nav-link d-flex lh-1 text-reset p-0 border-0 bg-transparent dropdown-toggle"
+                    type="button"
+                    data-bs-toggle="dropdown"
+                    data-bs-display="static"
+                    aria-expanded="false"
+                    aria-label="Abrir menu de usuario"
+                >
                     <span class="avatar avatar-sm">{{ str(auth()->user()->name ?? 'U')->substr(0, 1)->upper() }}</span>
                     <div class="d-none d-xl-block ps-2">
                         <div>{{ auth()->user()->name ?? 'Usuario' }}</div>

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use OwenIt\Auditing\Contracts\Auditable;
 
@@ -58,5 +59,10 @@ class Matchday extends Model implements Auditable
             'matchday_id',
             'matchday_date_id'
         );
+    }
+
+    public function courtFeeStatement(): HasOne
+    {
+        return $this->hasOne(MatchdayCourtFeeStatement::class);
     }
 }

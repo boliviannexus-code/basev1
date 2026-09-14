@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountIsActive;
+use App\Http\Middleware\ResolveCompanyFromSubdomain;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -8,10 +10,10 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
-use App\Http\Middleware\ResolveCompanyFromSubdomain;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -24,16 +26,30 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../app/Console/Commands',
     ])
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(
+            at: '*',
+            headers: Request::HEADER_X_FORWARDED_FOR
+                | Request::HEADER_X_FORWARDED_HOST
+                | Request::HEADER_X_FORWARDED_PORT
+                | Request::HEADER_X_FORWARDED_PROTO
+        );
+
         $middleware->statefulApi();
         $middleware->web(prepend: [
             ResolveCompanyFromSubdomain::class,
+        ]);
+        $middleware->web(append: [
+            EnsureAccountIsActive::class,
         ]);
 
         $middleware->alias([
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
+            'active_account' => EnsureAccountIsActive::class,
         ]);
+
+        $middleware->redirectGuestsTo(fn (Request $request): string => url('/login'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(fn (Request $request): bool => $request->is('api/*') || $request->expectsJson());
@@ -72,6 +88,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => 'No autorizado.',
                 'data' => null,
             ], 403);
+        });
+
+        $exceptions->render(function (HttpExceptionInterface $exception, Request $request) {
+            if ($exception->getStatusCode() !== 403 || $request->is('api/*') || $request->expectsJson()) {
+                return null;
+            }
+
+            return null;
         });
 
         $exceptions->render(function (ModelNotFoundException $exception, Request $request) {

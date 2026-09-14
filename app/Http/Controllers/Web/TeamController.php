@@ -7,6 +7,9 @@ use App\Http\Requests\Team\ReviewTeamUpdateRequest;
 use App\Http\Requests\Team\StoreTeamRequest;
 use App\Http\Requests\Team\UpdateTeamRequest;
 use App\Models\Company;
+use App\Models\FixtureMatch;
+use App\Models\MatchReportPlayer;
+use App\Models\PlayerTransferRequest;
 use App\Models\Team;
 use App\Models\TeamUpdateRequest;
 use App\Services\TeamService;
@@ -71,13 +74,62 @@ class TeamController extends Controller
     public function show(Request $request, Team $team): View
     {
         $this->teams->ensureVisible($team);
-        $team->load(['company', 'pendingUpdateRequest.requester']);
+        $team->load([
+            'company',
+            'pendingUpdateRequest.requester',
+            'teamPlayers' => fn ($query) => $query
+                ->with(['player', 'division'])
+                ->orderByRaw("CASE WHEN status = 'active' THEN 0 ELSE 1 END")
+                ->orderByDesc('joined_at'),
+            'registrations' => fn ($query) => $query
+                ->with(['tournament.season', 'division', 'category'])
+                ->orderByDesc('id'),
+            'tournamentTeamPlayers' => fn ($query) => $query
+                ->with(['player', 'tournament.season', 'tournamentRegistration.category'])
+                ->orderByDesc('enabled_at'),
+        ]);
 
         if ($request->ajax()) {
             return view('teams.partials.show', compact('team'));
         }
 
-        return view('teams.show', compact('team'));
+        $transfers = PlayerTransferRequest::query()
+            ->with(['player', 'division', 'fromTeam', 'toTeam'])
+            ->where('company_id', $team->company_id)
+            ->where(fn ($query) => $query
+                ->where('from_team_id', $team->id)
+                ->orWhere('to_team_id', $team->id))
+            ->orderByDesc('id')
+            ->get();
+
+        $matches = FixtureMatch::query()
+            ->with(['tournament', 'category', 'homeTeam', 'awayTeam', 'matchdayDate.court', 'report'])
+            ->where('company_id', $team->company_id)
+            ->where(fn ($query) => $query
+                ->where('home_team_id', $team->id)
+                ->orWhere('away_team_id', $team->id))
+            ->orderByDesc('matchday_date_id')
+            ->orderByDesc('match_number')
+            ->get();
+
+        $playerStats = MatchReportPlayer::query()
+            ->where('company_id', $team->company_id)
+            ->where('team_id', $team->id)
+            ->selectRaw('COALESCE(SUM(goals), 0) as goals, COALESCE(SUM(yellow_cards), 0) as yellow_cards, COALESCE(SUM(red_cards), 0) as red_cards')
+            ->first();
+
+        $finishedMatches = $matches->filter(fn (FixtureMatch $match): bool => in_array($match->report?->status, ['completed', 'walkover'], true));
+        $summary = [
+            'players' => $team->teamPlayers->where('status', 'active')->count(),
+            'tournaments' => $team->registrations->count(),
+            'played' => $finishedMatches->count(),
+            'pending' => $matches->count() - $finishedMatches->count(),
+            'goals' => (int) ($playerStats?->goals ?? 0),
+            'yellow_cards' => (int) ($playerStats?->yellow_cards ?? 0),
+            'red_cards' => (int) ($playerStats?->red_cards ?? 0),
+        ];
+
+        return view('teams.show', compact('team', 'transfers', 'matches', 'summary'));
     }
 
     public function edit(Request $request, Team $team): View

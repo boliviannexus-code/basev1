@@ -46,6 +46,7 @@ if (! function_exists('permission_module_label')) {
             'fingerprint-templates' => 'Huellas',
             'roles' => 'Roles',
             'permissions' => 'Permisos',
+            'database-backups' => 'Respaldos de base de datos',
             'companies' => 'Ligas deportivas',
             'seasons' => 'Gestiones',
             'divisions' => 'Divisiones',
@@ -68,6 +69,7 @@ if (! function_exists('permission_module_label')) {
             'player-habilitations' => 'Habilitaciones',
             'player-transfers' => 'Pases',
             'league-settings' => 'Configuraciones de liga',
+            'court-fee-items' => 'Derecho de cancha',
             'categories' => 'Categorias',
             'audits' => 'Auditoria',
         ];

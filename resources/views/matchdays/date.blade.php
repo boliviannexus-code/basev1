@@ -240,22 +240,48 @@
                         <table class="table table-hover align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th style="width: 10rem;">Horario</th>
+                                    <th style="width: 19rem;">Horario</th>
                                     <th>Fiscal</th>
-                                    <th class="text-end" style="width: 6rem;">Accion</th>
+                                    <th class="text-end" style="width: 7rem;">Accion</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @forelse ($fiscalAssignments as $fiscal)
                                     <tr>
-                                        <td class="fw-semibold">
-                                            {{ \Carbon\Carbon::parse($fiscal->start_time)->format('H:i') }} - {{ \Carbon\Carbon::parse($fiscal->end_time)->format('H:i') }}
+                                        <td>
+                                            @if ($matchday->status !== 'finalized' && auth()->user()?->can('matchdays.update'))
+                                                <form class="d-flex align-items-center gap-1" id="matchday-fiscal-update-{{ $fiscal->id }}" method="POST" action="{{ route('matchdays.dates.fiscals.update', array_filter([
+                                                    'date' => $date,
+                                                    'fiscal' => $fiscal,
+                                                    'tournament_id' => $selectedTournamentId,
+                                                    'fixture_group' => $selectedFixtureGroup,
+                                                    'category_id' => $selectedCategoryId,
+                                                    'series' => $selectedSeries,
+                                                    'fiscal_tournament_id' => $selectedFiscalTournamentId,
+                                                    'fiscal_fixture_group' => $selectedFiscalFixtureGroup,
+                                                    'fiscal_category_id' => $selectedFiscalCategoryId,
+                                                    'fiscal_series' => $selectedFiscalSeries,
+                                                    'show_fiscals' => 1,
+                                                ])) }}">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <input class="form-control form-control-sm" name="start_time" type="time" value="{{ \Carbon\Carbon::parse($fiscal->start_time)->format('H:i') }}" aria-label="Hora inicial de {{ $fiscal->team?->name ?? 'fiscal' }}" required>
+                                                    <span class="text-body-secondary">-</span>
+                                                    <input class="form-control form-control-sm" name="end_time" type="time" value="{{ \Carbon\Carbon::parse($fiscal->end_time)->format('H:i') }}" aria-label="Hora final de {{ $fiscal->team?->name ?? 'fiscal' }}" required>
+                                                </form>
+                                            @else
+                                                <span class="fw-semibold">{{ \Carbon\Carbon::parse($fiscal->start_time)->format('H:i') }} - {{ \Carbon\Carbon::parse($fiscal->end_time)->format('H:i') }}</span>
+                                            @endif
                                         </td>
                                         <td>{{ $fiscal->team?->name ?? '-' }}</td>
                                         <td class="text-end">
                                             @if ($matchday->status !== 'finalized')
                                                 @can('matchdays.update')
-                                                    <form method="POST" action="{{ route('matchdays.dates.fiscals.destroy', array_filter([
+                                                    <div class="d-inline-flex gap-1">
+                                                        <button class="btn btn-outline-primary btn-icon btn-sm" type="submit" form="matchday-fiscal-update-{{ $fiscal->id }}" title="Guardar horario" aria-label="Guardar horario de fiscalia">
+                                                            <i class="ti ti-device-floppy"></i>
+                                                        </button>
+                                                        <form method="POST" action="{{ route('matchdays.dates.fiscals.destroy', array_filter([
                                                         'date' => $date,
                                                         'fiscal' => $fiscal,
                                                         'tournament_id' => $selectedTournamentId,
@@ -273,7 +299,8 @@
                                                         <button class="btn btn-outline-danger btn-icon btn-sm" type="submit" title="Eliminar fiscalia" aria-label="Eliminar fiscalia">
                                                             <i class="ti ti-trash"></i>
                                                         </button>
-                                                    </form>
+                                                        </form>
+                                                    </div>
                                                 @endcan
                                             @endif
                                         </td>

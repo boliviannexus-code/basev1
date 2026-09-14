@@ -11,6 +11,9 @@ use App\Models\Matchday;
 use App\Models\MatchReport;
 use App\Models\MatchReportPlayer;
 use App\Models\TournamentTeamPlayer;
+use App\Services\MatchControlItemService;
+use App\Services\TeamAccountChargeService;
+use App\Services\MatchdayCourtFeeStatementService;
 use App\Services\MatchReportPdfService;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
@@ -58,7 +61,7 @@ class MatchReportController extends Controller
         return view('match-reports.show', compact('matchday'));
     }
 
-    public function edit(FixtureMatch $fixtureMatch): View
+    public function edit(FixtureMatch $fixtureMatch, MatchControlItemService $controlItems): View
     {
         $this->ensureVisibleFinalizedMatch($fixtureMatch);
 
@@ -72,19 +75,34 @@ class MatchReportController extends Controller
             'report',
         ]);
 
+        $items = $controlItems->itemsForCompany($fixtureMatch->company_id);
+
         return view('match-reports.edit', [
             'match' => $fixtureMatch,
             'report' => $fixtureMatch->report,
+            'controlItems' => $items,
+            'controlValues' => $controlItems->valuesForReport($fixtureMatch->report, $items),
         ]);
     }
 
-    public function update(UpdateMatchReportRequest $request, FixtureMatch $fixtureMatch): RedirectResponse
+    public function update(UpdateMatchReportRequest $request, FixtureMatch $fixtureMatch, MatchControlItemService $controlItems): RedirectResponse
     {
         $this->ensureVisibleFinalizedMatch($fixtureMatch);
 
         $data = $request->validated();
         $data['company_id'] = $fixtureMatch->company_id;
         $data['fixture_match_id'] = $fixtureMatch->id;
+        $items = $controlItems->itemsForCompany($fixtureMatch->company_id);
+        $data['control_items'] = $controlItems->normalizeSubmitted($data['control_items'] ?? [], $items);
+        $data['control_item_costs'] = $items->mapWithKeys(fn (array $item): array => [
+            $item['key'] => number_format((float) ($item['absence_cost'] ?? 0), 2, '.', ''),
+        ])->all();
+        $data['home_present'] = data_get($data, 'control_items.home.present', false);
+        $data['away_present'] = data_get($data, 'control_items.away.present', false);
+        $data['home_paid_court_fee'] = data_get($data, 'control_items.home.court_fee_paid', false);
+        $data['away_paid_court_fee'] = data_get($data, 'control_items.away.court_fee_paid', false);
+        $data['home_brought_ball'] = data_get($data, 'control_items.home.trajo_balon', false);
+        $data['away_brought_ball'] = data_get($data, 'control_items.away.trajo_balon', false);
 
         foreach ([
             'home_brought_ball',
@@ -97,12 +115,34 @@ class MatchReportController extends Controller
             $data[$field] = (bool) ($data[$field] ?? false);
         }
 
-        $data = array_merge($data, $this->initialResultState($data));
+        $existingReport = MatchReport::query()
+            ->where('fixture_match_id', $fixtureMatch->id)
+            ->first();
+        $initialState = $this->initialResultState($data);
+
+        if ($existingReport?->status === 'started' && $initialState['status'] === 'started') {
+            $initialState = [
+                'status' => 'started',
+                'home_score' => $existingReport->home_score,
+                'away_score' => $existingReport->away_score,
+                'home_points' => $existingReport->home_points,
+                'away_points' => $existingReport->away_points,
+                'wo_side' => null,
+                'wo_reason' => null,
+            ];
+        }
+
+        $data = array_merge($data, $initialState);
 
         $report = MatchReport::query()->updateOrCreate(
             ['fixture_match_id' => $fixtureMatch->id],
             $data
         );
+        app(MatchdayCourtFeeStatementService::class)->markSourceChanged($report);
+
+        if ($report->status === 'walkover') {
+            app(TeamAccountChargeService::class)->syncFromReport($report);
+        }
 
         if ($report->status === 'started') {
             return redirect()
@@ -153,6 +193,7 @@ class MatchReportController extends Controller
             'team_side' => $side,
             'jersey_number' => $request->filled('jersey_number') ? $request->integer('jersey_number') : null,
         ]);
+        app(MatchdayCourtFeeStatementService::class)->markSourceChanged($matchReport);
 
         return response()->json([
             'success' => true,
@@ -169,6 +210,7 @@ class MatchReportController extends Controller
         $updates = $this->statsUpdatesFor($player, $field, $delta);
         $player->update($updates);
         $this->syncScoreFromPlayers($player->matchReport);
+        app(MatchdayCourtFeeStatementService::class)->markSourceChanged($player->matchReport);
 
         return response()->json([
             'success' => true,
@@ -176,7 +218,7 @@ class MatchReportController extends Controller
         ]);
     }
 
-    public function finish(MatchReport $matchReport): RedirectResponse
+    public function finish(MatchReport $matchReport, TeamAccountChargeService $accountCharges): RedirectResponse
     {
         $this->ensureEditableReport($matchReport);
         $this->syncScoreFromPlayers($matchReport);
@@ -193,6 +235,9 @@ class MatchReportController extends Controller
             $matchReport->refresh();
             $this->advanceEliminationWinner($matchReport);
         });
+
+        $accountCharges->syncFromReport($matchReport->refresh());
+        app(MatchdayCourtFeeStatementService::class)->markSourceChanged($matchReport);
 
         $matchReport->loadMissing('fixtureMatch.matchdayDate.matchday');
 
@@ -389,6 +434,7 @@ class MatchReportController extends Controller
             }
 
             $nextValue = min(2, $nextValue);
+
             return ['yellow_cards' => $nextValue];
         }
 

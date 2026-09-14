@@ -216,7 +216,7 @@ class MejillonesLegacyImportService
         });
 
         $this->eachLegacy('categoria', function (object $row) use ($batch, $companyId): void {
-            $division = $this->target('tipo', $row->idtipotorneo, Division::class);
+            $division = $this->target($companyId, 'tipo', $row->idtipotorneo, Division::class);
 
             if (! $division) {
                 $this->log($batch, 'categoria', $row->idcategoria, 'division_categories', null, 'skipped', 'pending_review', 'Categoria sin division/tipo resoluble.');
@@ -242,7 +242,7 @@ class MejillonesLegacyImportService
         });
 
         $this->eachLegacy('serie', function (object $row) use ($batch, $companyId): void {
-            $category = $this->target('categoria', $row->idcategoria, DivisionCategory::class);
+            $category = $this->target($companyId, 'categoria', $row->idcategoria, DivisionCategory::class);
             $series = LegacySeries::query()->updateOrCreate(
                 ['company_id' => $companyId, 'legacy_id' => $row->idserie],
                 [
@@ -256,7 +256,7 @@ class MejillonesLegacyImportService
         });
 
         $this->eachLegacy('torneo', function (object $row) use ($batch, $companyId): void {
-            $division = $this->target('tipo', $row->idtipo, Division::class);
+            $division = $this->target($companyId, 'tipo', $row->idtipo, Division::class);
 
             if (! $division) {
                 $this->log($batch, 'torneo', $row->idtorneo, 'tournaments', null, 'skipped', 'pending_review', 'Torneo sin division/tipo resoluble.');
@@ -317,14 +317,13 @@ class MejillonesLegacyImportService
         $this->eachLegacy('persona', function (object $row) use ($batch, $companyId): void {
             [$ci, $normalizedCi, $generatedCi] = $this->normalizer->ci($row->carnet, $row->idpersona);
             $player = Player::query()
-                ->where('company_id', $companyId)
                 ->where('ci_normalized', $normalizedCi)
                 ->first();
             $created = false;
 
             if (! $player) {
                 $player = Player::query()->create([
-                    'company_id' => $companyId,
+                    'company_id' => null,
                     'ci' => $ci,
                     'ci_normalized' => $normalizedCi,
                     'first_name' => $this->normalizer->title($row->nombre, 'Sin nombre'),
@@ -361,8 +360,8 @@ class MejillonesLegacyImportService
     private function importTournamentRegistrations(LegacyImportBatch $batch, int $companyId): void
     {
         $this->eachLegacy('equipotorneo', function (object $row) use ($batch, $companyId): void {
-            $team = $this->target('equipo', $row->idequipo, Team::class);
-            $tournament = $this->target('torneo', $row->idtorneo, Tournament::class);
+            $team = $this->target($companyId, 'equipo', $row->idequipo, Team::class);
+            $tournament = $this->target($companyId, 'torneo', $row->idtorneo, Tournament::class);
 
             if (! $team || ! $tournament) {
                 $this->log($batch, 'equipotorneo', $row->idequipotorneo, 'tournament_registrations', null, 'skipped', 'pending_review', 'Inscripcion con equipo o torneo no resoluble.');
@@ -416,9 +415,9 @@ class MejillonesLegacyImportService
     private function importHabilitations(LegacyImportBatch $batch, int $companyId): void
     {
         $this->eachLegacy('habilitacion', function (object $row) use ($batch, $companyId): void {
-            $player = $this->target('persona', $row->idpersona, Player::class);
-            $team = $this->target('equipo', $row->idequipo, Team::class);
-            $tournament = $this->target('torneo', $row->idtorneo, Tournament::class);
+            $player = $this->target($companyId, 'persona', $row->idpersona, Player::class);
+            $team = $this->target($companyId, 'equipo', $row->idequipo, Team::class);
+            $tournament = $this->target($companyId, 'torneo', $row->idtorneo, Tournament::class);
 
             if (! $player || ! $team || ! $tournament) {
                 $this->log($batch, 'habilitacion', $row->idhabilitacion, 'tournament_team_players', null, 'skipped', 'pending_review', 'Habilitacion con jugador/equipo/torneo no resoluble.');
@@ -510,10 +509,10 @@ class MejillonesLegacyImportService
             $event = LegacyTransferEvent::query()->updateOrCreate(
                 ['company_id' => $companyId, 'source_table' => 'solicitudpase', 'legacy_id' => $row->idsolicitudpase],
                 [
-                    'player_id' => $this->target('persona', $row->idpersona, Player::class)?->id,
-                    'from_team_id' => $this->target('equipo', $row->idequipoA, Team::class)?->id,
-                    'to_team_id' => $this->target('equipo', $row->idequipoD, Team::class)?->id,
-                    'tournament_id' => $this->target('torneo', $row->idtorneo, Tournament::class)?->id,
+                    'player_id' => $this->target($companyId, 'persona', $row->idpersona, Player::class)?->id,
+                    'from_team_id' => $this->target($companyId, 'equipo', $row->idequipoA, Team::class)?->id,
+                    'to_team_id' => $this->target($companyId, 'equipo', $row->idequipoD, Team::class)?->id,
+                    'tournament_id' => $this->target($companyId, 'torneo', $row->idtorneo, Tournament::class)?->id,
                     'event_type' => 'solicitud_pase',
                     'status' => ((int) $row->estado === 1) ? 'accepted' : 'pending_review',
                     'payload' => (array) $row,
@@ -527,9 +526,9 @@ class MejillonesLegacyImportService
             $event = LegacyTransferEvent::query()->updateOrCreate(
                 ['company_id' => $companyId, 'source_table' => 'traspaso', 'legacy_id' => $row->idtraspaso],
                 [
-                    'player_id' => $this->target('persona', $row->idpersona, Player::class)?->id,
-                    'from_team_id' => $this->target('equipo', $row->idequipoA, Team::class)?->id,
-                    'to_team_id' => $this->target('equipo', $row->idequipoD, Team::class)?->id,
+                    'player_id' => $this->target($companyId, 'persona', $row->idpersona, Player::class)?->id,
+                    'from_team_id' => $this->target($companyId, 'equipo', $row->idequipoA, Team::class)?->id,
+                    'to_team_id' => $this->target($companyId, 'equipo', $row->idequipoD, Team::class)?->id,
                     'event_type' => 'traspaso',
                     'status' => 'historical',
                     'payload' => (array) $row,
@@ -580,10 +579,11 @@ class MejillonesLegacyImportService
             ->max('team_number') ?? 0) + 1;
     }
 
-    private function target(string $sourceTable, mixed $sourceId, string $modelClass): mixed
+    private function target(int $companyId, string $sourceTable, mixed $sourceId, string $modelClass): mixed
     {
         $reference = LegacyReference::query()
             ->where('source_system', self::SOURCE)
+            ->where('company_id', $companyId)
             ->where('source_table', $sourceTable)
             ->where('source_id', (string) $sourceId)
             ->where('target_table', (new $modelClass)->getTable())
@@ -597,13 +597,14 @@ class MejillonesLegacyImportService
     {
         $existing = LegacyReference::query()
             ->where('source_system', self::SOURCE)
+            ->where('company_id', $batch->company_id)
             ->where('source_table', $sourceTable)
             ->where('source_id', (string) $sourceId)
             ->where('target_table', $targetTable)
             ->first();
 
         LegacyReference::query()->updateOrCreate(
-            ['source_system' => self::SOURCE, 'source_table' => $sourceTable, 'source_id' => (string) $sourceId, 'target_table' => $targetTable],
+            ['source_system' => self::SOURCE, 'company_id' => $batch->company_id, 'source_table' => $sourceTable, 'source_id' => (string) $sourceId, 'target_table' => $targetTable],
             ['batch_id' => $existing?->batch_id ?? ($createdTarget ? $batch->id : null), 'target_id' => $targetId, 'fingerprint' => sha1($targetTable.':'.$targetId)]
         );
 

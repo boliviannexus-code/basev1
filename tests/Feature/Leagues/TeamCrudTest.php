@@ -140,6 +140,29 @@ class TeamCrudTest extends TestCase
             ->assertDontSee('ACADEMIA AJENA');
     }
 
+    public function test_team_detail_opens_as_full_page_with_sports_history_sections(): void
+    {
+        [$company, $otherCompany, $user] = $this->leagueUser(['teams.view']);
+        $team = Team::factory()->create(['company_id' => $company->id, 'name' => 'Equipo Completo']);
+        $foreignTeam = Team::factory()->create(['company_id' => $otherCompany->id]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('teams.show', $team))
+            ->assertOk()
+            ->assertSee('Ficha completa del equipo')
+            ->assertSee('Plantel del equipo')
+            ->assertSee('Inscripciones en torneos')
+            ->assertSee('Habilitaciones de jugadores por torneo')
+            ->assertSee('Pases de jugadores')
+            ->assertSee('Partidos y resultados');
+
+        $this
+            ->actingAs($user)
+            ->get(route('teams.show', $foreignTeam))
+            ->assertForbidden();
+    }
+
     public function test_team_edit_by_league_user_requires_superadmin_approval(): void
     {
         [$company, , $user] = $this->leagueUser(['teams.update']);

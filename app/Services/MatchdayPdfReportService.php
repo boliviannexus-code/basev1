@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\FixtureMatch;
 use App\Models\Company;
+use App\Models\FixtureMatch;
 use App\Models\Matchday;
 use App\Models\MatchdayDate;
 use App\Models\MatchdayDateFiscal;
@@ -67,7 +67,12 @@ class MatchdayPdfReportService
 
     private function writePageHeader(TCPDF $pdf, array $context): void
     {
+        $company = $context['season']->company;
+        $startY = $pdf->GetY();
+
         $pdf->writeHTML($this->fixtureTitleHtml($context), true, false, true, false, '');
+
+        $this->drawLogo($pdf, $company, $startY);
     }
 
     private function dateFitsCurrentPage(TCPDF $pdf, MatchdayDate $date): bool
@@ -159,8 +164,8 @@ class MatchdayPdfReportService
 
     private function logoHtml(?Company $company): string
     {
-        if ($company?->logo_display_url) {
-            return '<img src="'.$company->logo_display_url.'" style="height:24mm;max-width:32mm;">';
+        if ($company?->logo_local_path) {
+            return '';
         }
 
         return '
@@ -170,6 +175,33 @@ class MatchdayPdfReportService
                 </tr>
             </table>
         ';
+    }
+
+    private function drawLogo(TCPDF $pdf, ?Company $company, float $headerY): void
+    {
+        if (! $company?->logo_local_path) {
+            return;
+        }
+
+        $pdf->Image(
+            $company->logo_local_path,
+            10,
+            $headerY + 4,
+            30,
+            22,
+            '',
+            '',
+            '',
+            true,
+            300,
+            '',
+            false,
+            false,
+            0,
+            false,
+            false,
+            false
+        );
     }
 
     private function dateBlockHtml(MatchdayDate $date, int $index): string

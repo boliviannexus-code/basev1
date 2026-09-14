@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('layouts.partials.interface-theme')
     <style>
-        :root { --ink:#111827; --field:#0f7b5f; --line:#dbe7df; --sun:#f5c542; --paper:#f7faf7; --red:#b91c1c; }
+        :root { --ink:#111827; --field:var(--tblr-primary, #0f7b5f); --line:#dbe7df; --sun:var(--league-accent, #f5c542); --paper:var(--league-login-background, #f7faf7); --red:#b91c1c; }
         body { margin:0; background:var(--paper); color:var(--ink); font-family: Inter, system-ui, sans-serif; }
         .public-shell { width:min(1120px, calc(100% - 32px)); margin:0 auto; }
         .public-hero { min-height:560px; color:#fff; background-image:linear-gradient(90deg, rgba(8,38,30,.92), rgba(8,38,30,.62)), var(--hero-image); background-size:100% 100%, contain; background-repeat:no-repeat; background-position:center; background-color:#08261e; }
@@ -15,7 +16,8 @@
         .public-nav a { color:#fff; text-decoration:none; margin-left:18px; font-weight:700; }
         .brand { display:flex; align-items:center; gap:12px; margin-left:0!important; }
         .brand img { width:48px; height:48px; object-fit:contain; background:#fff; border-radius:8px; padding:5px; }
-        .login-link { border:1px solid rgba(255,255,255,.55); padding:9px 14px; border-radius:6px; }
+        .login-link { opacity:.78; padding:6px 8px; border-radius:6px; font-size:13px; font-weight:700; }
+        .login-link:hover { opacity:1; background:rgba(255,255,255,.12); }
         .hero-grid { display:grid; grid-template-columns:minmax(0, 860px); gap:32px; align-items:end; padding:90px 0 70px; }
         .page-hero-copy { padding:54px 0 70px; }
         .eyebrow { color:var(--sun); font-weight:900; text-transform:uppercase; letter-spacing:.08em; }

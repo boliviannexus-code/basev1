@@ -1,12 +1,13 @@
 @php
     $leagueOpen = request()->routeIs('companies.*', 'website-page.*', 'courts.*', 'seasons.*', 'divisions.*', 'categories.*', 'teams.*', 'players.*', 'player-imports.*');
-    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'fixtures.*', 'standings.*', 'player-habilitations.*', 'player-transfers.*');
+    $tournamentOpen = request()->routeIs('tournaments.*', 'tournament-registrations.*', 'tournament-modifications.*', 'fixtures.*', 'standings.*', 'player-habilitations.*', 'player-transfers.*');
     $reportsOpen = request()->routeIs('sports-reports.*');
     $matchdayOpen = request()->routeIs('matchdays.*', 'match-reports.*');
     $penaltiesOpen = request()->routeIs('red-cards.*', 'red-card-articles.*', 'punishments.*');
     $meetingsOpen = request()->routeIs('accreditations.*', 'meetings.*');
     $settingsOpen = request()->routeIs('league-settings.*');
-    $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'biometric.*');
+    $treasuryOpen = request()->routeIs('court-fees.*', 'court-fee-items.*', 'matchday-court-fees.*', 'extra-charges.*');
+    $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'biometric.*', 'database-backups.*');
 
     $canLeague = auth()->user()?->can('companies.view')
         || auth()->user()?->can('companies.update')
@@ -19,6 +20,7 @@
         || auth()->user()?->can('player-imports.view');
     $canTournament = auth()->user()?->can('tournaments.view')
         || auth()->user()?->can('tournament-registrations.view')
+        || auth()->user()?->can('tournament-modifications.view')
         || auth()->user()?->can('fixtures.view')
         || auth()->user()?->can('standings.view')
         || auth()->user()?->can('player-habilitations.view')
@@ -32,10 +34,12 @@
     $canMeetings = auth()->user()?->can('accreditations.view')
         || auth()->user()?->can('meetings.view');
     $canSettings = auth()->user()?->can('league-settings.view');
+    $canTreasury = auth()->user()?->can('court-fee-items.view');
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('fingerprint-templates.view')
         || auth()->user()?->can('roles.view')
         || auth()->user()?->can('permissions.view')
+        || auth()->user()?->can('database-backups.view')
         || auth()->user()?->can('audits.view');
     $sidebarCompany = \App\Support\CompanyContext::activeCompany(auth()->user());
 @endphp
@@ -177,6 +181,14 @@
                                         <a class="nav-link" href="{{ route('tournament-registrations.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-clipboard-list"></i></span>
                                             <span class="nav-link-title">Inscripciones</span>
+                                        </a>
+                                    </li>
+                                @endcan
+                                @can('tournament-modifications.view')
+                                    <li class="nav-item {{ request()->routeIs('tournament-modifications.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('tournament-modifications.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-adjustments-horizontal"></i></span>
+                                            <span class="nav-link-title">Modificaciones</span>
                                         </a>
                                     </li>
                                 @endcan
@@ -386,10 +398,54 @@
                         </button>
                         <div class="collapse {{ $settingsOpen ? 'show' : '' }}" id="menu-settings">
                             <ul class="nav app-submenu">
-                                <li class="nav-item {{ request()->routeIs('league-settings.*') ? 'active' : '' }}">
+                                <li class="nav-item {{ request()->routeIs('league-settings.index') ? 'active' : '' }}">
                                     <a class="nav-link" href="{{ route('league-settings.index') }}">
                                         <span class="nav-link-icon"><i class="ti ti-cash"></i></span>
                                         <span class="nav-link-title">Parametros de liga</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('league-settings.appearance*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('league-settings.appearance') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-palette"></i></span>
+                                        <span class="nav-link-title">Apariencia</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('league-settings.match-control-items*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('league-settings.match-control-items') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-checklist"></i></span>
+                                        <span class="nav-link-title">Items de control</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                @endif
+
+                @if ($canTreasury)
+                    <li class="nav-item app-menu-section {{ $treasuryOpen ? 'active' : '' }}">
+                        <button class="nav-link app-menu-toggle {{ $treasuryOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-treasury" aria-expanded="{{ $treasuryOpen ? 'true' : 'false' }}" aria-controls="menu-treasury">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-building-bank"></i></span>
+                            <span class="nav-link-title">Hacienda</span>
+                            <span class="menu-chevron"><i class="ti ti-chevron-down"></i></span>
+                        </button>
+                        <div class="collapse {{ $treasuryOpen ? 'show' : '' }}" id="menu-treasury">
+                            <ul class="nav app-submenu">
+                                <li class="nav-item {{ request()->routeIs('court-fees.*', 'court-fee-items.*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('court-fees.index') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-cash"></i></span>
+                                        <span class="nav-link-title">Parámetros derecho de cancha</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('matchday-court-fees.*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('matchday-court-fees.index') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-calendar-dollar"></i></span>
+                                        <span class="nav-link-title">Derecho jornadas</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('extra-charges.*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('extra-charges.index') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-receipt-2"></i></span>
+                                        <span class="nav-link-title">Cargos extra</span>
                                     </a>
                                 </li>
                             </ul>
@@ -438,6 +494,15 @@
                                         <a class="nav-link" href="{{ route('permissions.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-shield-check"></i></span>
                                             <span class="nav-link-title">Permisos</span>
+                                        </a>
+                                    </li>
+                                @endcan
+
+                                @can('database-backups.view')
+                                    <li class="nav-item {{ request()->routeIs('database-backups.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('database-backups.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-database-export"></i></span>
+                                            <span class="nav-link-title">Respaldos BD</span>
                                         </a>
                                     </li>
                                 @endcan
