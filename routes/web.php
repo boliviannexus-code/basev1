@@ -234,10 +234,12 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         Route::get('patterns/pdf', [FixtureSetupController::class, 'patternsPdf'])->name('patterns.pdf');
         Route::get('patterns', [FixtureSetupController::class, 'patterns'])->name('patterns');
         Route::patch('generations/{fixtureGeneration}/resolve-seeds', [FixtureSetupController::class, 'resolveSeeds'])->middleware('permission:fixtures.generate')->name('resolve-seeds');
+        Route::post('generations/{fixtureGeneration}/return-leg', [FixtureSetupController::class, 'generateReturnLeg'])->middleware('permission:fixtures.generate')->name('return-leg.generate');
         Route::post('generations/{fixtureGeneration}/second-phase', [FixtureSetupController::class, 'generateSecondPhase'])->middleware('permission:fixtures.generate')->name('second-phase.generate');
         Route::get('generations/{fixtureGeneration}/teams-pdf', [FixtureSetupController::class, 'reportTeamsPdf'])->name('report.teams-pdf');
         Route::get('generations/{fixtureGeneration}/pdf', [FixtureSetupController::class, 'reportPdf'])->name('report.pdf');
         Route::get('generations/{fixtureGeneration}/report', [FixtureSetupController::class, 'report'])->name('report');
+        Route::delete('generations/{fixtureGeneration}/series/{series}', [FixtureSetupController::class, 'destroySeries'])->middleware('permission:fixtures.generate')->name('series.destroy');
         Route::delete('generations/{fixtureGeneration}', [FixtureSetupController::class, 'destroy'])->middleware('permission:fixtures.generate')->name('destroy');
         Route::get('{tournament}/categories', [FixtureSetupController::class, 'categories'])->name('categories');
         Route::get('{tournament}/categories/{category}/series', [FixtureSetupController::class, 'series'])->name('series');

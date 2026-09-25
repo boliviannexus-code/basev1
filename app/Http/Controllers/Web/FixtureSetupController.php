@@ -85,6 +85,18 @@ class FixtureSetupController extends Controller
             ->with('success', 'Primera fase generada correctamente. El fixture tiene '.$generation->matches_count.' partidos en total.');
     }
 
+    public function generateReturnLeg(FixtureGeneration $fixtureGeneration): RedirectResponse
+    {
+        try {
+            $generation = $this->generator->generateReturnLeg($fixtureGeneration);
+        } catch (ValidationException $exception) {
+            return back()->withErrors($exception->errors());
+        }
+
+        return redirect()->route('fixtures.report', $generation)
+            ->with('success', 'Vuelta de la primera fase generada correctamente. Los partidos de ida se conservaron.');
+    }
+
     public function report(FixtureGeneration $fixtureGeneration): View
     {
         return view('fixtures.report', $this->fixtures->reportContext($fixtureGeneration));
@@ -100,6 +112,14 @@ class FixtureSetupController extends Controller
         return redirect()
             ->route('fixtures.configure', compact('tournament', 'category'))
             ->with('success', 'Fixture eliminado por completo. Se borraron sus partidos, programaciones, resultados y registros relacionados.');
+    }
+
+    public function destroySeries(FixtureGeneration $fixtureGeneration, string $series): RedirectResponse
+    {
+        $this->generator->deleteCompletely($fixtureGeneration, $series);
+
+        return redirect()->route('fixtures.report', $fixtureGeneration)
+            ->with('success', 'Fixture de la serie eliminado correctamente.');
     }
 
     public function generateSecondPhase(GenerateSecondPhaseRequest $request, FixtureGeneration $fixtureGeneration): RedirectResponse

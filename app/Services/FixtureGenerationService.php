@@ -56,14 +56,78 @@ class FixtureGenerationService
         });
     }
 
-    public function deleteCompletely(FixtureGeneration $generation): void
+    public function generateReturnLeg(FixtureGeneration $generation): FixtureGeneration
     {
         $this->setup->ensureGenerationVisible($generation);
 
-        DB::transaction(function () use ($generation): void {
+        return DB::transaction(function () use ($generation): FixtureGeneration {
+            $generation = FixtureGeneration::query()->lockForUpdate()->findOrFail($generation->id);
+
+            if ($generation->status !== 'active' || (int) ($generation->config['first_phase_rounds'] ?? 1) !== 1
+                || $generation->matches()->where('phase', 'group')->where('leg_number', 2)->exists()) {
+                throw ValidationException::withMessages(['fixture' => 'Solo se puede agregar la vuelta a un fixture activo de solo ida.']);
+            }
+
+            $matches = $generation->matches()->where('phase', 'group')->where('leg_number', 1)
+                ->orderBy('match_number')->get();
+
+            if ($matches->isEmpty()) {
+                throw ValidationException::withMessages(['fixture' => 'Primero debes generar los partidos de ida.']);
+            }
+
+            $generation->loadMissing(['tournament', 'category']);
+            $roundCounts = $matches->groupBy('series')->map(fn (Collection $matches): int => (int) $matches->max('round_number'));
+            $matchNumber = ((int) $generation->matches()->max('match_number')) + 1;
+
+            foreach ($matches as $match) {
+                $this->createMatch($generation, $generation->tournament, $generation->category, [
+                    'phase' => 'group',
+                    'stage' => 'Primera fase',
+                    'stage_order' => 1,
+                    'series' => $match->series,
+                    'round_number' => $match->round_number + $roundCounts[$match->series],
+                    'match_number' => $matchNumber++,
+                    'leg_number' => 2,
+                    'home_registration_id' => $match->away_registration_id,
+                    'away_registration_id' => $match->home_registration_id,
+                    'home_team_id' => $match->away_team_id,
+                    'away_team_id' => $match->home_team_id,
+                ]);
+            }
+
+            $generation->update([
+                'config' => array_merge($generation->config, ['first_phase_rounds' => 2]),
+                'matches_count' => $generation->matches()->count(),
+            ]);
+
+            return $generation->refresh();
+        });
+    }
+
+    public function deleteCompletely(FixtureGeneration $generation, ?string $series = null): void
+    {
+        $this->setup->ensureGenerationVisible($generation);
+
+        DB::transaction(function () use ($generation, $series): void {
             $lockedGeneration = FixtureGeneration::query()
                 ->lockForUpdate()
                 ->findOrFail($generation->id);
+
+            if ($series !== null) {
+                $generatedSeries = $lockedGeneration->matches()->where('phase', 'group')
+                    ->whereNotNull('series')->distinct()->pluck('series');
+
+                if ($generatedSeries->count() !== 2 || ! $generatedSeries->contains($series)) {
+                    throw ValidationException::withMessages([
+                        'fixture' => 'Solo puedes eliminar una serie existente cuando el fixture tiene dos series generadas.',
+                    ]);
+                }
+
+                $lockedGeneration->matches()->where('series', $series)->delete();
+                $lockedGeneration->update(['matches_count' => $lockedGeneration->matches()->count()]);
+
+                return;
+            }
 
             $lockedGeneration->delete();
         });

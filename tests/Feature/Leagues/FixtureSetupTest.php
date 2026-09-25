@@ -282,6 +282,62 @@ class FixtureSetupTest extends TestCase
             ->assertSee('La primera y segunda fase ya estan definidas');
     }
 
+    public function test_return_leg_preserves_first_leg_and_rejects_duplicates(): void
+    {
+        [$company, , $user] = $this->leagueUser(['fixtures.view', 'fixtures.generate']);
+        $tournament = $this->tournamentFor($company);
+        foreach (['serie_a' => 3, 'serie_b' => 2] as $series => $count) {
+            foreach (range(1, $count) as $number) {
+                TournamentRegistration::factory()->create([
+                    'company_id' => $company->id,
+                    'tournament_id' => $tournament->id,
+                    'division_id' => $tournament->division_id,
+                    'category_id' => $tournament->category_id,
+                    'team_id' => Team::factory()->create(['company_id' => $company->id])->id,
+                    'series' => $series,
+                    'team_number' => $number,
+                ]);
+            }
+        }
+        $this->actingAs($user)->post(route('fixtures.generate', [
+            'tournament' => $tournament, 'category' => $tournament->category,
+        ]), ['first_phase_rounds' => 1])->assertSessionHasNoErrors();
+        $generation = FixtureGeneration::query()->firstOrFail();
+        $first = $generation->matches()->firstOrFail();
+        $first->update(['status' => 'completed']);
+        $report = MatchReport::query()->create([
+            'company_id' => $company->id, 'fixture_match_id' => $first->id,
+            'home_score' => 2, 'away_score' => 1, 'status' => 'completed',
+        ]);
+        $original = $generation->matches()->orderBy('match_number')->get();
+        $configure = route('fixtures.configure', ['tournament' => $tournament, 'category' => $tournament->category]);
+        $this->get($configure)->assertSee('Generar vuelta de la primera fase');
+
+        $route = route('fixtures.return-leg.generate', $generation);
+        $this->post($route)->assertSessionHasNoErrors()->assertRedirect(route('fixtures.report', $generation));
+        $this->assertSame(8, $generation->refresh()->matches_count);
+        $this->assertSame(2, $generation->config['first_phase_rounds']);
+        $this->assertSame($original->toArray(), $generation->matches()->where('leg_number', 1)->orderBy('match_number')->get()->toArray());
+        foreach ($original as $match) {
+            $this->assertDatabaseHas('fixture_matches', [
+                'fixture_generation_id' => $generation->id,
+                'series' => $match->series, 'leg_number' => 2,
+                'home_registration_id' => $match->away_registration_id,
+                'away_registration_id' => $match->home_registration_id,
+                'home_team_id' => $match->away_team_id, 'away_team_id' => $match->home_team_id,
+                'round_number' => $match->round_number + ($match->series === 'serie_a' ? 3 : 1),
+                'status' => 'pending_schedule', 'matchday_date_id' => null, 'scheduled_time' => null,
+            ]);
+        }
+        $this->assertDatabaseHas('match_reports', ['id' => $report->id, 'home_score' => 2]);
+        $this->post($route)->assertSessionHasErrors('fixture');
+        $this->assertDatabaseCount('fixture_matches', 8);
+        $this->get($configure)->assertDontSee('Generar vuelta de la primera fase');
+
+        $user->revokePermissionTo('fixtures.generate');
+        $this->post($route)->assertForbidden();
+    }
+
     public function test_new_series_can_append_first_phase_without_changing_existing_matches(): void
     {
         [$company, , $user] = $this->leagueUser(['fixtures.view', 'fixtures.generate']);
@@ -404,6 +460,89 @@ class FixtureSetupTest extends TestCase
         $this->assertDatabaseHas('matchday_dates', ['id' => $date->id]);
     }
 
+    public function test_series_deletion_removes_its_data_and_preserves_other_series(): void
+    {
+        [$company, , $user] = $this->leagueUser(['fixtures.view', 'fixtures.generate']);
+        $tournament = $this->tournamentFor($company);
+        $matchday = Matchday::factory()->create([
+            'company_id' => $company->id,
+            'season_id' => $tournament->season_id,
+        ]);
+        $date = MatchdayDate::factory()->create([
+            'company_id' => $company->id,
+            'matchday_id' => $matchday->id,
+        ]);
+        $generation = FixtureGeneration::query()->create([
+            'company_id' => $company->id,
+            'tournament_id' => $tournament->id,
+            'category_id' => $tournament->category_id,
+            'generated_by' => $user->id,
+            'status' => 'active',
+            'config' => [],
+            'matches_count' => 2,
+            'generated_at' => now(),
+        ]);
+        $match = FixtureMatch::query()->create([
+            'company_id' => $company->id,
+            'fixture_generation_id' => $generation->id,
+            'tournament_id' => $tournament->id,
+            'division_id' => $tournament->division_id,
+            'category_id' => $tournament->category_id,
+            'phase' => 'group',
+            'series' => 'serie_a',
+            'stage' => 'Primera fase',
+            'stage_order' => 1,
+            'round_number' => 1,
+            'match_number' => 1,
+            'leg_number' => 1,
+            'matchday_date_id' => $date->id,
+            'scheduled_time' => '10:00',
+            'status' => 'completed',
+        ]);
+        $report = MatchReport::query()->create([
+            'company_id' => $company->id,
+            'fixture_match_id' => $match->id,
+            'home_score' => 2,
+            'away_score' => 1,
+            'status' => 'completed',
+        ]);
+
+        $otherMatch = $match->replicate();
+        $otherMatch->fill(['series' => 'serie_b', 'match_number' => 2])->save();
+        $otherReport = $report->replicate();
+        $otherReport->fixture_match_id = $otherMatch->id;
+        $otherReport->save();
+        $otherAttributes = $otherMatch->fresh()->getAttributes();
+        $secondPhase = $match->replicate();
+        $secondPhase->fill(['phase' => 'knockout', 'series' => null, 'match_number' => 3])->save();
+        $generation->update(['matches_count' => 3]);
+
+        $this->actingAs($user)
+            ->get(route('fixtures.report', $generation))
+            ->assertOk()
+            ->assertSee('Eliminar fixture de Serie A')
+            ->assertSee('Eliminar fixture de Serie B');
+
+        $this->delete(route('fixtures.series.destroy', [$generation, 'invalid']))->assertSessionHasErrors('fixture');
+        $this->assertDatabaseCount('fixture_matches', 3);
+
+        $this->actingAs($user)
+            ->delete(route('fixtures.series.destroy', [$generation, 'serie_a']))
+            ->assertRedirect(route('fixtures.report', $generation));
+
+        $this->assertSame(2, $generation->fresh()->matches_count);
+        $this->assertSame($otherAttributes, $otherMatch->fresh()->getAttributes());
+        $this->assertDatabaseHas('match_reports', ['id' => $otherReport->id]);
+        $this->assertDatabaseHas('fixture_matches', ['id' => $secondPhase->id]);
+        $this->get(route('fixtures.report', $generation))->assertOk()->assertDontSee('Eliminar fixture de Serie B');
+        $this->delete(route('fixtures.series.destroy', [$generation, 'serie_b']))->assertSessionHasErrors('fixture');
+        $this->assertDatabaseHas('fixture_matches', ['id' => $otherMatch->id]);
+        $this->assertDatabaseMissing('fixture_matches', ['id' => $match->id]);
+        $this->assertDatabaseMissing('match_reports', ['id' => $report->id]);
+        $this->assertDatabaseHas('matchdays', ['id' => $matchday->id]);
+        $this->assertDatabaseHas('matchday_dates', ['id' => $date->id]);
+    }
+
     public function test_complete_fixture_deletion_requires_generate_permission_and_company_access(): void
     {
         [$company, $otherCompany, $user] = $this->leagueUser(['fixtures.view']);
@@ -419,11 +558,13 @@ class FixtureSetupTest extends TestCase
         ]);
 
         $this->actingAs($user)->delete(route('fixtures.destroy', $ownGeneration))->assertForbidden();
+        $this->delete(route('fixtures.series.destroy', [$ownGeneration, 'serie_a']))->assertForbidden();
 
         Permission::findOrCreate('fixtures.generate');
         $user->givePermissionTo('fixtures.generate');
 
         $this->actingAs($user)->delete(route('fixtures.destroy', $otherGeneration))->assertForbidden();
+        $this->delete(route('fixtures.series.destroy', [$otherGeneration, 'serie_a']))->assertForbidden();
         $this->assertDatabaseHas('fixture_generations', ['id' => $otherGeneration->id]);
     }
 
@@ -455,7 +596,7 @@ class FixtureSetupTest extends TestCase
 
         $company = Company::factory()->create(['name' => 'Liga Propia']);
         $otherCompany = Company::factory()->create(['name' => 'Liga Ajena']);
-        $user = User::factory()->create(['company_id' => $company->id]);
+        $user = User::factory()->create(['company_id' => $company->id, 'is_active' => true]);
         $user->givePermissionTo($permissions);
 
         return [$company, $otherCompany, $user];

@@ -20,7 +20,7 @@
             <i class="ti ti-arrow-left me-1"></i>
             Configuracion
         </a>
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2">
             @if ($hasSecondPhaseSeeds && ! $seedsResolved && $firstPhasePendingCount === 0)
                 <form method="POST" action="{{ route('fixtures.resolve-seeds', $generation) }}" data-confirm-resolve-seeds>
                     @csrf
@@ -40,6 +40,28 @@
                 Imprimir por equipo
             </a>
             @can('fixtures.generate')
+                @php
+                    $generatedSeries = $generation->matches->where('phase', 'group')->pluck('series')->filter()->unique();
+                @endphp
+                @if ($generatedSeries->count() === 2)
+                    @foreach ($generatedSeries as $series)
+                        @php
+                            $seriesLabel = \App\Models\TournamentRegistration::SERIES[$series] ?? $series;
+                        @endphp
+                        <form method="POST" action="{{ route('fixtures.series.destroy', [$generation, $series]) }}"
+                            data-confirm-delete="¿Eliminar el fixture de {{ $seriesLabel }}?"
+                            data-confirm-button-text="Sí, eliminar serie"
+                            data-confirm-text="ÚLTIMO RECURSO: se borrarán permanentemente los partidos de {{ $seriesLabel }}, sus programaciones, planillas, resultados y sanciones, aunque ya hayan sido jugados. Se conservarán la otra serie y los cruces de segunda fase sin serie asignada. Esta acción no se puede deshacer."
+                            data-confirm-color="#dc2626">
+                            @csrf
+                            @method('DELETE')
+                            <button class="btn btn-outline-danger btn-sm" type="submit">
+                                <i class="ti ti-trash me-1"></i>
+                                Eliminar fixture de {{ $seriesLabel }}
+                            </button>
+                        </form>
+                    @endforeach
+                @endif
                 <form method="POST" action="{{ route('fixtures.destroy', $generation) }}"
                     data-confirm-delete="¿Eliminar todo el fixture?"
                     data-confirm-button-text="Sí, eliminar todo"

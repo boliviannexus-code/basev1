@@ -21,6 +21,18 @@
         </div>
     </div>
 
+    @if ($activeGeneration && (int) ($activeGeneration->config['first_phase_rounds'] ?? 1) === 1)
+        @can('fixtures.generate')
+            <x-ui.table-card title="Agregar vuelta de la primera fase">
+                <p>Genera los mismos cruces de ida invirtiendo local y visitante para todas las series del fixture. Los nuevos partidos quedaran pendientes de programacion y se conservaran los resultados de ida.</p>
+                <form method="POST" action="{{ route('fixtures.return-leg.generate', $activeGeneration) }}">
+                    @csrf
+                    <button class="btn btn-success" type="submit">Generar vuelta de la primera fase</button>
+                </form>
+            </x-ui.table-card>
+        @endcan
+    @endif
+
     @if ($activeGeneration && $pendingSeries->isNotEmpty())
         <x-ui.table-card title="Generar primera fase de series nuevas">
             <p>Series pendientes: <strong>{{ $pendingSeries->pluck('label')->implode(', ') }}</strong>.</p>
