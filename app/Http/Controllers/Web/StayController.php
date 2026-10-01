@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CheckIns\UpdateStayHolderRequest;
 use App\Http\Requests\CheckIns\UpdateStayRequest;
+use App\Models\SpaceCashLodgingPayment;
 use App\Models\Stay;
 use App\Services\CheckIn\AccountStatementService;
 use App\Services\CheckIn\CheckInUpdateService;
+use App\Services\EconomicTransactionAuthorizer;
 use App\Services\SpaceCashRegisterService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +21,7 @@ class StayController extends Controller
         private readonly CheckInUpdateService $updates,
         private readonly AccountStatementService $accountStatements,
         private readonly SpaceCashRegisterService $cashRegisters,
+        private readonly EconomicTransactionAuthorizer $transactionAuthorizer,
     ) {}
 
     public function account(Stay $stay): View
@@ -44,6 +47,12 @@ class StayController extends Controller
             'stay' => $stay,
             'statement' => $statement->load('items.extraChargeCategory'),
             'openRegister' => $this->cashRegisters->currentForUser(auth()->user()),
+            'paymentDetails' => SpaceCashLodgingPayment::query()
+                ->with(['user', 'paymentMethod'])
+                ->where('account_statement_id', $statement->id)
+                ->where('status', 'active')
+                ->latest()
+                ->get(),
         ]);
     }
 
@@ -74,12 +83,14 @@ class StayController extends Controller
         $data = $request->validateWithBag('stayDiscount', [
             'amount' => ['required', 'numeric', 'min:0.01'],
             'description' => ['nullable', 'string', 'max:255'],
+            'transaction_pin' => ['required', 'digits:4'],
         ]);
+        $cashOwner = $this->transactionAuthorizer->userForPin($request->user(), $data['transaction_pin'], 'stayDiscount');
 
         $description = trim((string) ($data['description'] ?? ''));
         $description = $description !== '' ? $description : 'Descuento fijo hospedaje';
 
-        $this->accountStatements->recordFixedDiscount($stay, (float) $data['amount'], $description);
+        $this->accountStatements->recordFixedDiscount($stay, (float) $data['amount'], $description, user: $cashOwner);
 
         return back()->with('success', 'Descuento aplicado correctamente.');
     }

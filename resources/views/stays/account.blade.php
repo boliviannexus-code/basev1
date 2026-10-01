@@ -40,6 +40,11 @@
                     <div class="text-secondary small mt-2">{{ $holderName }} · {{ $resourceLabel ?: 'Hospedaje' }}</div>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
+                    @if ($stay->isUnattended() && auth()->user()?->can('unattended-checkouts.manage'))
+                        <a class="btn btn-outline-warning" href="{{ route('unattended-checkouts.index') }}">
+                            Volver a casos sin atención
+                        </a>
+                    @endif
                     <button
                         class="btn btn-outline-primary"
                         type="button"
@@ -283,7 +288,17 @@
                     </div>
 
                     @if (auth()->user()?->hasRole('super_admin'))
-                        <form class="border-top mt-3 pt-3" method="POST" action="{{ route('stays.discounts.store', $stay) }}" autocomplete="off" novalidate>
+                        <form
+                            id="stay-discount"
+                            class="border-top mt-3 pt-3"
+                            method="POST"
+                            action="{{ route('stays.discounts.store', $stay) }}"
+                            autocomplete="off"
+                            novalidate
+                            data-requires-transaction-pin
+                            data-transaction-pin-title="Autorizar descuento"
+                            data-transaction-pin-text="Ingresa el codigo de caja para registrar este descuento."
+                        >
                             @csrf
                             <div class="row g-2">
                                 <div class="col-7">
@@ -325,7 +340,54 @@
 
             <x-ui.card class="mt-3">
                 <div class="card-header">
-                    <h3 class="card-title">Movimientos futuros</h3>
+                    <h3 class="card-title">Pagos realizados</h3>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-vcenter mb-0">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Usuario</th>
+                                <th>Metodo</th>
+                                <th>Comprobante</th>
+                                <th class="text-end">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($paymentDetails as $payment)
+                                <tr>
+                                    <td>{{ $payment->created_at?->format('d/m/Y H:i') }}</td>
+                                    <td>{{ $payment->user?->name ?? '-' }}</td>
+                                    <td>{{ $payment->paymentMethod?->name ?? '-' }}</td>
+                                    <td>
+                                        <div class="fw-semibold">{{ $payment->receipt_number }}</div>
+                                        @if ($payment->reference)
+                                            <div class="text-body-secondary small">{{ $payment->reference }}</div>
+                                        @endif
+                                    </td>
+                                    <td class="text-end fw-semibold">{{ money_format_decimal($payment->amount_bob) }} BOB</td>
+                                </tr>
+                            @empty
+                                @forelse ($paymentItems as $item)
+                                    <tr>
+                                        <td>{{ $item->created_at?->format('d/m/Y H:i') ?: $item->date?->format('d/m/Y') }}</td>
+                                        <td>-</td>
+                                        <td>-</td>
+                                        <td>{{ $item->description }}</td>
+                                        <td class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="abs((float) $item->total)" :currency="$item->currency" :exchange-rate="$exchangeRate" /></td>
+                                    </tr>
+                                @empty
+                                    <tr><td class="text-center text-secondary py-3" colspan="5">No hay pagos registrados.</td></tr>
+                                @endforelse
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </x-ui.card>
+
+            <x-ui.card class="mt-3">
+                <div class="card-header">
+                    <h3 class="card-title">Movimientos registrados</h3>
                 </div>
                 <div class="card-body">
                     <div class="d-flex justify-content-between py-2 border-bottom">

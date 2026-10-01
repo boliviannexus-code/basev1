@@ -109,4 +109,10 @@ class ReservationGroup extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    public function isUnattendedArrival(): bool
+    {
+        return in_array($this->status, ['pending_payment', 'payment_under_review', 'confirmed'], true)
+            && $this->check_in?->toDateString() < today()->toDateString();
+    }
 }

@@ -216,6 +216,13 @@ class Reservation extends Model
         return in_array($this->status, ['cancelled', 'rejected', 'expired', 'no_show'], true);
     }
 
+    public function isUnattendedArrival(): bool
+    {
+        return $this->reservation_group_id === null
+            && in_array($this->status, ['pending_payment', 'payment_under_review', 'confirmed'], true)
+            && $this->check_in?->toDateString() < today()->toDateString();
+    }
+
     public function shouldBlockAvailability(): bool
     {
         if (! in_array($this->status, self::BLOCKING_STATUSES, true)) {

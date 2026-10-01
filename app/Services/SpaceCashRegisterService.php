@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\AccountStatementItem;
+use App\Models\PaymentMethod;
 use App\Models\SpaceCashRegister;
 use App\Models\SpaceCashUserSequence;
 use App\Models\User;
@@ -106,7 +108,7 @@ class SpaceCashRegisterService
         return $receipt;
     }
 
-    public function cashSummary(SpaceCashRegister $cashRegister): array
+    public function cashSummary(SpaceCashRegister $cashRegister, ?int $paymentMethodId = null): array
     {
         $cashRegister->loadMissing([
             'expenses.category',
@@ -121,11 +123,25 @@ class SpaceCashRegisterService
             'user',
         ]);
 
-        $lodgingPayments = $cashRegister->lodgingPayments->where('status', 'active');
-        $reservationPayments = $cashRegister->reservationPayments->where('status', 'active');
-        $incomes = $cashRegister->incomes;
-        $expenses = $cashRegister->expenses;
         $cashMethod = fn (string $name): bool => mb_strtolower($name) === 'efectivo';
+        $selectedPaymentMethod = $paymentMethodId
+            ? PaymentMethod::query()
+                ->where('company_id', $cashRegister->company_id)
+                ->whereKey($paymentMethodId)
+                ->first()
+            : null;
+        $includeOpening = ! $paymentMethodId || ($selectedPaymentMethod && $cashMethod((string) $selectedPaymentMethod->name));
+
+        $lodgingPayments = $cashRegister->lodgingPayments
+            ->where('status', 'active')
+            ->when($paymentMethodId, fn (Collection $rows): Collection => $rows->where('payment_method_id', $paymentMethodId));
+        $reservationPayments = $cashRegister->reservationPayments
+            ->where('status', 'active')
+            ->when($paymentMethodId, fn (Collection $rows): Collection => $rows->where('payment_method_id', $paymentMethodId));
+        $incomes = $cashRegister->incomes
+            ->when($paymentMethodId, fn (Collection $rows): Collection => $rows->where('payment_method_id', $paymentMethodId));
+        $expenses = $cashRegister->expenses
+            ->when($paymentMethodId, fn (Collection $rows): Collection => $rows->where('payment_method_id', $paymentMethodId));
 
         $directCashTotal = (float) $incomes
             ->filter(fn ($income): bool => $cashMethod((string) $income->paymentMethod?->name))
@@ -146,26 +162,56 @@ class SpaceCashRegisterService
         $incomeTotal = $directTotal + $lodgingTotal + $reservationTotal;
 
         return [
-            'opening' => (float) $cashRegister->opening_amount,
+            'opening' => $includeOpening ? (float) $cashRegister->opening_amount : 0.0,
             'direct_total' => $directTotal,
             'lodging_total' => $lodgingTotal,
             'reservation_total' => $reservationTotal,
             'income_total' => $incomeTotal,
             'expenses' => $expensesTotal,
-            'available' => (float) $cashRegister->opening_amount + $directCashTotal + $lodgingCashTotal + $reservationCashTotal - $cashExpensesTotal,
+            'available' => ($includeOpening ? (float) $cashRegister->opening_amount : 0.0) + $directCashTotal + $lodgingCashTotal + $reservationCashTotal - $cashExpensesTotal,
             'payments' => $this->paymentRows($lodgingPayments->concat($reservationPayments), $incomes),
             'expense_payments' => $this->expenseRows($expenses),
             'method_balances' => $this->methodBalances(
-                (float) $cashRegister->opening_amount,
+                $includeOpening ? (float) $cashRegister->opening_amount : 0.0,
                 $lodgingPayments->concat($reservationPayments),
                 $incomes,
                 $expenses,
             ),
+            'discount_total' => $this->discountsForRegister($cashRegister)->sum(fn (AccountStatementItem $discount): float => abs((float) $discount->total)),
+            'discounts_by_user' => $this->discountsByUser($cashRegister),
             'direct_incomes' => $incomes->sortByDesc('received_at')->values(),
             'lodging_payments' => $lodgingPayments->sortByDesc('created_at')->values(),
             'reservation_payments' => $reservationPayments->sortByDesc('created_at')->values(),
             'expense_details' => $expenses->sortByDesc('spent_at')->values(),
         ];
+    }
+
+    private function discountsForRegister(SpaceCashRegister $cashRegister): Collection
+    {
+        $to = $cashRegister->closed_at ?: now();
+
+        return AccountStatementItem::query()
+            ->with(['creator', 'stay.holderGuest'])
+            ->where('company_id', $cashRegister->company_id)
+            ->where('type', 'discount')
+            ->where('status', 'active')
+            ->where('created_by', $cashRegister->user_id)
+            ->whereBetween('created_at', [$cashRegister->opened_at, $to])
+            ->latest()
+            ->get();
+    }
+
+    private function discountsByUser(SpaceCashRegister $cashRegister): array
+    {
+        return $this->discountsForRegister($cashRegister)
+            ->groupBy(fn (AccountStatementItem $discount): string => $discount->creator?->name ?: 'Sin usuario')
+            ->map(fn (Collection $rows, string $name): array => [
+                'name' => $name,
+                'discounts_count' => $rows->count(),
+                'total' => $rows->sum(fn (AccountStatementItem $discount): float => abs((float) $discount->total)),
+            ])
+            ->values()
+            ->all();
     }
 
     private function paymentRows(Collection $lodgingPayments, Collection $incomes): array

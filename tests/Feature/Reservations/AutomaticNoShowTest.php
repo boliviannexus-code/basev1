@@ -12,7 +12,7 @@ class AutomaticNoShowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_it_marks_only_past_active_reservations_as_no_show(): void
+    public function test_legacy_command_does_not_mark_reservations_as_no_show(): void
     {
         $company = Company::factory()->create();
         $pastGroup = ReservationGroup::factory()->create([
@@ -52,11 +52,11 @@ class AutomaticNoShowTest extends TestCase
         ]);
 
         $this->artisan('reservations:mark-no-shows')
-            ->expectsOutputToContain('1 grupos y 1 reservas individuales')
+            ->expectsOutputToContain('No show automatico deshabilitado')
             ->assertSuccessful();
 
-        $this->assertSame('no_show', $pastGroup->refresh()->status);
-        $this->assertSame('no_show', $pastSingle->refresh()->status);
+        $this->assertSame('confirmed', $pastGroup->refresh()->status);
+        $this->assertSame('pending_payment', $pastSingle->refresh()->status);
         $this->assertSame('pending_payment', $todayGroup->refresh()->status);
         $this->assertSame('confirmed', $futureGroup->refresh()->status);
         $this->assertSame('checked_in', $checkedInGroup->refresh()->status);

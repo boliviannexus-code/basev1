@@ -72,6 +72,11 @@ class Stay extends Model
 
     }
 
+    public function isUnattended(): bool
+    {
+        return $this->status === 'occupied' && $this->check_out_date->toDateString() < today()->toDateString();
+    }
+
     public function lodgingUnitPrice(): string
     {
         return $this->currency === 'USD'

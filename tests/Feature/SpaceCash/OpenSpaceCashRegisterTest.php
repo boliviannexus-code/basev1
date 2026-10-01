@@ -186,6 +186,65 @@ class OpenSpaceCashRegisterTest extends TestCase
         ]);
     }
 
+    public function test_open_space_cash_report_filters_by_payment_method(): void
+    {
+        $user = $this->userWithSpaceCashAccess();
+        $category = $this->expenseCategory((int) $user->company_id);
+        $cashMethod = PaymentMethod::query()->create([
+            'company_id' => $user->company_id,
+            'name' => 'Efectivo',
+            'is_active' => true,
+        ]);
+        $qrMethod = PaymentMethod::query()->create([
+            'company_id' => $user->company_id,
+            'name' => 'QR',
+            'is_active' => true,
+        ]);
+        $cashRegister = SpaceCashRegister::factory()->create([
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'opening_amount' => 50,
+            'status' => 'open',
+        ]);
+
+        SpaceCashIncome::query()->create([
+            'company_id' => $user->company_id,
+            'space_cash_register_id' => $cashRegister->id,
+            'user_id' => $user->id,
+            'extra_charge_category_id' => $category->id,
+            'payment_method_id' => $cashMethod->id,
+            'receipt_number' => 'ESP-000001',
+            'detail' => 'Ingreso efectivo',
+            'quantity' => 1,
+            'amount' => 30,
+            'received_at' => now(),
+        ]);
+        SpaceCashIncome::query()->create([
+            'company_id' => $user->company_id,
+            'space_cash_register_id' => $cashRegister->id,
+            'user_id' => $user->id,
+            'extra_charge_category_id' => $category->id,
+            'payment_method_id' => $qrMethod->id,
+            'receipt_number' => 'ESP-000002',
+            'detail' => 'Ingreso QR',
+            'quantity' => 1,
+            'amount' => 80,
+            'received_at' => now(),
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('space-cash.index', ['payment_method_id' => $qrMethod->id]))
+            ->assertOk()
+            ->assertSee('value="'.$qrMethod->id.'" selected', false)
+            ->assertSee('Ingreso QR')
+            ->assertSee('80.00')
+            ->assertDontSee('Ingreso efectivo')
+            ->assertDontSee('30.00')
+            ->assertSee('Base inicial')
+            ->assertSee('0.00');
+    }
+
     public function test_user_can_view_history_with_direct_incomes(): void
     {
         $user = $this->userWithSpaceCashAccess();

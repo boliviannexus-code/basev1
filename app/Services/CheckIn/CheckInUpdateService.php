@@ -45,10 +45,13 @@ class CheckInUpdateService
         });
     }
 
-    public function updateStay(Stay $stay, array $data, ?User $user = null): Stay
+    public function updateStay(Stay $stay, array $data, ?User $user = null, bool $resolveUnattended = false): Stay
     {
-        return DB::transaction(function () use ($stay, $data, $user): Stay {
-            $stay->refresh();
+        return DB::transaction(function () use ($stay, $data, $user, $resolveUnattended): Stay {
+            $stay = Stay::query()->lockForUpdate()->findOrFail($stay->id);
+            if ($stay->isUnattended()) {
+                abort_unless($resolveUnattended && $user?->can('unattended-checkouts.manage'), 403, 'Resuelva esta estancia desde Casos sin atencion.');
+            }
 
             if ($stay->status !== 'occupied') {
                 throw ValidationException::withMessages([
@@ -107,7 +110,10 @@ class CheckInUpdateService
             }
 
             $this->accounts->updateNightlyRateFrom($stay, now()->toDateString(), $data['night_prices'] ?? []);
-            $this->syncStayGuests($stay, $data['guests'] ?? [], $user);
+            if (array_key_exists('guests', $data)) {
+                $this->syncStayGuests($stay, $data['guests'], $user);
+            }
+            $stay->checkInGroup->update(['check_out_date' => $stay->checkInGroup->stays()->max('check_out_date')]);
 
             return $stay->refresh()->load(['accountStatement.items', 'holderGuest', 'guests.birthCountry']);
         });

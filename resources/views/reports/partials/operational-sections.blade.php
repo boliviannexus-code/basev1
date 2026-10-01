@@ -3,6 +3,7 @@
     <div class="col-sm-6 col-xl-3"><x-ui.stat-card label="Hospedaje" :value="money_format_decimal($totals['lodging'])" icon="ti ti-home-dollar" tone="success" /></div>
     <div class="col-sm-6 col-xl-3"><x-ui.stat-card label="Reservas" :value="money_format_decimal($totals['reservations'])" icon="ti ti-calendar-dollar" tone="info" /></div>
     <div class="col-sm-6 col-xl-3"><x-ui.stat-card label="Egresos" :value="money_format_decimal($totals['expenses'])" icon="ti ti-cash-banknote-off" tone="warning" /></div>
+    <div class="col-sm-6 col-xl-3"><x-ui.stat-card label="Descuentos" :value="money_format_decimal($totals['discounts'] ?? 0)" icon="ti ti-discount-2" tone="warning" /></div>
 </div>
 
 <div class="row g-3 mt-1">
@@ -39,6 +40,55 @@
         </div>
     @endif
 </div>
+
+@if (in_array($reportType, ['summary', 'lodging'], true))
+    <div class="row g-3 mt-1">
+        <div class="col-lg-6">
+            <x-ui.table-card title="Descuentos por usuario">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead><tr><th>Usuario</th><th class="text-end">Descuentos</th><th class="text-end">Total</th></tr></thead>
+                    <tbody>
+                        @forelse ($discountsByUser as $row)
+                            <tr>
+                                <td>{{ $row['name'] }}</td>
+                                <td class="text-end">{{ $row['discounts_count'] }}</td>
+                                <td class="text-end fw-semibold">{{ money_format_decimal($row['total']) }}</td>
+                            </tr>
+                        @empty
+                            <tr><td class="text-center text-body-secondary py-3" colspan="3">Sin descuentos en el periodo.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </x-ui.table-card>
+        </div>
+    </div>
+
+    <details class="card mt-3">
+        <summary class="card-header d-flex align-items-center justify-content-between gap-3" style="cursor: pointer;">
+            <span class="fw-semibold"><i class="ti ti-discount-2 me-2 text-warning"></i>Detalle de descuentos</span>
+            <span class="badge text-bg-secondary">{{ $discounts->count() }} registros · {{ money_format_decimal($totals['discounts'] ?? 0) }}</span>
+        </summary>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead><tr><th>Fecha</th><th>Usuario</th><th>Espacio</th><th>Huésped</th><th>Detalle</th><th class="text-end">Monto</th></tr></thead>
+                <tbody>
+                    @forelse ($discounts as $discount)
+                        <tr>
+                            <td>{{ $discount->created_at?->format('Y-m-d H:i') }}</td>
+                            <td>{{ $discount->creator?->name ?? 'Sin usuario' }}</td>
+                            <td>{{ $discount->stay?->space?->title ?: $discount->stay?->space?->name ?: '-' }}</td>
+                            <td>{{ $discount->stay?->holderGuest?->full_name ?? '-' }}</td>
+                            <td>{{ $discount->description }}</td>
+                            <td class="text-end fw-semibold">{{ money_format_decimal(abs((float) $discount->total)) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td class="text-center text-body-secondary py-3" colspan="6">Sin descuentos en el periodo.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </details>
+@endif
 
 @if (in_array($reportType, ['summary', 'expenses'], true))
     <details class="card mt-3">

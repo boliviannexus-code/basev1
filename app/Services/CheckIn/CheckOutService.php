@@ -39,12 +39,15 @@ class CheckOutService
         ];
     }
 
-    public function complete(Stay $stay, User $user): void
+    public function complete(Stay $stay, User $user, bool $resolveUnattended = false, ?string $note = null): void
     {
         abort_unless((int) $stay->company_id === (int) $user->company_id, 404);
 
-        DB::transaction(function () use ($stay): void {
-            $stay->refresh();
+        DB::transaction(function () use ($stay, $user, $resolveUnattended, $note): void {
+            $stay = Stay::query()->lockForUpdate()->findOrFail($stay->id);
+            if ($stay->isUnattended()) {
+                abort_unless($resolveUnattended && $user->can('unattended-checkouts.manage'), 403, 'Resuelva esta estancia desde Casos sin atencion.');
+            }
 
             if ($stay->status !== 'occupied') {
                 throw ValidationException::withMessages([
@@ -60,7 +63,13 @@ class CheckOutService
                 ]);
             }
 
-            $stay->update(['status' => 'checked_out']);
+            $updates = ['status' => 'checked_out'];
+
+            if (filled($note)) {
+                $updates['notes'] = $this->appendSystemNote($stay->notes, $note);
+            }
+
+            $stay->update($updates);
 
             $hasOccupiedStays = $stay->checkInGroup
                 ->stays()
@@ -71,6 +80,11 @@ class CheckOutService
                 $stay->checkInGroup->update(['status' => 'checked_out']);
             }
         });
+    }
+
+    private function appendSystemNote(?string $current, string $note): string
+    {
+        return trim(collect([$current, '[Sistema] '.$note])->filter()->implode("\n\n"));
     }
 
     private function checkoutStays(Stay $stay): Collection

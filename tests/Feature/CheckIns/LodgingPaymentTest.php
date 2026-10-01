@@ -52,6 +52,58 @@ class LodgingPaymentTest extends TestCase
         $this->assertSame('60.00', $stay->accountStatement->refresh()->balance);
     }
 
+    public function test_account_page_shows_payment_detail(): void
+    {
+        [$user, $stay,, $method] = $this->context();
+
+        $this
+            ->actingAs($user)
+            ->post(route('stays.payments.store', $stay), [
+                'scope' => 'stay',
+                'payment_method_id' => $method->id,
+                'amount' => 40,
+                'reference' => 'QR-001',
+                'transaction_pin' => '1234',
+            ]);
+
+        $this
+            ->get(route('stays.account', $stay))
+            ->assertOk()
+            ->assertSee('Pagos realizados')
+            ->assertSee($user->name)
+            ->assertSee('QR')
+            ->assertSee('QR-001')
+            ->assertSee('40.00 BOB');
+    }
+
+    public function test_user_can_collect_more_than_stay_balance_as_credit_balance(): void
+    {
+        [$user, $stay, $cashRegister, $method] = $this->context();
+
+        $this
+            ->actingAs($user)
+            ->post(route('stays.payments.store', $stay), [
+                'scope' => 'stay',
+                'payment_method_id' => $method->id,
+                'amount' => 120,
+                'reference' => 'EF-001',
+                'transaction_pin' => '1234',
+            ])
+            ->assertRedirect(route('occupancy.index'));
+
+        $this->assertDatabaseHas('space_cash_lodging_payments', [
+            'space_cash_register_id' => $cashRegister->id,
+            'stay_id' => $stay->id,
+            'payment_method_id' => $method->id,
+            'amount_original' => '120.00',
+            'amount_bob' => '120.00',
+            'reference' => 'EF-001',
+        ]);
+        $this->assertSame('-20.00', $stay->accountStatement->refresh()->balance);
+        $this->assertSame('120.00', $stay->accountStatement->refresh()->payments_total);
+        $this->assertSame('paid', $stay->accountStatement->refresh()->status);
+    }
+
     public function test_lodging_payment_requires_open_cash_register(): void
     {
         [$user, $stay,, $method] = $this->context(openRegister: false);
@@ -107,9 +159,56 @@ class LodgingPaymentTest extends TestCase
         ]);
     }
 
+    public function test_group_payment_applies_excess_as_credit_to_selected_stay(): void
+    {
+        [$user, $stay, $cashRegister, $method] = $this->context();
+        $secondStay = Stay::factory()->create([
+            'company_id' => $stay->company_id,
+            'check_in_group_id' => $stay->check_in_group_id,
+            'holder_guest_id' => $stay->holder_guest_id,
+            'space_id' => $stay->space_id,
+            'people_count' => 1,
+            'check_in_date' => now()->toDateString(),
+            'check_out_date' => now()->addDay()->toDateString(),
+            'nights' => 1,
+            'price_per_night_bob' => 50,
+            'currency' => 'BOB',
+        ]);
+        app(AccountStatementService::class)->createForStay($secondStay);
+
+        $this
+            ->actingAs($user)
+            ->post(route('stays.payments.store', $stay), [
+                'scope' => 'group',
+                'payment_method_id' => $method->id,
+                'amount' => 170,
+                'transaction_pin' => '1234',
+            ])
+            ->assertRedirect(route('occupancy.index'));
+
+        $this->assertDatabaseCount('space_cash_lodging_payments', 3);
+        $this->assertDatabaseHas('space_cash_lodging_payments', [
+            'space_cash_register_id' => $cashRegister->id,
+            'stay_id' => $stay->id,
+            'amount_original' => '100.00',
+        ]);
+        $this->assertDatabaseHas('space_cash_lodging_payments', [
+            'space_cash_register_id' => $cashRegister->id,
+            'stay_id' => $secondStay->id,
+            'amount_original' => '50.00',
+        ]);
+        $this->assertDatabaseHas('space_cash_lodging_payments', [
+            'space_cash_register_id' => $cashRegister->id,
+            'stay_id' => $stay->id,
+            'amount_original' => '20.00',
+        ]);
+        $this->assertSame('-20.00', $stay->accountStatement->refresh()->balance);
+        $this->assertSame('0.00', $secondStay->accountStatement->refresh()->balance);
+    }
+
     public function test_payment_form_only_shows_group_scope_for_multiple_stays_with_group_balance(): void
     {
-        [$user, $stay,,] = $this->context();
+        [$user, $stay] = $this->context();
 
         $this
             ->actingAs($user)
@@ -144,7 +243,7 @@ class LodgingPaymentTest extends TestCase
             ->assertSee('150.00 BOB')
             ->assertSee('value="group" data-balance="150.00" selected', false)
             ->assertSee('id="stay-payment-amount"', false)
-            ->assertSee('max="150.00"', false)
+            ->assertDontSee('max="150.00"', false)
             ->assertSee('value="150.00"', false);
     }
 

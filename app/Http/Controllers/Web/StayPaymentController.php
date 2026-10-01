@@ -138,11 +138,6 @@ class StayPaymentController extends Controller
             ])->errorBag('stayPayment');
         }
 
-        if ($amount > $balance) {
-            throw ValidationException::withMessages([
-                'amount' => 'Para cobrar y hacer check-out, el cobro no puede superar el saldo de la estancia.',
-            ])->errorBag('stayPayment');
-        }
     }
 
     private function balanceBobForStay(Stay $stay): float

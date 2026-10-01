@@ -30,13 +30,24 @@ class SpaceCashController extends Controller
         $openRegister = $this->cashRegisters->currentForUser($request->user());
         PaymentMethodDefaults::ensureForCompany($request->user()->company_id);
         ExtraChargeCategory::ensureDefaultsForCompany((int) $request->user()->company_id);
+        $paymentMethods = $this->paymentMethods((int) $request->user()->company_id);
+        $paymentMethodId = $request->filled('payment_method_id')
+            ? (int) $request->query('payment_method_id')
+            : null;
+
+        if ($paymentMethodId && ! $paymentMethods->contains('id', $paymentMethodId)) {
+            $paymentMethodId = null;
+        }
 
         return view('space-cash.index', [
             'openRegister' => $openRegister,
             'companyHasOpenRegister' => $this->cashRegisters->companyHasOpenRegister((int) $request->user()->company_id),
-            'cashSummary' => $openRegister ? $this->cashRegisters->cashSummary($openRegister) : [],
+            'cashSummary' => $openRegister ? $this->cashRegisters->cashSummary($openRegister, $paymentMethodId) : [],
             'expenseCategories' => $this->expenseCategories((int) $request->user()->company_id),
-            'paymentMethods' => $this->paymentMethods((int) $request->user()->company_id),
+            'paymentMethods' => $paymentMethods,
+            'filters' => [
+                'payment_method_id' => $paymentMethodId,
+            ],
         ]);
     }
 
@@ -221,6 +232,7 @@ class SpaceCashController extends Controller
             $register->reservation_total = $summary['reservation_total'];
             $register->income_total = $summary['income_total'];
             $register->expenses_total = $summary['expenses'];
+            $register->discount_total = $summary['discount_total'];
         });
 
         return view('space-cash.history', compact('cashRegisters'));

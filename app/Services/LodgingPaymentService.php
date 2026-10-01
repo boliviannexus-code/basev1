@@ -62,7 +62,9 @@ class LodgingPaymentService
                 $statementBalanceBob = $statementCurrency === 'USD'
                     ? round((float) $statement->balance * $exchangeRate, 2)
                     : (float) $statement->balance;
-                $portionBob = min($remainingBob, $statementBalanceBob);
+                $portionBob = $statementBalanceBob > 0
+                    ? min($remainingBob, $statementBalanceBob)
+                    : 0;
 
                 if ($portionBob <= 0) {
                     continue;
@@ -73,9 +75,8 @@ class LodgingPaymentService
             }
 
             if ($remainingBob > 0) {
-                throw ValidationException::withMessages([
-                    'amount' => 'El monto no puede superar el saldo del check-in.',
-                ])->errorBag('stayPayment');
+                $statement = $selectedStay->accountStatement ?: $this->accountStatements->createForStay($selectedStay);
+                $payments[] = $this->recordOne($selectedStay, $statement, $user, $cashRegister, $paymentMethod, $remainingBob, $data['reference'] ?? null);
             }
 
             return $payments;
@@ -104,9 +105,9 @@ class LodgingPaymentService
             ? round($amountBob / $exchangeRate, 2)
             : $amountBob;
 
-        if ($amount <= 0 || $amount > (float) $statement->balance) {
+        if ($amount <= 0) {
             throw ValidationException::withMessages([
-                'amount' => 'El monto debe ser mayor a cero y no puede superar el saldo.',
+                'amount' => 'El monto debe ser mayor a cero.',
             ])->errorBag('stayPayment');
         }
 

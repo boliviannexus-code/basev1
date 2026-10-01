@@ -64,6 +64,15 @@
                     </a>
                 </li>
 
+                @if (auth()->user()?->company_id && auth()->user()?->can('unattended-checkouts.manage'))
+                    <li class="nav-item {{ request()->routeIs('unattended-checkouts.*') ? 'active' : '' }}">
+                        <a class="nav-link" href="{{ route('unattended-checkouts.index') }}">
+                            <span class="nav-link-icon"><i class="ti ti-alert-triangle"></i></span>
+                            <span class="nav-link-title">Casos sin atención</span>
+                        </a>
+                    </li>
+                @endif
+
                 @if ($canOrganization)
                     <li class="nav-item app-menu-section {{ $organizationOpen ? 'active' : '' }}">
                         <button class="nav-link app-menu-toggle {{ $organizationOpen ? '' : 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#menu-organization" aria-expanded="{{ $organizationOpen ? 'true' : 'false' }}" aria-controls="menu-organization">

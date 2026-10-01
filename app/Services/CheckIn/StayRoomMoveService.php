@@ -24,6 +24,7 @@ class StayRoomMoveService
     {
         return DB::transaction(function () use ($stay, $data, $user): Stay {
             $stay->refresh()->loadMissing(['checkInGroup', 'accountStatement.items', 'guests']);
+            abort_if($stay->isUnattended(), 403, 'Resuelva esta estancia desde Casos sin atencion.');
 
             if ($stay->status !== 'occupied') {
                 throw ValidationException::withMessages([

@@ -47,6 +47,7 @@ class AccountStatementItem extends Model
         'currency',
         'source',
         'status',
+        'created_by',
     ];
 
     protected function casts(): array
@@ -87,5 +88,10 @@ class AccountStatementItem extends Model
     public function extraChargeCategory(): BelongsTo
     {
         return $this->belongsTo(ExtraChargeCategory::class, 'extra_charge_category_id');
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 }

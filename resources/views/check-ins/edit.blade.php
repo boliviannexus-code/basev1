@@ -13,6 +13,19 @@
         ][$group->status] ?? 'text-bg-primary';
     @endphp
 
+    @if ($group->stays->contains(fn ($stay) => $stay->isUnattended()))
+        <div class="alert alert-warning" role="alert">
+            Hay estancias sin atención de días anteriores. Deben resolverse desde el módulo Casos sin atención.
+            @can('unattended-checkouts.manage')
+                <a href="{{ route('unattended-checkouts.index') }}" class="alert-link">Resolver casos</a>
+            @else
+                Solicite la intervención de un usuario con el permiso de Casos sin atención.
+            @endcan
+        </div>
+    @endif
+    @if (now()->format('H:i:s') >= (auth()->user()?->company?->check_out_time ?: '11:00:00') && $group->stays->contains(fn ($stay) => $stay->status === 'occupied' && $stay->check_out_date->isToday()))
+        <div class="alert alert-warning" role="alert">Hay check-outs pendientes para hoy. Amplíe las noches manualmente o registre la salida de cada estancia.</div>
+    @endif
     <div class="check-in-edit-shell">
         <x-ui.card>
             <div class="card-body py-3">
@@ -100,7 +113,7 @@
                                 <div class="text-body-secondary small">Titular: {{ $holderName }}</div>
                             </div>
                             <div class="d-flex flex-wrap gap-2">
-                                @if ($stay->status === 'occupied')
+                                @if ($stay->status === 'occupied' && ! $stay->isUnattended())
                                     @if ($stay->check_out_date->isToday())
                                         <button
                                             class="btn btn-warning btn-sm"
@@ -138,23 +151,23 @@
                             </div>
                             <div>
                                 <label class="form-label" for="stay-{{ $stay->id }}-check-out">Salida</label>
-                                <input class="form-control form-control-sm @error('check_out_date') is-invalid @enderror" id="stay-{{ $stay->id }}-check-out" name="check_out_date" type="date" value="{{ old('check_out_date', $stay->check_out_date->toDateString()) }}" autocomplete="off" @disabled($stay->status !== 'occupied') required>
+                                <input class="form-control form-control-sm @error('check_out_date') is-invalid @enderror" id="stay-{{ $stay->id }}-check-out" name="check_out_date" type="date" value="{{ old('check_out_date', $stay->check_out_date->toDateString()) }}" autocomplete="off" @disabled($stay->status !== 'occupied' || $stay->isUnattended()) required>
                                 <div class="invalid-feedback">{{ $errors->first('check_out_date') }}</div>
                             </div>
                             <div>
                                 <label class="form-label">Personas</label>
-                                <input class="form-control form-control-sm @error('people_count') is-invalid @enderror" name="people_count" type="number" min="1" value="{{ old('people_count', $stay->people_count) }}" autocomplete="off" @disabled($stay->status !== 'occupied') required>
+                                <input class="form-control form-control-sm @error('people_count') is-invalid @enderror" name="people_count" type="number" min="1" value="{{ old('people_count', $stay->people_count) }}" autocomplete="off" @disabled($stay->status !== 'occupied' || $stay->isUnattended()) required>
                                 <div class="invalid-feedback">{{ $errors->first('people_count') }}</div>
                             </div>
                             <input type="hidden" name="currency" value="BOB">
                             <div>
                                 <label class="form-label">Precio BOB</label>
-                                <input class="form-control form-control-sm @error('price_per_night_bob') is-invalid @enderror" name="price_per_night_bob" type="number" min="0" step="0.01" value="{{ old('price_per_night_bob', $stay->price_per_night_bob) }}" autocomplete="off" data-reference-price-bob @disabled($stay->status !== 'occupied')>
+                                <input class="form-control form-control-sm @error('price_per_night_bob') is-invalid @enderror" name="price_per_night_bob" type="number" min="0" step="0.01" value="{{ old('price_per_night_bob', $stay->price_per_night_bob) }}" autocomplete="off" data-reference-price-bob @disabled($stay->status !== 'occupied' || $stay->isUnattended())>
                                 <div class="invalid-feedback">{{ $errors->first('price_per_night_bob') }}</div>
                             </div>
                             <div>
                                 <label class="form-label">Precio USD</label>
-                                <input class="form-control form-control-sm @error('price_per_night_usd') is-invalid @enderror" name="price_per_night_usd" type="number" min="0" step="0.01" value="{{ old('price_per_night_usd', $stay->price_per_night_usd) }}" autocomplete="off" data-reference-price-usd @disabled($stay->status !== 'occupied')>
+                                <input class="form-control form-control-sm @error('price_per_night_usd') is-invalid @enderror" name="price_per_night_usd" type="number" min="0" step="0.01" value="{{ old('price_per_night_usd', $stay->price_per_night_usd) }}" autocomplete="off" data-reference-price-usd @disabled($stay->status !== 'occupied' || $stay->isUnattended())>
                                 <div class="invalid-feedback">{{ $errors->first('price_per_night_usd') }}</div>
                             </div>
                             <input name="exchange_rate" type="hidden" value="{{ old('exchange_rate', $currentExchangeRate?->rate ?? $stay->exchange_rate) }}" data-reference-exchange-rate>
@@ -162,13 +175,13 @@
                                 <input type="hidden" name="breakfast_included" value="0">
                                 <label class="form-label d-none d-lg-block">&nbsp;</label>
                                 <label class="check-in-switch check-in-switch-sm">
-                                    <input class="form-check-input" name="breakfast_included" type="checkbox" value="1" @checked((bool) old('breakfast_included', $stay->breakfast_included)) @disabled($stay->status !== 'occupied')>
+                                    <input class="form-check-input" name="breakfast_included" type="checkbox" value="1" @checked((bool) old('breakfast_included', $stay->breakfast_included)) @disabled($stay->status !== 'occupied' || $stay->isUnattended())>
                                     <span>Desayuno</span>
                                 </label>
                             </div>
                             <div class="check-in-edit-notes-field">
                                 <label class="form-label">Notas</label>
-                                <input class="form-control form-control-sm" name="notes" value="{{ old('notes', $stay->notes) }}" autocomplete="off" @disabled($stay->status !== 'occupied')>
+                                <input class="form-control form-control-sm" name="notes" value="{{ old('notes', $stay->notes) }}" autocomplete="off" @disabled($stay->status !== 'occupied' || $stay->isUnattended())>
                             </div>
                             <div class="check-in-edit-guests-field" data-stay-guests-section>
                                 <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
@@ -176,7 +189,7 @@
                                         <label class="form-label mb-0">Acompanantes</label>
                                         <div class="form-hint">El titular ya cuenta como huesped.</div>
                                     </div>
-                                    <button class="btn btn-outline-primary btn-sm" type="button" data-stay-add-guest @disabled($stay->status !== 'occupied')>
+                                    <button class="btn btn-outline-primary btn-sm" type="button" data-stay-add-guest @disabled($stay->status !== 'occupied' || $stay->isUnattended())>
                                         <i class="ti ti-user-plus me-1"></i>Agregar
                                     </button>
                                 </div>
@@ -281,7 +294,7 @@
                                 </div>
                             </div>
                             <div class="align-self-end">
-                                <button class="btn btn-primary btn-sm w-100" type="submit" @disabled($stay->status !== 'occupied')>
+                                <button class="btn btn-primary btn-sm w-100" type="submit" @disabled($stay->status !== 'occupied' || $stay->isUnattended())>
                                     <i class="ti ti-refresh me-1"></i>Actualizar
                                 </button>
                             </div>

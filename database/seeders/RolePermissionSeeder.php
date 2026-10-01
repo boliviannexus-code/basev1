@@ -46,6 +46,7 @@ class RolePermissionSeeder extends Seeder
             'availability.manage',
             'occupancy.view',
             'occupancy.manage',
+            'unattended-checkouts.manage',
             'reservations.view',
             'reservations.manage',
             'reservation-settings.manage',

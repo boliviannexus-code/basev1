@@ -44,66 +44,42 @@ function initCheckOutAlerts() {
     if (!config) return;
 
     let checking = false;
-    const pauseStorageKey = 'checkout-alerts-paused-until';
-    const alertsArePaused = () => {
-        const pausedUntil = Number(window.sessionStorage.getItem(pauseStorageKey) ?? 0);
-        const maximumPause = Math.max(Number(config.dataset.snoozeMinutes ?? 30), 1) * 60000;
-        const remaining = pausedUntil - Date.now();
-
-        if (remaining <= 0 || remaining > maximumPause) {
-            window.sessionStorage.removeItem(pauseStorageKey);
-
-            return false;
-        }
-
-        return true;
-    };
-
-    const endpoint = (template, stayId) => template.replace('__STAY__', String(stayId));
-    const post = async (url) => {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
-        });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.message ?? 'No se pudo completar la accion.');
-        return payload;
-    };
-
     const showStay = async (stay) => {
+        // Keep the resolution page usable without postponing alerts on other pages.
+        if (window.location.pathname === new URL(stay.check_in_url, window.location.origin).pathname) return false;
+        const content = document.createElement('div');
+        content.textContent = `${stay.unit || 'Habitacion'} · ${stay.guest}. Salida: ${stay.check_out_date}. Debe ampliar la estancia manualmente o realizar el check-out.`;
+        if (stay.balance > 0) content.textContent += ` Saldo pendiente: ${stay.balance.toFixed(2)} ${stay.currency}.`;
         const result = await Swal.fire({
-            icon: stay.permanent ? 'error' : 'warning',
-            title: stay.permanent ? 'Conflicto de habitacion pendiente' : 'Check-out pendiente',
-            html: `<strong>${stay.unit || 'Habitacion'}</strong><br>${stay.guest}<br><span class="text-muted">Salida: ${stay.check_out_date}</span>${stay.balance > 0 ? `<br><span class="text-danger">Saldo pendiente: ${stay.balance.toFixed(2)} Bs</span>` : ''}${stay.permanent ? '<br><span class="text-danger fw-bold">No fue posible extender la estancia porque la habitacion tiene otra reserva o bloqueo. Esta alerta continuara hasta resolver el conflicto.</span>' : ''}`,
-            confirmButtonText: 'Ver check-in',
-            cancelButtonText: `Recordar en ${stay.snooze_minutes} min`,
+            icon: 'warning',
+            title: 'Check-out pendiente',
+            html: content,
+            confirmButtonText: 'Resolver check-out',
+            cancelButtonText: `Recordar más tarde (${stay.snooze_minutes} min)`,
             showCancelButton: true,
             allowOutsideClick: false,
             allowEscapeKey: false,
-            reverseButtons: true,
         });
-
-        try {
-            await post(endpoint(config.dataset.snoozeUrl, stay.id));
-
-            if (result.isConfirmed) {
-                window.sessionStorage.setItem(
-                    pauseStorageKey,
-                    String(Date.now() + (Number(stay.snooze_minutes) * 60000)),
-                );
-                window.location.href = stay.check_in_url;
-
-                return true;
-            }
-        } catch (error) {
-            await Swal.fire({ icon: 'error', title: 'Accion pendiente', text: error.message });
+        if (result.isConfirmed) {
+            window.location.href = stay.check_in_url;
+            return true;
         }
-
+        if (result.dismiss === Swal.DismissReason.cancel) {
+            try {
+                const response = await fetch(config.dataset.snoozeUrl.replace('__STAY__', String(stay.id)), {
+                    method: 'POST',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!response.ok) throw new Error('No se pudo posponer el recordatorio.');
+            } catch (error) {
+                await Swal.fire({ icon: 'error', title: 'Recordatorio pendiente', text: error.message });
+            }
+        }
         return false;
     };
 
     const check = async () => {
-        if (checking || Swal.isVisible() || alertsArePaused()) return;
+        if (checking || Swal.isVisible()) return;
         checking = true;
         try {
             const response = await fetch(config.dataset.indexUrl, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
@@ -283,14 +259,18 @@ function showFormErrors(form, errors) {
     });
 }
 
-function firstValidationMessage(errors) {
+function firstValidationMessage(errors, fallback = null) {
     const firstMessages = Object.values(errors ?? {})[0];
 
     if (Array.isArray(firstMessages) && firstMessages.length > 0) {
         return firstMessages[0];
     }
 
-    return null;
+    if (typeof firstMessages === 'string' && firstMessages.length > 0) {
+        return firstMessages;
+    }
+
+    return fallback;
 }
 
 function setSubmitting(form, submitting) {
@@ -517,6 +497,64 @@ function confirmSubmit(form) {
         if (result.isConfirmed) {
             form.submit();
         }
+    });
+}
+
+function confirmUnattendedResolution(form, submitter = null) {
+    const button = submitter?.matches?.('[data-requires-unattended-comment]')
+        ? submitter
+        : form.querySelector('[data-requires-unattended-comment]');
+
+    if (!button) {
+        form.submit();
+        return;
+    }
+
+    Swal.fire({
+        icon: 'warning',
+        title: button.dataset.confirmTitle ?? 'Confirmar resolucion',
+        text: button.dataset.confirmText ?? 'Esta accion quedara registrada en el historial.',
+        input: 'textarea',
+        inputLabel: 'Comentario para historial',
+        inputPlaceholder: 'Describe el motivo o la decision tomada',
+        inputAttributes: {
+            maxlength: 1000,
+        },
+        showCancelButton: true,
+        confirmButtonText: button.dataset.confirmButton ?? 'Confirmar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: button.dataset.confirmColor ?? '#f59f00',
+        preConfirm: (value) => {
+            if (!value || value.trim().length < 3) {
+                Swal.showValidationMessage('Ingresa un comentario de al menos 3 caracteres.');
+                return false;
+            }
+
+            return value.trim();
+        },
+    }).then((result) => {
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        form.querySelectorAll('[data-unattended-confirm-input]').forEach((input) => input.remove());
+
+        if (button.name) {
+            const action = document.createElement('input');
+            action.type = 'hidden';
+            action.name = button.name;
+            action.value = button.value;
+            action.dataset.unattendedConfirmInput = '1';
+            form.append(action);
+        }
+
+        const reason = document.createElement('input');
+        reason.type = 'hidden';
+        reason.name = 'reason';
+        reason.value = result.value;
+        reason.dataset.unattendedConfirmInput = '1';
+        form.append(reason);
+        form.submit();
     });
 }
 
@@ -3610,7 +3648,7 @@ function initOccupancyWeekGrid() {
 
         if (response.status === 422) {
             showFormErrors(form, payload.errors ?? {});
-            Swal.fire({ icon: 'error', title: 'Validacion', text: payload.message ?? 'Revisa los datos ingresados.' });
+            Swal.fire({ icon: 'error', title: 'Validacion', text: firstValidationMessage(payload.errors, payload.message) ?? 'Revisa los datos ingresados.' });
 
             return;
         }
@@ -3642,7 +3680,7 @@ function initOccupancyWeekGrid() {
 
             if (response.status === 422) {
                 showFormErrors(formElement, payload.errors ?? {});
-                Swal.fire({ icon: 'error', title: 'Check-out bloqueado', text: payload.message ?? 'El check-in tiene deuda pendiente.' });
+                Swal.fire({ icon: 'error', title: 'Check-out bloqueado', text: firstValidationMessage(payload.errors, payload.message) ?? 'El check-in tiene deuda pendiente.' });
 
                 return;
             }
@@ -4064,7 +4102,7 @@ function initAvailabilityGrid() {
 
         if (response.status === 422) {
             showFormErrors(statusForm, payload.errors ?? {});
-            Swal.fire({ icon: 'error', title: 'Validacion', text: payload.message ?? 'Revisa los datos ingresados.' });
+            Swal.fire({ icon: 'error', title: 'Validacion', text: firstValidationMessage(payload.errors, payload.message) ?? 'Revisa los datos ingresados.' });
 
             return;
         }
@@ -4173,7 +4211,7 @@ function initAvailabilityGrid() {
 
         if (response.status === 422) {
             showFormErrors(bulkForm, payload.errors ?? {});
-            Swal.fire({ icon: 'error', title: 'Validacion', text: payload.message ?? 'Revisa los datos ingresados.' });
+            Swal.fire({ icon: 'error', title: 'Validacion', text: firstValidationMessage(payload.errors, payload.message) ?? 'Revisa los datos ingresados.' });
 
             return;
         }
@@ -5503,12 +5541,8 @@ function initStayPaymentForms(scope = document) {
         const sync = (resetAmount = false) => {
             const balance = selectedBalance();
 
-            if (amount) {
-                amount.max = balance.toFixed(2);
-
-                if (resetAmount) {
-                    amount.value = balance.toFixed(2);
-                }
+            if (amount && resetAmount) {
+                amount.value = balance.toFixed(2);
             }
 
             if (balanceLabel) {
@@ -6004,6 +6038,7 @@ document.addEventListener('submit', async (event) => {
     const confirmForm = event.target.closest('[data-confirm-submit]');
     const voidPurchaseForm = event.target.closest('[data-confirm-void-purchase]');
     const voidSaleForm = event.target.closest('[data-confirm-void-sale]');
+    const unattendedResolutionForm = event.target.closest('[data-unattended-resolution-form]');
     const submitter = event.submitter ?? null;
 
     if (transactionPinForm && transactionPinForm.dataset.transactionPinAuthorized !== '1') {
@@ -6039,6 +6074,13 @@ document.addEventListener('submit', async (event) => {
     if (voidSaleForm) {
         event.preventDefault();
         confirmVoidSale(voidSaleForm);
+
+        return;
+    }
+
+    if (unattendedResolutionForm && submitter?.matches?.('[data-requires-unattended-comment]')) {
+        event.preventDefault();
+        confirmUnattendedResolution(unattendedResolutionForm, submitter);
 
         return;
     }

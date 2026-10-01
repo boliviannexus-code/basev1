@@ -36,11 +36,10 @@
 </div>
 
 @auth
-    @if (auth()->user()?->company_id && auth()->user()?->can('occupancy.manage'))
+    @if (auth()->user()?->company_id && auth()->user()?->can('occupancy.manage') && ! request()->routeIs('check-ins.edit', 'stays.payments.*', 'stays.account', 'unattended-checkouts.*'))
         <div data-checkout-alerts
              data-index-url="{{ route('checkout-alerts.index') }}"
-             data-snooze-url="{{ route('checkout-alerts.snooze', ['stay' => '__STAY__']) }}"
-             data-snooze-minutes="{{ auth()->user()?->company?->check_out_alert_snooze_minutes ?? 30 }}"></div>
+             data-snooze-url="{{ route('checkout-alerts.snooze', ['stay' => '__STAY__']) }}"></div>
     @endif
 @endauth
 

@@ -30,7 +30,7 @@ class CheckOutAlertController extends Controller
             ->whereDoesntHave('checkOutAlertSnoozes', fn (Builder $query): Builder => $query
                 ->where('user_id', $request->user()->id)
                 ->where('snoozed_until', '>', now()))
-            ->with(['space', 'room', 'bedUnit', 'holderGuest', 'accountStatement', 'checkOutAlertEscalation'])
+            ->with(['space', 'room', 'bedUnit', 'holderGuest', 'accountStatement'])
             ->orderBy('check_out_date')
             ->get()
             ->map(fn (Stay $stay): array => [
@@ -38,11 +38,10 @@ class CheckOutAlertController extends Controller
                 'unit' => collect([$stay->space?->title ?: $stay->space?->name, $stay->room?->name ?: $stay->room?->title, $stay->bedUnit?->label])->filter()->join(' · '),
                 'guest' => $stay->holderGuest?->full_name ?: $stay->holderGuest?->name ?: 'Sin huesped',
                 'check_out_date' => $stay->check_out_date->format('d/m/Y'),
+                'currency' => $stay->currency,
                 'balance' => (float) ($stay->accountStatement?->balance ?? 0),
                 'snooze_minutes' => (int) $company->check_out_alert_snooze_minutes,
                 'check_in_url' => route('check-ins.edit', $stay->check_in_group_id),
-                'permanent' => $stay->checkOutAlertEscalation !== null,
-                'conflict_reason' => $stay->checkOutAlertEscalation?->reason,
             ]);
 
         return response()->json(['data' => $stays]);

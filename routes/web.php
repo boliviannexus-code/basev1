@@ -46,6 +46,7 @@ use App\Http\Controllers\Web\Spaces\SpaceRegistrationStepperController;
 use App\Http\Controllers\Web\StayController;
 use App\Http\Controllers\Web\StayPaymentController;
 use App\Http\Controllers\Web\StayRoomChangeController;
+use App\Http\Controllers\Web\UnattendedCheckOutController;
 use App\Http\Controllers\Web\UserController;
 use App\Support\AccommodationCatalogRegistry;
 use Illuminate\Support\Facades\Route;
@@ -83,6 +84,13 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/', [CheckOutAlertController::class, 'index'])->name('index');
         Route::post('{stay}/snooze', [CheckOutAlertController::class, 'snooze'])->whereNumber('stay')->name('snooze');
     });
+    Route::prefix('unattended-checkouts')->name('unattended-checkouts.')
+        ->middleware(['company_user', 'permission:unattended-checkouts.manage'])->group(function (): void {
+            Route::get('/', [UnattendedCheckOutController::class, 'index'])->name('index');
+            Route::post('{stay}/resolve', [UnattendedCheckOutController::class, 'resolve'])->whereNumber('stay')->name('resolve');
+            Route::post('reservations/{reservation}/resolve', [UnattendedCheckOutController::class, 'resolveReservation'])->whereNumber('reservation')->name('reservations.resolve');
+            Route::post('reservation-groups/{group}/resolve', [UnattendedCheckOutController::class, 'resolveReservationGroup'])->whereNumber('group')->name('reservation-groups.resolve');
+        });
     Route::get('business-intelligence', [BusinessIntelligenceController::class, 'index'])
         ->middleware(['company_user', 'permission:business-intelligence.view'])
         ->name('business-intelligence.index');

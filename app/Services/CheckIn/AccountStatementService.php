@@ -9,7 +9,9 @@ use App\Models\ExtraChargeCategory;
 use App\Models\Reservation;
 use App\Models\ReservationGroup;
 use App\Models\Stay;
+use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Validation\ValidationException;
 
 class AccountStatementService
 {
@@ -78,7 +80,7 @@ class AccountStatementService
         $amount = round($amount, 2);
 
         if ($amount <= 0 || $amount > (float) $statement->balance) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'amount' => 'El monto debe ser mayor a cero y no puede superar el saldo.',
             ])->errorBag('reservationPayment');
         }
@@ -268,9 +270,9 @@ class AccountStatementService
         $currency ??= $statement->currency ?: $stay->currency;
         $amount = round($amount, 2);
 
-        if ($amount <= 0 || $amount > (float) $statement->balance) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'amount' => 'El monto debe ser mayor a cero y no puede superar el saldo.',
+        if ($amount <= 0) {
+            throw ValidationException::withMessages([
+                'amount' => 'El monto debe ser mayor a cero.',
             ])->errorBag('stayPayment');
         }
 
@@ -294,7 +296,7 @@ class AccountStatementService
         return $item;
     }
 
-    public function recordFixedDiscount(Stay $stay, float $amount, string $description, ?string $currency = null): AccountStatementItem
+    public function recordFixedDiscount(Stay $stay, float $amount, string $description, ?string $currency = null, ?User $user = null): AccountStatementItem
     {
         $statement = $stay->accountStatement ?: $this->createForStay($stay);
         $statement = $this->recalculate($statement);
@@ -303,7 +305,7 @@ class AccountStatementService
         $availableForDiscount = round((float) $statement->subtotal - (float) $statement->discount_total, 2);
 
         if ($amount <= 0 || $amount > $availableForDiscount) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'amount' => 'El descuento debe ser mayor a cero y no puede superar el subtotal pendiente de descuento.',
             ])->errorBag('stayDiscount');
         }
@@ -321,6 +323,7 @@ class AccountStatementService
             'currency' => $currency,
             'source' => 'manual',
             'status' => 'active',
+            'created_by' => $user?->id,
         ]);
 
         $this->recalculate($statement);

@@ -2,6 +2,7 @@
 
 namespace App\Services\Reports;
 
+use App\Models\AccountStatementItem;
 use App\Models\ExtraChargeCategory;
 use App\Models\OccupancyBlock;
 use App\Models\PaymentMethod;
@@ -82,6 +83,7 @@ class OperationalReportService
         $expenses = $this->expenses($companyId, $filters);
         $lodging = $filters['category_id'] ? collect() : $this->lodging($companyId, $filters);
         $reservations = $filters['category_id'] ? collect() : $this->reservations($companyId, $filters);
+        $discounts = $filters['payment_method_id'] || $filters['category_id'] ? collect() : $this->discounts($companyId, $filters);
         $incomeRows = collect()
             ->merge($directIncomes->map(fn (SpaceCashIncome $income): array => [
                 'type' => 'Ingreso directo',
@@ -121,14 +123,17 @@ class OperationalReportService
             'expenses' => $expenses,
             'lodging' => $lodging,
             'reservations' => $reservations,
+            'discounts' => $discounts,
             'incomeRows' => $incomeRows,
             'methodSummary' => $this->methodSummary($incomeRows, $expenses),
             'categorySummary' => $this->categorySummary($incomeRows, $expenses),
+            'discountsByUser' => $this->discountsByUser($discounts),
             'totals' => [
                 'direct_incomes' => (float) $directIncomes->sum('amount'),
                 'lodging' => (float) $lodging->sum('amount_bob'),
                 'reservations' => (float) $reservations->sum('amount_bob'),
                 'expenses' => (float) $expenses->sum('amount'),
+                'discounts' => (float) $discounts->sum(fn (AccountStatementItem $discount): float => abs((float) $discount->total)),
             ],
         ];
     }
@@ -191,6 +196,33 @@ class OperationalReportService
             ->latest('created_at')
             ->limit(500)
             ->get();
+    }
+
+    private function discounts(int $companyId, array $filters): Collection
+    {
+        return AccountStatementItem::query()
+            ->with(['creator', 'stay.space', 'stay.holderGuest'])
+            ->where('company_id', $companyId)
+            ->where('type', 'discount')
+            ->where('status', 'active')
+            ->whereBetween('created_at', [$filters['from'], $filters['to']])
+            ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('created_by', $id))
+            ->when($filters['space_id'], fn (Builder $query, int $id) => $query->whereHas('stay', fn (Builder $stay) => $stay->where('space_id', $id)))
+            ->latest()
+            ->limit(500)
+            ->get();
+    }
+
+    private function discountsByUser(Collection $discounts): Collection
+    {
+        return $discounts
+            ->groupBy(fn (AccountStatementItem $discount): string => $discount->creator?->name ?: 'Sin usuario')
+            ->map(fn (Collection $rows, string $name): array => [
+                'name' => $name,
+                'discounts_count' => $rows->count(),
+                'total' => $rows->sum(fn (AccountStatementItem $discount): float => abs((float) $discount->total)),
+            ])
+            ->values();
     }
 
     public function occupancy(int $companyId, array $filters): array

@@ -12,6 +12,33 @@
             </div>
             @include('space-cash.partials.open-register-form', ['title' => 'Abrir mi caja de espacios', 'class' => 'mb-3'])
         @endunless
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <form method="GET" action="{{ route('space-cash.index') }}" class="row g-2 align-items-end">
+                    <div class="col-md-5 col-lg-4">
+                        <label class="form-label" for="space-cash-payment-method-filter">Metodo de pago</label>
+                        <select class="form-select" id="space-cash-payment-method-filter" name="payment_method_id">
+                            <option value="">Todos los metodos</option>
+                            @foreach ($paymentMethods as $paymentMethod)
+                                <option value="{{ $paymentMethod->id }}" @selected((int) ($filters['payment_method_id'] ?? 0) === (int) $paymentMethod->id)>{{ $paymentMethod->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-auto">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="ti ti-filter me-1"></i>Filtrar
+                        </button>
+                    </div>
+                    @if (! empty($filters['payment_method_id']))
+                        <div class="col-md-auto">
+                            <a class="btn btn-outline-secondary" href="{{ route('space-cash.index') }}">Limpiar</a>
+                        </div>
+                    @endif
+                </form>
+            </div>
+        </div>
+
         <div class="row g-3 mb-3">
             <div class="col-sm-6 col-xl">
                 <x-ui.stat-card label="Base inicial" :value="money_format_decimal($cashSummary['opening'] ?? 0)" icon="ti ti-cash" />
