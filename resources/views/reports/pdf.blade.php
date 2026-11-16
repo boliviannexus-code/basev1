@@ -134,3 +134,8 @@
         @endforelse
     </table>
 @endif
+
+@if (in_array($reportType, ['summary', 'lodging'], true))
+    <h2 style="{{ $font }} font-size: 12px;">Detalle de cargos extra de estancias</h2>
+    <div style="{{ $font }}">@include('reports.partials.stay-extra-charges')</div>
+@endif

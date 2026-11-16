@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Guest;
 use App\Models\PrivateSpaceType;
 use App\Models\ReservationGroup;
+use App\Models\RoomBedUnit;
 use App\Models\SharedSpaceType;
 use App\Models\Space;
 use App\Models\SpaceMode;
@@ -192,6 +193,86 @@ class DashboardCompanyScopeTest extends TestCase
             ->assertSee('Reserva Asignada')
             ->assertDontSee('Empresa Global No Visible')
             ->assertDontSee('Reserva Oculta');
+    }
+
+    public function test_historical_date_includes_completed_stays_and_keeps_company_scope(): void
+    {
+        Permission::findOrCreate('dashboard.view');
+        $company = Company::factory()->create();
+        $user = User::factory()->create(['company_id' => $company->id]);
+        $user->givePermissionTo('dashboard.view');
+        $date = now()->subDays(10)->startOfDay();
+        $space = $this->privateSpace($company, 'Casa historica');
+        $stay = $this->stay($company, $space, people: 3, breakfast: true, checkIn: $date->copy()->subDay(), checkOut: $date->copy()->addDay());
+        $stay->update(['status' => 'checked_out']);
+        $otherCompany = Company::factory()->create();
+        $this->stay($otherCompany, $this->privateSpace($otherCompany, 'Casa ajena'), people: 9, checkIn: $date->copy()->subDay(), checkOut: $date->copy()->addDay());
+
+        $response = $this->actingAs($user)->get(route('dashboard', ['date' => $date->toDateString()]))
+            ->assertOk()
+            ->assertSee('Volver a hoy')
+            ->assertSee('Check-ins en la fecha')
+            ->assertSee('Proximas reservas (actuales)')
+            ->assertDontSee('Casa ajena');
+
+        $this->assertTrue($response->viewData('isHistorical'));
+        $this->assertSame(3, $response->viewData('occupancy')['total_guests']);
+        $this->assertSame(1, $response->viewData('occupancy')['occupied_units']);
+        $this->assertSame(3, $response->viewData('breakfast')['total_people']);
+
+        $departure = $this->get(route('dashboard', ['date' => $date->copy()->addDay()->toDateString()]))->assertOk();
+        $this->assertSame(0, $departure->viewData('occupancy')['occupied_units']);
+        $this->assertSame(1, $departure->viewData('occupancy')['check_outs_today']);
+        $this->assertSame(3, $departure->viewData('breakfast')['total_people']);
+    }
+
+    public function test_room_occupancy_counts_each_room_once_for_all_sale_modes(): void
+    {
+        Permission::findOrCreate('dashboard.view');
+        $company = Company::factory()->create();
+        $user = User::factory()->create(['company_id' => $company->id]);
+        $user->givePermissionTo('dashboard.view');
+        $space = $this->sharedSpace($company, 'Backpackers');
+        $date = now()->subDays(2)->startOfDay();
+
+        foreach (['flexible', 'bed_unit', 'full_room'] as $mode) {
+            $room = SpaceRoom::factory()->create([
+                'company_id' => $company->id, 'space_id' => $space->id,
+                'status' => 'active', 'sale_mode' => $mode,
+            ]);
+            foreach (range(1, 3) as $number) {
+                $bed = RoomBedUnit::factory()->create([
+                    'company_id' => $company->id, 'space_room_id' => $room->id,
+                ]);
+                if ($mode !== 'full_room') {
+                    $this->stay($company, $space, $room, checkIn: $date->copy()->subDay(), checkOut: $date->copy()->addDay())
+                        ->update(['room_bed_unit_id' => $bed->id, 'status' => 'checked_out']);
+                }
+            }
+            if ($mode === 'flexible') {
+                $this->stay($company, $space, $room, checkIn: $date->copy()->subDay(), checkOut: $date->copy()->addDay());
+            }
+        }
+
+        $response = $this->actingAs($user)->get(route('dashboard', ['date' => $date->toDateString()]))->assertOk();
+        $row = $response->viewData('occupancy')['by_space']->firstWhere('space.id', $space->id);
+        $this->assertSame(3, $row['total_units']);
+        $this->assertSame(2, $row['occupied_units']);
+        $this->assertSame(1, $row['available_units']);
+        $this->assertSame(67, $row['occupancy_rate']);
+        $this->assertSame(67, $response->viewData('occupancy')['occupancy_rate']);
+    }
+
+    public function test_dashboard_rejects_invalid_and_future_dates(): void
+    {
+        Permission::findOrCreate('dashboard.view');
+        $user = User::factory()->create();
+        $user->givePermissionTo('dashboard.view');
+
+        foreach (['invalid', '2026-02-30', now()->addDay()->toDateString()] as $date) {
+            $this->actingAs($user)->get(route('dashboard', ['date' => $date]))
+                ->assertSessionHasErrors('date');
+        }
     }
 
     private function privateSpace(Company $company, string $name): Space

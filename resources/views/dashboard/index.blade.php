@@ -38,6 +38,7 @@
         };
     @endphp
 
+    <div id="dashboard-content" data-dashboard-url="{{ route('dashboard') }}">
     <div class="dashboard-hero mb-3">
         <div class="dashboard-company">
             @if ($dashboardCompany?->logo_url)
@@ -49,7 +50,10 @@
                 <div class="text-body-secondary small">{{ $dashboardCompany ? 'Contexto de empresa' : 'Contexto global' }}</div>
                 <h2 class="mb-1">{{ $dashboardCompany?->name ?? 'Todas las empresas' }}</h2>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                    <span class="badge text-bg-primary">{{ $today->format('Y-m-d') }}</span>
+                    <label for="dashboard-date" class="visually-hidden">Fecha de consulta</label>
+                    <input id="dashboard-date" type="date" name="date" class="form-control form-control-sm w-auto" aria-label="Fecha de consulta" value="{{ $today->toDateString() }}" max="{{ $currentDate->toDateString() }}" required>
+                    @if ($isHistorical)<a href="{{ route('dashboard') }}" data-dashboard-today class="small">Volver a hoy</a>@endif
+                    <span data-dashboard-status class="small text-body-secondary" role="status" aria-live="polite"></span>
                     <span class="badge text-bg-info">Sin datos financieros</span>
                     <span class="text-body-secondary small">Desayuno calculado con ocupacion del {{ $yesterday->format('Y-m-d') }}</span>
                 </div>
@@ -57,13 +61,21 @@
         </div>
     </div>
 
+    @if ($isHistorical)
+        <div class="alert alert-info" role="status">
+            Historico del {{ $today->format('d/m/Y') }}: ocupacion, ingresos, salidas y desayunos reconstruidos con los registros disponibles.
+            La capacidad y los datos de las estancias reflejan sus valores guardados actuales; los cambios posteriores pueden afectar el resultado.
+            Las alertas y proximas reservas muestran informacion actual.
+        </div>
+    @endif
+
     <div class="dashboard-kpi-grid" aria-label="Resumen general de ocupabilidad">
         <x-ui.stat-card label="Ocupacion" :value="$occupancy['occupancy_rate'].'%'" icon="ti ti-bed" tone="primary" />
         <x-ui.stat-card label="Habitaciones ocupadas" :value="$occupancy['occupied_units'].' / '.$occupancy['total_units']" icon="ti ti-door" tone="primary" />
-        <x-ui.stat-card label="Disponibles esta noche" :value="$occupancy['available_units']" icon="ti ti-circle-check" tone="success" />
-        <x-ui.stat-card label="Check-ins hoy" :value="$occupancy['check_ins_today']" icon="ti ti-login" tone="info" />
-        <x-ui.stat-card label="Check-outs hoy" :value="$occupancy['check_outs_today']" icon="ti ti-logout" tone="warning" />
-        <x-ui.stat-card label="Desayunos hoy" :value="$breakfast['total_people']" icon="ti ti-coffee" tone="warning" />
+        <x-ui.stat-card :label="$isHistorical ? 'Disponibles en la fecha' : 'Disponibles esta noche'" :value="$occupancy['available_units']" icon="ti ti-circle-check" tone="success" />
+        <x-ui.stat-card :label="$isHistorical ? 'Check-ins en la fecha' : 'Check-ins hoy'" :value="$occupancy['check_ins_today']" icon="ti ti-login" tone="info" />
+        <x-ui.stat-card :label="$isHistorical ? 'Check-outs en la fecha' : 'Check-outs hoy'" :value="$occupancy['check_outs_today']" icon="ti ti-logout" tone="warning" />
+        <x-ui.stat-card :label="$isHistorical ? 'Desayunos en la fecha' : 'Desayunos hoy'" :value="$breakfast['total_people']" icon="ti ti-coffee" tone="warning" />
     </div>
 
     <div class="row g-3 mt-1">
@@ -109,7 +121,7 @@
 
     <section class="mt-4" aria-labelledby="operational-alerts-title">
         <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-            <h3 class="h4 mb-0" id="operational-alerts-title">Alertas operativas</h3>
+            <h3 class="h4 mb-0" id="operational-alerts-title">Alertas operativas @if ($isHistorical)<small class="text-body-secondary">(actuales)</small>@endif</h3>
             <span class="text-body-secondary small">Prioridades para hoy</span>
         </div>
         <div class="dashboard-alert-grid">
@@ -132,7 +144,7 @@
 
     <div class="row g-3 mt-1">
         <div class="col-12">
-            <x-ui.table-card title="Proximas reservas">
+            <x-ui.table-card :title="$isHistorical ? 'Proximas reservas (actuales)' : 'Proximas reservas'">
                 <table class="table table-sm table-hover align-middle mb-0">
                     <thead>
                         <tr>
@@ -194,4 +206,68 @@
             </table>
         </x-ui.table-card>
     @endif
+    </div>
 @endsection
+
+
+@push('scripts')
+<script>
+(() => {
+    let request;
+
+    async function updateDashboard(date) {
+        const container = document.getElementById('dashboard-content');
+        const input = container.querySelector('#dashboard-date');
+        if (!date || !input.checkValidity()) {
+            input.reportValidity();
+            return;
+        }
+
+        request?.abort();
+        const activeRequest = new AbortController();
+        request = activeRequest;
+        const status = container.querySelector('[data-dashboard-status]');
+        const url = new URL(container.dataset.dashboardUrl, window.location.origin);
+        url.searchParams.set('date', date);
+        container.setAttribute('aria-busy', 'true');
+        status.textContent = 'Actualizando…';
+
+        try {
+            const response = await fetch(url, {
+                signal: activeRequest.signal,
+                headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'text/html' },
+            });
+            if (!response.ok || response.redirected) throw new Error('No se pudo actualizar el dashboard. Intenta nuevamente.');
+            const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+            const updated = page.getElementById('dashboard-content');
+            if (!updated) throw new Error('No se pudo actualizar el dashboard. Recarga la pagina.');
+            if (request !== activeRequest) return;
+            container.replaceWith(updated);
+            window.history.replaceState(null, '', url);
+            updated.querySelector('#dashboard-date').focus({ preventScroll: true });
+        } catch (error) {
+            if (error.name !== 'AbortError' && request === activeRequest) {
+                status.textContent = error.message;
+                status.classList.add('text-danger');
+            }
+        } finally {
+            if (request === activeRequest) {
+                document.getElementById('dashboard-content').removeAttribute('aria-busy');
+            }
+        }
+    }
+
+    document.addEventListener('change', (event) => {
+        if (event.target.matches('#dashboard-date')) updateDashboard(event.target.value);
+    });
+    document.addEventListener('click', (event) => {
+        const todayLink = event.target.closest('[data-dashboard-today]');
+        if (!todayLink) return;
+        event.preventDefault();
+        const input = document.getElementById('dashboard-date');
+        input.value = input.max;
+        updateDashboard(input.value);
+    });
+})();
+</script>
+@endpush

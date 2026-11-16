@@ -4,6 +4,10 @@
     <div class="col-sm-6 col-xl-3"><x-ui.stat-card label="Reservas" :value="money_format_decimal($totals['reservations'])" icon="ti ti-calendar-dollar" tone="info" /></div>
     <div class="col-sm-6 col-xl-3"><x-ui.stat-card label="Egresos" :value="money_format_decimal($totals['expenses'])" icon="ti ti-cash-banknote-off" tone="warning" /></div>
     <div class="col-sm-6 col-xl-3"><x-ui.stat-card label="Descuentos" :value="money_format_decimal($totals['discounts'] ?? 0)" icon="ti ti-discount-2" tone="warning" /></div>
+    <div class="col-sm-6 col-xl-3">
+        <x-ui.stat-card label="Cargos extra de estancias" :value="$stayExtraChargeTotals->isEmpty() ? '0.00 BOB' : $stayExtraChargeTotals->map(fn ($total, $currency) => money_format_decimal($total).' '.$currency)->implode(' · ')" icon="ti ti-receipt" tone="info" />
+        <div class="text-body-secondary small mt-1">Cargos registrados; no se suman a caja.</div>
+    </div>
 </div>
 
 <div class="row g-3 mt-1">
@@ -174,6 +178,15 @@
                     @endforelse
                 </tbody>
             </table>
+        </div>
+    </details>
+@endif
+
+@if (in_array($reportType, ['summary', 'lodging'], true))
+    <details class="card mt-3">
+        <summary class="card-header" style="cursor: pointer;">Detalle de cargos extra de estancias · {{ $stayExtraCharges->count() }} registros</summary>
+        <div class="card-body">
+            @include('reports.partials.stay-extra-charges')
         </div>
     </details>
 @endif

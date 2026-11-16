@@ -11,30 +11,39 @@ use App\Models\Stay;
 use App\Support\CompanyContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function __invoke(): View
+    public function __invoke(Request $request): View
     {
         Gate::authorize('dashboard.view');
 
         $user = auth()->user();
         $company = CompanyContext::activeCompany($user);
         $companyId = CompanyContext::id($user);
-        $today = CarbonImmutable::today();
+        $currentDate = CarbonImmutable::today();
+        $validated = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:'.$currentDate->toDateString()],
+        ]);
+        $today = filled($validated['date'] ?? null)
+            ? CarbonImmutable::parse($validated['date'])->startOfDay()
+            : $currentDate;
 
         return view('dashboard.index', [
             'dashboardCompany' => $company,
             'dashboardCompanies' => $this->companySummaries($companyId),
             'today' => $today,
+            'currentDate' => $currentDate,
+            'isHistorical' => $today->lt($currentDate),
             'yesterday' => $today->subDay(),
             'occupancy' => $this->occupancySummary($companyId, $today),
             'breakfast' => $this->breakfastSummary($companyId, $today),
-            'reservations' => $this->reservationSummary($companyId, $today),
-            'alerts' => $this->operationalAlerts($companyId, $today),
+            'reservations' => $this->reservationSummary($companyId, $currentDate),
+            'alerts' => $this->operationalAlerts($companyId, $currentDate),
         ]);
     }
 
@@ -116,10 +125,9 @@ class DashboardController extends Controller
             ->with([
                 'spaceMode',
                 'rooms' => fn ($query) => $query->where('status', 'active'),
-                'rooms.bedUnits' => fn ($query) => $query->where('status', 'active'),
             ])
             ->get();
-        $occupiedStays = $this->staysOnDate($companyId, $today)
+        $occupiedStays = $this->staysOnDate($companyId, $today, $today->isBefore(CarbonImmutable::today()) ? ['occupied', 'checked_out'] : ['occupied'])
             ->with(['space.spaceMode', 'room'])
             ->get();
 
@@ -131,9 +139,10 @@ class DashboardController extends Controller
             ->map(function (Space $space) use ($occupiedStays, $checkIns, $checkOuts): array {
                 $spaceStays = $occupiedStays->where('space_id', $space->id);
                 $totalUnits = $this->spaceUnitCount($space);
-                $occupiedUnits = $spaceStays
-                    ->unique(fn (Stay $stay): string => $stay->space_id.'-'.($stay->space_room_id ?: 'space').'-'.($stay->room_bed_unit_id ?: 'room'))
-                    ->count();
+                $occupiedUnits = $space->spaceMode?->slug === 'compartido'
+                    ? $spaceStays->whereIn('space_room_id', $space->rooms->modelKeys())
+                        ->unique('space_room_id')->count()
+                    : (int) $spaceStays->isNotEmpty();
 
                 return [
                     'space' => $space,
@@ -180,9 +189,7 @@ class DashboardController extends Controller
             return 1;
         }
 
-        return (int) $space->rooms->sum(fn ($room): int => $room->sale_mode === 'bed_unit'
-            ? $room->bedUnits->count()
-            : 1);
+        return $space->rooms->count();
     }
 
     private function staysForEventDate(?int $companyId, string $column, CarbonImmutable $date): Builder

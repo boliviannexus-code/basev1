@@ -79,6 +79,7 @@ class OperationalReportService
 
     public function build(int $companyId, array $filters): array
     {
+        $stayExtraCharges = $this->stayExtraCharges($companyId, $filters);
         $directIncomes = $this->directIncomes($companyId, $filters);
         $expenses = $this->expenses($companyId, $filters);
         $lodging = $filters['category_id'] ? collect() : $this->lodging($companyId, $filters);
@@ -119,6 +120,8 @@ class OperationalReportService
             'selectedSpace' => $filters['space_id']
                 ? Space::query()->where('company_id', $companyId)->find($filters['space_id'])
                 : null,
+            'stayExtraCharges' => $stayExtraCharges,
+            'stayExtraChargeTotals' => $stayExtraCharges->groupBy('currency')->map(fn (Collection $items): float => (float) $items->sum('total')),
             'directIncomes' => $directIncomes,
             'expenses' => $expenses,
             'lodging' => $lodging,
@@ -136,6 +139,23 @@ class OperationalReportService
                 'discounts' => (float) $discounts->sum(fn (AccountStatementItem $discount): float => abs((float) $discount->total)),
             ],
         ];
+    }
+
+    private function stayExtraCharges(int $companyId, array $filters): Collection
+    {
+        return AccountStatementItem::query()
+            ->with(['creator', 'extraChargeCategory', 'stay.space', 'stay.room', 'stay.holderGuest'])
+            ->where('company_id', $companyId)
+            ->where('type', 'extra')
+            ->where('status', 'active')
+            ->whereHas('stay', fn (Builder $query) => $query->where('company_id', $companyId))
+            ->whereBetween('date', [$filters['from']->toDateString(), $filters['to']->toDateString()])
+            ->when($filters['category_id'], fn (Builder $query, int $id) => $query->where('extra_charge_category_id', $id))
+            ->when($filters['space_id'], fn (Builder $query, int $id) => $query->whereHas('stay', fn (Builder $stay) => $stay->where('space_id', $id)))
+            ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('created_by', $id))
+            ->orderByDesc('date')
+            ->orderByDesc('id')
+            ->get();
     }
 
     private function directIncomes(int $companyId, array $filters): Collection

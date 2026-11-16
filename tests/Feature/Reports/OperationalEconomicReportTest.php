@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature\Reports;
 
 use App\Models\AccountStatement;
+use App\Models\AccountStatementItem;
 use App\Models\Company;
+use App\Models\ExtraChargeCategory;
 use App\Models\PaymentMethod;
 use App\Models\Space;
 use App\Models\SpaceCashLodgingPayment;
@@ -73,6 +75,52 @@ final class OperationalEconomicReportTest extends TestCase
 
         $this->assertArrayNotHasKey('sales', $types);
         $this->assertArrayNotHasKey('cash', $types);
+    }
+
+    public function test_stay_extras_are_filtered_separately_without_increasing_cash_income(): void
+    {
+        [$company, $user, $method, $register] = $this->context();
+        $space = Space::factory()->create(['company_id' => $company->id]);
+        $this->createLodgingPayment($company, $user, $method, $register, $space, 'HOS-EXTRA', 80);
+        $statement = AccountStatement::query()->where('company_id', $company->id)->firstOrFail();
+        $category = ExtraChargeCategory::query()->create(['company_id' => $company->id, 'name' => 'Lavanderia', 'is_active' => true]);
+        $attributes = [
+            'company_id' => $company->id, 'account_statement_id' => $statement->id,
+            'stay_id' => $statement->stay_id, 'extra_charge_category_id' => $category->id,
+            'date' => now()->subDay()->toDateString(), 'type' => 'extra',
+            'description' => 'Lavado de ropa', 'quantity' => 2, 'unit_price' => 15,
+            'total' => 30, 'currency' => 'BOB', 'source' => 'manual',
+            'status' => 'active', 'created_by' => $user->id,
+        ];
+        $charge = AccountStatementItem::query()->create($attributes);
+        AccountStatementItem::query()->create(array_replace($attributes, ['status' => 'cancelled']));
+        AccountStatementItem::query()->create(array_replace($attributes, ['date' => now()->subMonth()->toDateString()]));
+        AccountStatementItem::query()->create(array_replace($attributes, ['extra_charge_category_id' => null]));
+        $otherCompany = Company::factory()->create();
+        AccountStatementItem::query()->create(array_replace($attributes, ['company_id' => $otherCompany->id]));
+
+        $service = app(OperationalReportService::class);
+        $filters = $service->filters([
+            'from' => now()->subDay()->toDateString(), 'to' => now()->toDateString(),
+            'category_id' => $category->id, 'space_id' => $space->id, 'user_id' => $user->id,
+            'payment_method_id' => $method->id,
+        ]);
+        $report = $service->build($company->id, $filters);
+        $this->assertSame([$charge->id], $report['stayExtraCharges']->modelKeys());
+        $this->assertSame(30.0, $report['stayExtraChargeTotals']['BOB']);
+        $this->assertCount(0, $report['incomeRows']);
+        $unfiltered = $service->build($company->id, array_replace($filters, ['category_id' => null]));
+        $this->assertSame(80.0, $unfiltered['totals']['lodging']);
+        $this->assertSame(80.0, (float) $unfiltered['incomeRows']->sum('amount'));
+        $this->assertCount(0, $service->build($company->id, array_replace($filters, ['user_id' => $user->id + 1000]))['stayExtraCharges']);
+        $this->assertCount(0, $service->build($company->id, array_replace($filters, ['space_id' => $space->id + 1000]))['stayExtraCharges']);
+
+        $user->givePermissionTo('reports.view');
+        $this->withoutVite();
+        $this->actingAs($user)->get(route('reports.index', [
+            'from' => $filters['from']->toDateString(), 'to' => $filters['to']->toDateString(),
+            'category_id' => $category->id,
+        ]))->assertOk()->assertSee('Detalle de cargos extra de estancias')->assertSee('Lavado de ropa');
     }
 
     /**
