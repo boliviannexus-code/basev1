@@ -33,6 +33,7 @@ if (! function_exists('permission_action_label')) {
     {
         $labels = [
             'view' => 'Ver',
+            'view-all' => 'Ver cajas e historial de todos los usuarios',
             'create' => 'Crear',
             'edit' => 'Editar',
             'update' => 'Actualizar',

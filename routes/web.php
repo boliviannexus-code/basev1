@@ -100,6 +100,7 @@ Route::middleware('auth')->group(function (): void {
         ->group(function (): void {
             Route::get('/', [ReportController::class, 'index'])->middleware('permission:reports.view')->name('index');
             Route::get('print', [ReportController::class, 'print'])->middleware('permission:reports.print')->name('print');
+            Route::get('projected', [ReportController::class, 'projected'])->middleware('permission:reports.view')->name('projected.index');
             Route::get('occupancy', [ReportController::class, 'occupancy'])->middleware('permission:reports.view')->name('occupancy.index');
             Route::get('occupancy/print', [ReportController::class, 'occupancyPrint'])->middleware('permission:reports.print')->name('occupancy.print');
         });
@@ -134,6 +135,7 @@ Route::middleware('auth')->group(function (): void {
             Route::get('check-in/modal', [OccupancyGridActionController::class, 'openCheckIn'])->middleware('permission:occupancy.manage')->name('check-in.modal');
             Route::get('check-out/modal', [OccupancyGridActionController::class, 'openCheckOut'])->middleware('permission:occupancy.manage')->name('check-out.modal');
             Route::post('check-out/{stay}', [OccupancyGridActionController::class, 'completeCheckOut'])->whereNumber('stay')->middleware('permission:occupancy.manage')->name('check-out.store');
+            Route::post('cleaning/{stay}', [OccupancyGridActionController::class, 'markClean'])->whereNumber('stay')->middleware('permission:occupancy.manage')->name('cleaning.store');
             Route::get('block/modal', [OccupancyGridActionController::class, 'openBlock'])->middleware('permission:occupancy.manage')->name('block.modal');
             Route::get('extra-charge/modal', [OccupancyGridActionController::class, 'openExtraCharge'])->middleware('permission:occupancy.manage')->name('extra-charge.modal');
             Route::post('blocks', [OccupancyController::class, 'storeBlock'])->middleware('permission:occupancy.manage')->name('blocks.store');

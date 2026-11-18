@@ -12,19 +12,21 @@ use App\Models\ExchangeRate;
 use App\Models\Guest;
 use App\Models\OccupancyBlock;
 use App\Models\Reservation;
-use App\Models\ReservationGroup;
 use App\Models\ReservationChannel;
+use App\Models\ReservationGroup;
 use App\Models\RoomBedUnit;
 use App\Models\Space;
 use App\Models\SpaceRoom;
 use App\Services\CheckIn\CheckInService;
 use App\Services\CheckIn\CheckInUpdateService;
+use App\Services\Occupancy\RoomCleaningService;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 
 class CheckInController extends Controller
@@ -124,7 +126,7 @@ class CheckInController extends Controller
         $group = $this->updates->updateGroup($checkInGroup, $request->validated(), $request->user());
 
         return redirect()
-            ->route('check-ins.edit', $group)
+            ->route('occupancy.index')
             ->with('success', 'Check-in '.$group->code.' actualizado correctamente.');
     }
 
@@ -392,6 +394,7 @@ class CheckInController extends Controller
     private function resourcesForDates(int $companyId, CarbonImmutable $checkInDate, CarbonImmutable $checkOutDate, ?int $reservationGroupId = null): array
     {
         $lastNight = $checkOutDate->subDay();
+        $dirtyTasks = RoomCleaningService::pending($companyId)->get();
         $availabilityStatuses = AvailabilityStatus::query()
             ->where('company_id', $companyId)
             ->whereBetween('date', [$checkInDate->toDateString(), $lastNight->toDateString()])
@@ -416,19 +419,19 @@ class CheckInController extends Controller
             ->where('status', 'active')
             ->orderByRaw('coalesce(title, name) asc')
             ->get()
-            ->flatMap(function (Space $space) use ($availabilityStatuses, $blocks): array {
+            ->flatMap(function (Space $space) use ($availabilityStatuses, $blocks, $dirtyTasks): array {
                 if ($space->spaceMode?->slug === 'compartido') {
                     return $space->rooms
-                        ->flatMap(function (SpaceRoom $room) use ($space, $availabilityStatuses, $blocks): array {
+                        ->flatMap(function (SpaceRoom $room) use ($space, $availabilityStatuses, $blocks, $dirtyTasks): array {
                             $resources = [];
 
                             if (in_array($room->sale_mode, ['full_room', 'flexible'], true)) {
-                                $resources[] = $this->resourcePayload($space, $room, null, $availabilityStatuses, $blocks);
+                                $resources[] = $this->resourcePayload($space, $room, null, $availabilityStatuses, $blocks, $dirtyTasks);
                             }
 
                             if (in_array($room->sale_mode, ['bed_unit', 'flexible'], true)) {
                                 foreach ($room->bedUnits->where('status', 'active') as $bedUnit) {
-                                    $resources[] = $this->resourcePayload($space, $room, $bedUnit, $availabilityStatuses, $blocks);
+                                    $resources[] = $this->resourcePayload($space, $room, $bedUnit, $availabilityStatuses, $blocks, $dirtyTasks);
                                 }
                             }
 
@@ -437,13 +440,13 @@ class CheckInController extends Controller
                         ->all();
                 }
 
-                return [$this->resourcePayload($space, null, null, $availabilityStatuses, $blocks)];
+                return [$this->resourcePayload($space, null, null, $availabilityStatuses, $blocks, $dirtyTasks)];
             })
             ->values()
             ->all();
     }
 
-    private function resourcePayload(Space $space, ?SpaceRoom $room, ?RoomBedUnit $bedUnit, $availabilityStatuses, $blocks): array
+    private function resourcePayload(Space $space, ?SpaceRoom $room, ?RoomBedUnit $bedUnit, $availabilityStatuses, $blocks, Collection $dirtyTasks): array
     {
         $status = $this->resourceStatus($availabilityStatuses, $blocks, $space, $room, $bedUnit);
         $spaceLabel = $space->name ?: $space->title ?: 'Alojamiento';
@@ -455,9 +458,15 @@ class CheckInController extends Controller
         $status = $room && ! $bedUnit && $room->sale_mode === 'flexible'
             ? $fullRoomStatus
             : $status;
+        if (RoomCleaningService::forResource($dirtyTasks, $space->id, $room?->id, $bedUnit?->id)) {
+            $status = 'dirty';
+        }
+        if ($room && RoomCleaningService::forResource($dirtyTasks, $space->id, $room->id, null)) {
+            $fullRoomStatus = 'dirty';
+        }
         $disabledStatuses = $room && ! $bedUnit && $room->sale_mode === 'flexible'
-            ? ['closed', 'occupied', 'reserved']
-            : ['closed', 'occupied'];
+            ? ['closed', 'occupied', 'reserved', 'dirty']
+            : ['closed', 'occupied', 'dirty'];
         $label = match (true) {
             $bedUnit !== null => $spaceLabel.' / '.$roomLabel.' / '.$bedUnit->label,
             $room !== null => $spaceLabel.' / '.$roomLabel,

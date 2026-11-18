@@ -16,11 +16,11 @@
             </div>
             <div class="modal-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-vcenter mb-0">
+                    <table class="table table-vcenter mb-0 reservation-mobile-table">
                         <thead><tr>@if (! $dashboardCompany)<th>Empresa</th>@endif<th>Habitacion</th><th>Huesped</th><th class="text-end">Personas</th></tr></thead>
                         <tbody>
                             @forelse ($alerts['check_out_rooms'] as $stay)
-                                <tr>@if (! $dashboardCompany)<td>{{ $stay->company?->name ?: '-' }}</td>@endif<td class="fw-semibold">{{ $stayUnit($stay) }}</td><td>{{ $stay->holderGuest?->full_name ?: $stay->holderGuest?->name ?: 'Sin huesped' }}</td><td class="text-end">{{ $stay->people_count }}</td></tr>
+                                <tr>@if (! $dashboardCompany)<td data-label="Empresa">{{ $stay->company?->name ?: '-' }}</td>@endif<td data-label="Habitación" class="fw-semibold">{{ $stayUnit($stay) }}</td><td data-label="Huésped">{{ $stay->holderGuest?->full_name ?: $stay->holderGuest?->name ?: 'Sin huesped' }}</td><td data-label="Personas" class="text-end">{{ $stay->people_count }}</td></tr>
                             @empty
                                 <tr><td colspan="{{ $dashboardCompany ? 3 : 4 }}" class="text-center text-body-secondary py-4">No hay check-outs programados para hoy.</td></tr>
                             @endforelse
@@ -41,11 +41,11 @@
             </div>
             <div class="modal-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-vcenter mb-0">
+                    <table class="table table-vcenter mb-0 reservation-mobile-table">
                         <thead><tr>@if (! $dashboardCompany)<th>Empresa</th>@endif<th>Habitacion</th><th>Huesped</th><th class="text-end">Saldo</th></tr></thead>
                         <tbody>
                             @forelse ($alerts['pending_balance_rooms'] as $stay)
-                                <tr>@if (! $dashboardCompany)<td>{{ $stay->company?->name ?: '-' }}</td>@endif<td class="fw-semibold">{{ $stayUnit($stay) }}</td><td>{{ $stay->holderGuest?->full_name ?: $stay->holderGuest?->name ?: 'Sin huesped' }}</td><td class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$stay->accountStatement?->balance ?? 0" :currency="$stay->accountStatement?->currency ?? $stay->currency" :exchange-rate="$stay->exchange_rate" /></td></tr>
+                                <tr>@if (! $dashboardCompany)<td data-label="Empresa">{{ $stay->company?->name ?: '-' }}</td>@endif<td data-label="Habitación" class="fw-semibold">{{ $stayUnit($stay) }}</td><td data-label="Huésped">{{ $stay->holderGuest?->full_name ?: $stay->holderGuest?->name ?: 'Sin huesped' }}</td><td data-label="Saldo" class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$stay->accountStatement?->balance ?? 0" :currency="$stay->accountStatement?->currency ?? $stay->currency" :exchange-rate="$stay->exchange_rate" /></td></tr>
                             @empty
                                 <tr><td colspan="{{ $dashboardCompany ? 3 : 4 }}" class="text-center text-body-secondary py-4">No hay habitaciones con saldo pendiente.</td></tr>
                             @endforelse
@@ -61,22 +61,22 @@
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <div><h2 class="modal-title" id="dashboardReservationsModalTitle">Reservas para hoy</h2><div class="text-body-secondary small">{{ $alerts['pending_reservations'] }} pendientes de pago o revision</div></div>
+                <div><h2 class="modal-title" id="dashboardReservationsModalTitle">Reservas para hoy</h2><div class="text-body-secondary small">Ingresos confirmados para hoy</div></div>
                 <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-vcenter mb-0">
+                    <table class="table table-vcenter mb-0 reservation-mobile-table">
                         <thead><tr>@if (! $dashboardCompany)<th>Empresa</th>@endif<th>Codigo</th><th>Habitacion</th><th>Huesped</th><th>Estado</th><th class="text-end">Personas</th></tr></thead>
                         <tbody>
                             @forelse ($alerts['reservations_today'] as $reservation)
                                 <tr>
-                                    @if (! $dashboardCompany)<td>{{ $reservation->company?->name ?: '-' }}</td>@endif
-                                    <td class="fw-semibold">{{ $reservation->code }}</td>
-                                    <td>{{ $reservationUnits($reservation) }}</td>
-                                    <td>{{ $reservation->guest_name ?: 'Sin huesped' }}</td>
-                                    <td><span class="badge {{ in_array($reservation->status, ['pending_payment', 'payment_under_review'], true) ? 'text-bg-warning' : 'text-bg-success' }}">{{ $statusLabels[$reservation->status] ?? str($reservation->status)->replace('_', ' ')->title() }}</span></td>
-                                    <td class="text-end">{{ $reservation->guests }}</td>
+                                    @if (! $dashboardCompany)<td data-label="Empresa">{{ $reservation->company?->name ?: '-' }}</td>@endif
+                                    <td data-label="Código" class="fw-semibold">{{ $reservation->code }}</td>
+                                    <td data-label="Habitación">{{ $reservationUnits($reservation) }}</td>
+                                    <td data-label="Huésped">{{ $reservation->guest_name ?: 'Sin huesped' }}</td>
+                                    <td data-label="Estado"><span class="badge {{ in_array($reservation->status, ['pending_payment', 'payment_under_review'], true) ? 'text-bg-warning' : 'text-bg-success' }}">{{ $statusLabels[$reservation->status] ?? str($reservation->status)->replace('_', ' ')->title() }}</span></td>
+                                    <td data-label="Personas" class="text-end">{{ $reservation->guests }}</td>
                                 </tr>
                             @empty
                                 <tr><td colspan="{{ $dashboardCompany ? 5 : 6 }}" class="text-center text-body-secondary py-4">No hay reservas con ingreso para hoy.</td></tr>

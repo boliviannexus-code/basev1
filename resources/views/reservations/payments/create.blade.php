@@ -20,7 +20,7 @@
     <div class="row g-3">
         <div class="col-md-6">
             <label class="form-label">Saldo disponible</label>
-            <div class="form-control-plaintext fw-semibold">{{ $money($balance, $currency) }}</div>
+            <div class="form-control-plaintext fw-semibold {{ $currency === 'USD' ? 'text-success' : '' }}">{{ $money($balance, $currency) }}</div>
         </div>
 
         <div class="col-md-6">

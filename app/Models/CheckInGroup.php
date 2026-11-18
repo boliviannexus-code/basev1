@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsCompanyChanges;
 use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,10 +10,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class CheckInGroup extends Model
+class CheckInGroup extends Model implements Auditable
 {
-    use BelongsToCompany, HasFactory, SoftDeletes;
+    use AuditsCompanyChanges, BelongsToCompany, HasFactory, SoftDeletes;
 
     public const STATUSES = [
         'checked_in',

@@ -221,6 +221,7 @@ class SpaceCashController extends Controller
     {
         $cashRegisters = SpaceCashRegister::query()
             ->where('company_id', $request->user()->company_id)
+            ->when(! $request->user()->can('space-cash.view-all'), fn ($query) => $query->where('user_id', $request->user()->id))
             ->with(['company', 'user', 'incomes.paymentMethod', 'lodgingPayments', 'expenses'])
             ->latest('opened_at')
             ->paginate(15);
@@ -241,6 +242,10 @@ class SpaceCashController extends Controller
     public function show(Request $request, SpaceCashRegister $spaceCashRegister): View
     {
         abort_unless((int) $spaceCashRegister->company_id === (int) $request->user()->company_id, 404);
+        abort_unless(
+            (int) $spaceCashRegister->user_id === (int) $request->user()->id || $request->user()->can('space-cash.view-all'),
+            403,
+        );
         $spaceCashRegister->load(['company', 'user']);
 
         return view('space-cash.show', [

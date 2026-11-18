@@ -8,8 +8,10 @@ use App\Models\RoomBedUnit;
 use App\Models\Space;
 use App\Models\SpaceRoom;
 use App\Models\Stay;
+use App\Services\Occupancy\RoomCleaningService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class AvailableStayResourceService
 {
@@ -37,6 +39,7 @@ class AvailableStayResourceService
     private function resourcesForDates(int $companyId, CarbonImmutable $checkInDate, CarbonImmutable $checkOutDate): array
     {
         $lastNight = $checkOutDate->subDay();
+        $dirtyTasks = RoomCleaningService::pending($companyId)->get();
         $availabilityStatuses = AvailabilityStatus::query()
             ->where('company_id', $companyId)
             ->whereBetween('date', [$checkInDate->toDateString(), $lastNight->toDateString()])
@@ -61,19 +64,19 @@ class AvailableStayResourceService
             ->whereHas('spaceMode', fn (Builder $query): Builder => $query->whereIn('slug', ['privado', 'compartido']))
             ->orderByRaw('coalesce(title, name) asc')
             ->get()
-            ->flatMap(function (Space $space) use ($availabilityStatuses, $blocks): array {
+            ->flatMap(function (Space $space) use ($availabilityStatuses, $blocks, $dirtyTasks): array {
                 if ($space->spaceMode?->slug === 'compartido') {
                     return $space->rooms
-                        ->flatMap(function (SpaceRoom $room) use ($space, $availabilityStatuses, $blocks): array {
+                        ->flatMap(function (SpaceRoom $room) use ($space, $availabilityStatuses, $blocks, $dirtyTasks): array {
                             $resources = [];
 
                             if (in_array($room->sale_mode, ['full_room', 'flexible'], true)) {
-                                $resources[] = $this->resourcePayload($space, $room, null, $availabilityStatuses, $blocks);
+                                $resources[] = $this->resourcePayload($space, $room, null, $availabilityStatuses, $blocks, $dirtyTasks);
                             }
 
                             if (in_array($room->sale_mode, ['bed_unit', 'flexible'], true)) {
                                 foreach ($room->bedUnits->where('status', 'active') as $bedUnit) {
-                                    $resources[] = $this->resourcePayload($space, $room, $bedUnit, $availabilityStatuses, $blocks);
+                                    $resources[] = $this->resourcePayload($space, $room, $bedUnit, $availabilityStatuses, $blocks, $dirtyTasks);
                                 }
                             }
 
@@ -82,15 +85,18 @@ class AvailableStayResourceService
                         ->all();
                 }
 
-                return [$this->resourcePayload($space, null, null, $availabilityStatuses, $blocks)];
+                return [$this->resourcePayload($space, null, null, $availabilityStatuses, $blocks, $dirtyTasks)];
             })
             ->values()
             ->all();
     }
 
-    private function resourcePayload(Space $space, ?SpaceRoom $room, ?RoomBedUnit $bedUnit, $availabilityStatuses, $blocks): array
+    private function resourcePayload(Space $space, ?SpaceRoom $room, ?RoomBedUnit $bedUnit, $availabilityStatuses, $blocks, Collection $dirtyTasks): array
     {
         $status = $this->resourceStatus($availabilityStatuses, $blocks, $space, $room, $bedUnit);
+        if (RoomCleaningService::forResource($dirtyTasks, $space->id, $room?->id, $bedUnit?->id)) {
+            $status = 'dirty';
+        }
         $spaceLabel = $space->name ?: $space->title ?: 'Alojamiento';
         $roomLabel = $room ? ($room->name ?: $room->title ?: 'Habitacion') : null;
         $fullRoomStatus = $room ? $this->fullRoomStatus($availabilityStatuses, $blocks, $space, $room) : null;

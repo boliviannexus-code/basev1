@@ -158,12 +158,12 @@
                                     </div>
                                     <div class="col-sm-6 col-lg-3">
                                         <label class="form-label">Fecha ingreso</label>
-                                        <input class="form-control @error("reservations.{$reservation->id}.check_in") is-invalid @enderror" type="date" name="reservations[{{ $reservation->id }}][check_in]" value="{{ old("reservations.{$reservation->id}.check_in", $reservation->check_in->toDateString()) }}" min="{{ today()->toDateString() }}" data-reservation-check-in>
+                                        <input class="form-control @error("reservations.{$reservation->id}.check_in") is-invalid @enderror" type="date" name="reservations[{{ $reservation->id }}][check_in]" value="{{ old("reservations.{$reservation->id}.check_in", $reservation->check_in->toDateString()) }}" min="{{ min(today()->toDateString(), $reservation->check_in->toDateString()) }}" data-reservation-check-in>
                                         @error("reservations.{$reservation->id}.check_in")<div class="invalid-feedback">{{ $message }}</div>@enderror
                                     </div>
                                     <div class="col-sm-6 col-lg-3">
                                         <label class="form-label">Fecha salida</label>
-                                        <input class="form-control @error("reservations.{$reservation->id}.check_out") is-invalid @enderror" type="date" name="reservations[{{ $reservation->id }}][check_out]" value="{{ old("reservations.{$reservation->id}.check_out", $reservation->check_out->toDateString()) }}" min="{{ today()->addDay()->toDateString() }}" data-reservation-check-out readonly>
+                                        <input class="form-control @error("reservations.{$reservation->id}.check_out") is-invalid @enderror" type="date" name="reservations[{{ $reservation->id }}][check_out]" value="{{ old("reservations.{$reservation->id}.check_out", $reservation->check_out->toDateString()) }}" min="{{ $reservation->check_in->copy()->addDay()->toDateString() }}" data-reservation-check-out readonly>
                                         @error("reservations.{$reservation->id}.check_out")<div class="invalid-feedback">{{ $message }}</div>@enderror
                                     </div>
                                     <div class="col-sm-6 col-lg-2">
@@ -180,7 +180,7 @@
                                     </div>
                                     <div class="col-sm-6 col-lg-4">
                                         <label class="form-label">Precio noche USD</label>
-                                        <input class="form-control @error("reservations.{$reservation->id}.price_per_night_usd") is-invalid @enderror" name="reservations[{{ $reservation->id }}][price_per_night_usd]" type="number" min="0" step="0.01" value="{{ $priceUsd }}" data-reference-price-usd>
+                                        <input class="form-control text-success @error("reservations.{$reservation->id}.price_per_night_usd") is-invalid @enderror" name="reservations[{{ $reservation->id }}][price_per_night_usd]" type="number" min="0" step="0.01" value="{{ $priceUsd }}" data-reference-price-usd>
                                         @error("reservations.{$reservation->id}.price_per_night_usd")<div class="invalid-feedback">{{ $message }}</div>@enderror
                                     </div>
                                     <div class="col-lg-4">
@@ -230,7 +230,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Fecha ingreso</label>
-                            <input class="form-control @error('check_in_date') is-invalid @enderror" name="check_in_date" type="date" min="{{ today()->toDateString() }}" value="{{ old('check_in_date', $group->check_in->toDateString()) }}" aria-describedby="reservation-global-date-hint" data-reservation-global-check-in>
+                            <input class="form-control @error('check_in_date') is-invalid @enderror" name="check_in_date" type="date" min="{{ min(today()->toDateString(), $group->check_in->toDateString()) }}" value="{{ old('check_in_date', $group->check_in->toDateString()) }}" aria-describedby="reservation-global-date-hint" data-reservation-global-check-in>
                             @error('check_in_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
@@ -239,8 +239,12 @@
                             @error('check_out_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-12">
+                            <label class="form-label" for="reservation-global-nights-input">Cantidad de noches</label>
+                            <input class="form-control" id="reservation-global-nights-input" type="number" min="1" step="1" value="{{ $group->nights }}" aria-describedby="reservation-global-date-hint" data-reservation-global-nights-input required>
+                        </div>
+                        <div class="col-12">
                             <div class="form-hint" id="reservation-global-date-hint">
-                                <i class="ti ti-link me-1"></i><span data-reservation-global-nights>{{ $group->nights }} noches · fechas vinculadas</span>
+                                <i class="ti ti-link me-1"></i><span data-reservation-global-nights>Cambiar la salida o las noches mantiene la fecha de ingreso. Estos cambios se aplican a todos los espacios.</span>
                             </div>
                         </div>
                     </div>

@@ -10,6 +10,7 @@ use App\Models\Space;
 use App\Models\SpaceRoom;
 use App\Models\Stay;
 use App\Models\User;
+use App\Services\Occupancy\RoomCleaningService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -18,12 +19,16 @@ use Illuminate\Validation\ValidationException;
 
 class AvailabilityStatusService
 {
+    public function __construct(private readonly RoomCleaningService $cleaning) {}
+
     public function validateRangeAvailable(int $companyId, array $data): array
     {
         [$space, $room, $bedUnit] = $this->validateResource($companyId, $data['space_id'], $data['space_room_id'] ?? null, $data['room_bed_unit_id'] ?? null);
         $checkIn = Carbon::parse($data['check_in_date'])->startOfDay();
         $checkOut = Carbon::parse($data['check_out_date'])->startOfDay();
         $lastNight = $checkOut->copy()->subDay();
+
+        $this->cleaning->ensureClean($companyId, $space->id, $room?->id, $bedUnit?->id);
 
         if ($checkOut->lte($checkIn)) {
             throw ValidationException::withMessages([

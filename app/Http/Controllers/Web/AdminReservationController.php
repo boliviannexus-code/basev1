@@ -169,6 +169,7 @@ class AdminReservationController extends Controller
                 'extraCharges.category',
                 'roomItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
                 'bedUnitItems.occupancyBlock' => fn ($query) => $query->withTrashed(),
+                'bedUnitItems.bedUnit.room',
                 'reservationChannel',
                 'reservationGroup',
                 'user',

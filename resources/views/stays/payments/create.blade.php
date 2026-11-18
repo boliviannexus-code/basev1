@@ -37,16 +37,16 @@
 
         <div class="col-md-6">
             <label class="form-label">Saldo disponible</label>
-            <div class="form-control-plaintext fw-semibold" data-stay-payment-balance-label>{{ $money($balance, $currency) }}</div>
+            <div class="form-control-plaintext fw-semibold {{ $currency === 'USD' ? 'text-success' : '' }}" data-stay-payment-balance-label>{{ $money($balance, $currency) }}</div>
             @if ($isMultipleStay)
                 <div class="form-hint vstack gap-1 mt-1">
                     <div class="d-flex justify-content-between gap-3">
                         <span>Deuda estancia actual</span>
-                        <strong>{{ $money($stayBalance, $currency) }}</strong>
+                        <strong @class(['text-success' => $currency === 'USD'])>{{ $money($stayBalance, $currency) }}</strong>
                     </div>
                     <div class="d-flex justify-content-between gap-3">
                         <span>Deuda todo el grupo</span>
-                        <strong>{{ $money($groupBalance, $currency) }}</strong>
+                        <strong @class(['text-success' => $currency === 'USD'])>{{ $money($groupBalance, $currency) }}</strong>
                     </div>
                 </div>
             @endif

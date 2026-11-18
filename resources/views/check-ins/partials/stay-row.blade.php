@@ -80,7 +80,7 @@
         </div>
         <div class="col-sm-6 col-lg-3">
             <label class="form-label">Precio noche USD</label>
-            <input class="form-control @error("stays.{$index}.price_per_night_usd") is-invalid @enderror" name="{{ $field('price_per_night_usd') }}" type="number" min="0" step="0.01" value="{{ old("stays.{$index}.price_per_night_usd", $stay['price_per_night_usd'] ?? '') }}" autocomplete="off" data-stay-price-usd>
+            <input class="form-control text-success @error("stays.{$index}.price_per_night_usd") is-invalid @enderror" name="{{ $field('price_per_night_usd') }}" type="number" min="0" step="0.01" value="{{ old("stays.{$index}.price_per_night_usd", $stay['price_per_night_usd'] ?? '') }}" autocomplete="off" data-stay-price-usd>
             <div class="invalid-feedback">{{ $errors->first("stays.{$index}.price_per_night_usd") }}</div>
         </div>
         <div class="col-lg-2">

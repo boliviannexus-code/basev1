@@ -10,6 +10,7 @@ use App\Models\ExtraChargeCategory;
 use App\Models\OccupancyBlock;
 use App\Models\PaymentMethod;
 use App\Models\PrivateSpaceType;
+use App\Models\Reservation;
 use App\Models\ReservationChannel;
 use App\Models\ReservationGroup;
 use App\Models\Space;
@@ -25,6 +26,64 @@ use Tests\TestCase;
 class InternalReservationTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_existing_past_arrival_can_be_kept_when_extending_reservation(): void
+    {
+        [$user, $space] = $this->context();
+        $checkIn = today()->subDay()->toDateString();
+        $group = ReservationGroup::factory()->create([
+            'company_id' => $user->company_id,
+            'check_in' => $checkIn,
+            'check_out' => today()->addDay()->toDateString(),
+            'status' => 'pending_payment',
+        ]);
+        $reservation = Reservation::factory()->create([
+            'company_id' => $user->company_id,
+            'reservation_group_id' => $group->id,
+            'space_id' => $space->id,
+            'check_in' => $checkIn,
+            'check_out' => today()->addDay()->toDateString(),
+            'nights' => 2,
+        ]);
+        $data = [
+            'guest_name' => $group->guest_name,
+            'check_in_date' => $checkIn,
+            'check_out_date' => today()->addDays(2)->toDateString(),
+            'reservations' => [$reservation->id => [
+                'check_in' => $checkIn,
+                'check_out' => today()->addDays(2)->toDateString(),
+                'nights' => 3,
+                'guests' => 1,
+                'price_per_night_bob' => 100,
+                'price_per_night_usd' => 14.37,
+                'exchange_rate' => 6.96,
+            ]],
+        ];
+
+        $this->actingAs($user)->patchJson(route('admin.reservation-groups.update', $group), $data)
+            ->assertOk();
+        $this->assertSame($checkIn, $reservation->refresh()->check_in->toDateString());
+        $this->assertSame(3, $reservation->nights);
+
+        $data['reservations'][$reservation->id]['check_in'] = today()->subDays(2)->toDateString();
+        $this->patchJson(route('admin.reservation-groups.update', $group), $data)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors("reservations.{$reservation->id}.check_in")
+            ->assertJsonFragment(["reservations.{$reservation->id}.check_in" => ['La nueva fecha de ingreso no puede ser anterior a hoy. Puedes conservar la fecha original.']]);
+    }
+
+    public function test_reservation_validation_messages_are_in_spanish(): void
+    {
+        [$user] = $this->context();
+        $group = ReservationGroup::factory()->create(['company_id' => $user->company_id]);
+
+        $this->actingAs($user)->patchJson(route('admin.reservation-groups.update', $group), [
+            'guest_name' => 'Ana Perez',
+            'check_in_date' => 'fecha-invalida',
+            'reservations' => [],
+        ])->assertUnprocessable()
+            ->assertJsonPath('errors.check_in_date.0', 'El campo fecha de ingreso debe ser una fecha válida.');
+    }
 
     public function test_staff_can_create_grouped_internal_reservation_for_multiple_spaces(): void
     {

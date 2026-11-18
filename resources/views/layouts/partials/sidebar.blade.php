@@ -197,7 +197,7 @@
                     <li class="nav-item {{ $businessIntelligenceOpen ? 'active' : '' }}">
                         <a class="nav-link" href="{{ route('business-intelligence.index') }}">
                             <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-chart-infographic"></i></span>
-                            <span class="nav-link-title">Business Intelligence</span>
+                            <span class="nav-link-title">Análisis del negocio</span>
                         </a>
                     </li>
                 @endif
@@ -215,6 +215,12 @@
                                     <a class="nav-link" href="{{ route('reports.index') }}">
                                         <span class="nav-link-icon"><i class="ti ti-report-money"></i></span>
                                         <span class="nav-link-title">Economico</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item {{ request()->routeIs('reports.projected.*') ? 'active' : '' }}">
+                                    <a class="nav-link" href="{{ route('reports.projected.index') }}">
+                                        <span class="nav-link-icon"><i class="ti ti-chart-line"></i></span>
+                                        <span class="nav-link-title">Proyectado</span>
                                     </a>
                                 </li>
                                 <li class="nav-item {{ request()->routeIs('reports.occupancy.*') ? 'active' : '' }}">

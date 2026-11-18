@@ -1,6 +1,6 @@
 <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
-        <thead><tr><th>Periodo</th><th class="text-end">Ocup.</th><th class="text-end">%</th></tr></thead>
+        <thead><tr><th>Periodo</th><th class="text-end">Ocupadas / disponibles</th><th class="text-end">%</th></tr></thead>
         <tbody>
             @forelse ($rows as $row)
                 <tr>

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsCompanyChanges;
 use App\Models\Concerns\BelongsToCompany;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,10 +12,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Stay extends Model
+class Stay extends Model implements Auditable
 {
-    use BelongsToCompany, HasFactory, SoftDeletes;
+    use AuditsCompanyChanges, BelongsToCompany, HasFactory, SoftDeletes;
 
     public const CURRENCIES = [
         'BOB',
@@ -37,6 +39,10 @@ class Stay extends Model
         'people_count',
         'check_in_date',
         'check_out_date',
+        'checked_out_at',
+        'cleaning_required_at',
+        'cleaned_at',
+        'cleaned_by',
         'nights',
         'price_per_night_bob',
         'price_per_night_usd',
@@ -53,6 +59,9 @@ class Stay extends Model
             'people_count' => 'integer',
             'check_in_date' => 'date',
             'check_out_date' => 'date',
+            'checked_out_at' => 'datetime',
+            'cleaning_required_at' => 'datetime',
+            'cleaned_at' => 'datetime',
             'nights' => 'integer',
             'price_per_night_bob' => 'decimal:2',
             'price_per_night_usd' => 'decimal:2',

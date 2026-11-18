@@ -1,64 +1,200 @@
-@php
-    $statusLabels = [
-        'pending_payment' => 'Pendiente de pago',
-        'payment_under_review' => 'Pago en revision',
-        'confirmed' => 'Confirmada',
-        'checked_in' => 'En check-in',
-        'rejected' => 'Rechazada',
-        'cancelled' => 'Cancelada',
-        'expired' => 'Vencida',
-        'no_show' => 'No show',
-    ];
-    $statusTones = [
-        'pending_payment' => 'warning',
-        'payment_under_review' => 'info',
-        'confirmed' => 'success',
-        'checked_in' => 'primary',
-        'rejected' => 'danger',
-        'cancelled' => 'secondary',
-        'expired' => 'secondary',
-        'no_show' => 'danger',
-    ];
-@endphp
+    @php
+        $statusLabels = [
+            'pending_payment' => 'Pendiente de pago',
+            'payment_under_review' => 'Pago en revision',
+            'confirmed' => 'Confirmada',
+            'checked_in' => 'En check-in',
+            'rejected' => 'Rechazada',
+            'cancelled' => 'Cancelada',
+            'expired' => 'Vencida',
+            'no_show' => 'No se presentó',
+        ];
+        $statusTones = [
+            'pending_payment' => 'warning',
+            'payment_under_review' => 'info',
+            'confirmed' => 'success',
+            'checked_in' => 'primary',
+            'rejected' => 'danger',
+            'cancelled' => 'secondary',
+            'expired' => 'secondary',
+            'no_show' => 'danger',
+        ];
+        $activeExtraCharges = $reservation->extraCharges->where('status', 'active');
+        $cancelledExtraCharges = $reservation->extraCharges->where('status', 'cancelled');
+        $hasActiveReservationBlocks = collect([$reservation->occupancyBlock])
+            ->merge($reservation->roomItems->pluck('occupancyBlock'))
+            ->merge($reservation->bedUnitItems->pluck('occupancyBlock'))
+            ->filter()
+            ->unique('id')
+            ->contains(fn ($block) => $block->status === 'active' && ! $block->trashed());
+        $canAddReservationCharge = ! in_array($reservation->status, ['cancelled', 'rejected', 'expired', 'no_show'], true)
+            && ($reservation->status !== 'checked_in' || $hasActiveReservationBlocks);
+        $canCancelReservation = ! in_array($reservation->status, ['cancelled', 'rejected', 'expired', 'no_show'], true)
+            && ($reservation->status !== 'checked_in' || $hasActiveReservationBlocks);
+        $canMarkNoShow = in_array($reservation->status, ['pending_payment', 'payment_under_review', 'confirmed', 'checked_in'], true)
+            && ($reservation->status !== 'checked_in' || $hasActiveReservationBlocks);
+    @endphp
 
-<div class="reservation-admin-grid">
-    <x-ui.card title="Detalle de reserva">
-        <div class="card-body">
-            <dl class="reservation-admin-dl">
-                <div><dt>Codigo</dt><dd>{{ $reservation->code }}</dd></div>
-                <div><dt>Estado</dt><dd><span class="badge bg-{{ $statusTones[$reservation->status] ?? 'secondary' }}-lt">{{ $statusLabels[$reservation->status] ?? $reservation->status }}</span></dd></div>
-                <div><dt>Pago</dt><dd>{{ str($reservation->payment_status)->replace('_', ' ')->headline() }}</dd></div>
-                <div><dt>Canal</dt><dd>{{ $reservation->reservationChannel?->name ?: 'Sin canal' }}</dd></div>
-                <div><dt>Huesped</dt><dd>{{ $reservation->guest_name }}</dd></div>
-                <div><dt>Correo</dt><dd>{{ $reservation->guest_email ?: 'Sin correo' }}</dd></div>
-                <div><dt>Telefono</dt><dd>{{ $reservation->guest_phone ?: 'Sin telefono' }}</dd></div>
-                <div><dt>Documento</dt><dd>{{ $reservation->guest_document ?: 'Sin documento' }}</dd></div>
-                <div><dt>Alojamiento</dt><dd>{{ $reservation->space->title ?: $reservation->space->name }}</dd></div>
-                <div><dt>Recurso</dt><dd>{{ $reservation->room ? ($reservation->room->title ?: $reservation->room->name) : 'Espacio completo' }}</dd></div>
-                <div><dt>Fechas</dt><dd>{{ $reservation->check_in->format('d/m/Y') }} al {{ $reservation->check_out->format('d/m/Y') }}</dd></div>
-                <div><dt>Personas</dt><dd>{{ $reservation->guests }}</dd></div>
-            </dl>
-        </div>
-    </x-ui.card>
+<div class="reservation-read-panel">
 
-    <x-ui.card title="Resumen de pago">
+    <div class="mb-3">
+        <a class="btn btn-outline-secondary btn-sm" href="{{ $occupancyUrl }}">
+            <i class="ti ti-arrow-left me-1"></i>Volver
+        </a>
+    </div>
+
+    @php
+        $spaceName = $reservation->space?->title ?: $reservation->space?->name;
+        $reservedResources = $reservation->bedUnitItems->isNotEmpty()
+            ? $reservation->bedUnitItems->map(fn ($item) => collect([$spaceName, $item->bedUnit?->room?->name ?: $item->bedUnit?->room?->title, $item->bedUnit?->label])->filter()->implode(' / '))
+            : ($reservation->roomItems->isNotEmpty()
+                ? $reservation->roomItems->map(fn ($item) => collect([$spaceName, $item->room?->name ?: $item->room?->title])->filter()->implode(' / '))
+                : collect([collect([$spaceName, $reservation->room?->name ?: $reservation->room?->title])->filter()->implode(' / ')]));
+    @endphp
+    @include('reservations.admin.partials.read-header', [
+        'record' => $reservation,
+        'resourceNames' => $reservedResources->unique()->implode(', '),
+        'resourceCount' => $reservedResources->count(),
+        'actionsView' => auth()->user()?->can('reservations.manage') ? 'reservations.admin.partials.single-read-actions' : null,
+    ])
+
+    <div class="reservation-admin-grid">
+        <x-ui.card title="Huesped titular">
+            <div class="card-body">
+                <dl class="check-in-read-dl">
+                    <div><dt>Nombre</dt><dd>{{ $reservation->guest_name }}</dd></div>
+                    <div><dt>Documento</dt><dd>{{ $reservation->guest_document ?: 'Sin documento' }}</dd></div>
+                    <div><dt>Pais</dt><dd>{{ $reservation->guest_country ?: 'Sin pais' }}</dd></div>
+                    <div><dt>Correo</dt><dd>{{ $reservation->guest_email ?: 'Sin correo' }}</dd></div>
+                    <div><dt>Telefono</dt><dd>{{ $reservation->guest_phone ?: 'Sin telefono' }}</dd></div>
+                </dl>
+            </div>
+        </x-ui.card>
+        <x-ui.card title="Datos de reserva">
+            <div class="card-body">
+                <dl class="check-in-read-dl">
+                    <div><dt>Codigo</dt><dd>{{ $reservation->code }}</dd></div>
+                    <div><dt>Canal</dt><dd>{{ $reservation->reservationChannel?->name ?: 'Sin canal asignado' }}</dd></div>
+                    <div><dt>Noches</dt><dd>{{ $reservation->nights }}</dd></div>
+                    <div><dt>Pago</dt><dd>{{ str($reservation->payment_status)->replace('_', ' ') }}</dd></div>
+                    <div><dt>Hold temporal</dt><dd>{{ $reservation->hold_expires_at?->format('d/m/Y H:i') ?: 'Sin expiracion' }}</dd></div>
+                </dl>
+            </div>
+        </x-ui.card>
+    </div>
+    <x-ui.card title="Resumen de cuenta" class="mt-3">
         <div class="card-body">
-            <dl class="reservation-admin-dl">
-                <div><dt>Precio noche</dt><dd><x-ui.money :amount="$reservation->price_per_person" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
-                <div><dt>Subtotal</dt><dd><x-ui.money :amount="$reservation->subtotal_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
-                <div><dt>Total</dt><dd><x-ui.money :amount="$reservation->total_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
-                <div><dt>Adelanto</dt><dd><x-ui.money :amount="$reservation->advance_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
-                <div><dt>Saldo</dt><dd><x-ui.money :amount="$reservation->balance_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></dd></div>
+            <dl class="check-in-read-dl check-in-read-dl-compact">
+                <div><dt>Precio por noche</dt><dd><x-ui.money :amount="$reservation->price_per_person" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" :inline="true" /></dd></div>
+                <div><dt>Subtotal</dt><dd><x-ui.money :amount="$reservation->subtotal_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" :inline="true" /></dd></div>
+                <div><dt>Total</dt><dd><x-ui.money :amount="$reservation->total_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" :inline="true" /></dd></div>
+                <div><dt>Adelanto requerido</dt><dd><x-ui.money :amount="$reservation->advance_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" :inline="true" /></dd></div>
+                <div><dt>Saldo pendiente</dt><dd><x-ui.money :amount="$reservation->balance_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" :inline="true" /></dd></div>
                 <div><dt>Referencia</dt><dd>{{ $reservation->payment_reference ?: 'Sin referencia' }}</dd></div>
             </dl>
-        </div>
-    </x-ui.card>
-</div>
+                @if ($reservation->roomItems->isNotEmpty())
+                    <div class="mt-3">
+                        <h4 class="h6">Habitaciones reservadas</h4>
+                        <div class="public-chip-list">
+                            @foreach ($reservation->roomItems as $item)
+                                <span>{{ $item->room?->title ?: $item->room?->name }} · Cap. {{ $item->capacity }} · <x-ui.money :amount="$item->subtotal_amount" :currency="$reservation->currency" :exchange-rate="$currentExchangeRate?->rate" /></span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
 
-@if ($reservation->guest_notes)
-    <x-ui.card title="Notas" class="mt-3">
-        <div class="card-body">
-            <p class="mb-0">{{ $reservation->guest_notes }}</p>
+                @if ($reservation->payment_proof_path)
+                    <a class="btn btn-outline-primary w-100 mt-3" href="{{ Storage::disk('public')->url($reservation->payment_proof_path) }}" target="_blank" rel="noopener">
+                        <i class="ti ti-file-search me-1"></i>Ver comprobante
+                    </a>
+                @else
+                    <div class="alert alert-warning mt-3 mb-0">El huesped aun no adjunto comprobante.</div>
+                @endif
         </div>
     </x-ui.card>
-@endif
+
+    <x-ui.card class="mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="card-title mb-0">Cargos extras</h3>
+            @can('reservations.manage')
+                @if ($canAddReservationCharge)
+                    <button
+                        class="btn btn-primary btn-sm"
+                        type="button"
+                        data-modal-url="{{ route('admin.reservations.extra-charges.create', $reservation) }}"
+                        data-modal-title="Agregar cargo extra"
+                    >
+                        <i class="ti ti-plus me-1"></i>Agregar cargo
+                    </button>
+                @endif
+            @endcan
+        </div>
+        <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Categoria</th>
+                        <th>Detalle</th>
+                        <th class="text-end">Cantidad</th>
+                        <th class="text-end">Unitario</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($activeExtraCharges as $charge)
+                        <tr>
+                            <td>{{ $charge->date?->format('d/m/Y') ?: '-' }}</td>
+                            <td>{{ $charge->category?->name ?: '-' }}</td>
+                            <td>{{ $charge->detail }}</td>
+                            <td class="text-end">{{ number_format((float) $charge->quantity, 2) }}</td>
+                            <td class="text-end"><x-ui.money class="align-items-end" :amount="$charge->unit_price" :exchange-rate="$currentExchangeRate?->rate" /></td>
+                            <td class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$charge->total" :exchange-rate="$currentExchangeRate?->rate" /></td>
+                            <td class="text-end"><span class="badge text-bg-success">Activo</span></td>
+                            <td class="text-end">
+                                @can('reservations.manage')
+                                    <form method="POST" action="{{ route('reservation-extra-charges.cancel', $charge) }}" data-confirm-delete="Cancelar cargo extra?">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button class="btn btn-outline-danger btn-sm" type="submit">
+                                            <i class="ti ti-x me-1"></i>Cancelar
+                                        </button>
+                                    </form>
+                                @endcan
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td class="text-center text-secondary py-4" colspan="8">No hay cargos extras registrados.</td>
+                        </tr>
+                    @endforelse
+                    @foreach ($cancelledExtraCharges as $charge)
+                        <tr class="text-secondary">
+                            <td>{{ $charge->date?->format('d/m/Y') ?: '-' }}</td>
+                            <td>{{ $charge->category?->name ?: '-' }}</td>
+                            <td>{{ $charge->detail }}</td>
+                            <td class="text-end">{{ number_format((float) $charge->quantity, 2) }}</td>
+                            <td class="text-end"><x-ui.money class="align-items-end" :amount="$charge->unit_price" :exchange-rate="$currentExchangeRate?->rate" /></td>
+                            <td class="text-end"><x-ui.money class="align-items-end" :amount="$charge->total" :exchange-rate="$currentExchangeRate?->rate" /></td>
+                            <td class="text-end"><span class="badge text-bg-secondary">Cancelado</span></td>
+                            <td></td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </x-ui.card>
+
+    @if ($reservation->guest_notes)
+        <x-ui.card title="Notas" class="mt-3">
+            <div class="card-body">
+                <p class="mb-0">{{ $reservation->guest_notes }}</p>
+            </div>
+        </x-ui.card>
+    @endif
+
+
+
+</div>

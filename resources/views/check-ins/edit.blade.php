@@ -167,7 +167,7 @@
                             </div>
                             <div>
                                 <label class="form-label">Precio USD</label>
-                                <input class="form-control form-control-sm @error('price_per_night_usd') is-invalid @enderror" name="price_per_night_usd" type="number" min="0" step="0.01" value="{{ old('price_per_night_usd', $stay->price_per_night_usd) }}" autocomplete="off" data-reference-price-usd @disabled($stay->status !== 'occupied' || $stay->isUnattended())>
+                                <input class="form-control text-success form-control-sm @error('price_per_night_usd') is-invalid @enderror" name="price_per_night_usd" type="number" min="0" step="0.01" value="{{ old('price_per_night_usd', $stay->price_per_night_usd) }}" autocomplete="off" data-reference-price-usd @disabled($stay->status !== 'occupied' || $stay->isUnattended())>
                                 <div class="invalid-feedback">{{ $errors->first('price_per_night_usd') }}</div>
                             </div>
                             <input name="exchange_rate" type="hidden" value="{{ old('exchange_rate', $currentExchangeRate?->rate ?? $stay->exchange_rate) }}" data-reference-exchange-rate>

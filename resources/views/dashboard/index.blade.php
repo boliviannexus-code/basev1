@@ -15,7 +15,9 @@
             'expired' => 'secondary',
         ];
         $modeLabel = fn (?string $mode): string => $mode === 'compartido' ? 'Compartido' : ($mode === 'privado' ? 'Privado' : 'Sin modalidad');
+        $breakfastTomorrowDate = $today->addDay();
         $breakfastBySpace = $breakfast['by_space']->keyBy(fn (array $row) => $row['space']?->id);
+        $breakfastTomorrowBySpace = $breakfastTomorrow['by_space']->keyBy(fn (array $row) => $row['space']?->id);
         $stayUnit = fn ($stay): string => collect([
             $stay->space?->title ?: $stay->space?->name,
             $stay->room?->name ?: $stay->room?->title,
@@ -55,7 +57,7 @@
                     @if ($isHistorical)<a href="{{ route('dashboard') }}" data-dashboard-today class="small">Volver a hoy</a>@endif
                     <span data-dashboard-status class="small text-body-secondary" role="status" aria-live="polite"></span>
                     <span class="badge text-bg-info">Sin datos financieros</span>
-                    <span class="text-body-secondary small">Desayuno calculado con ocupacion del {{ $yesterday->format('Y-m-d') }}</span>
+                    <span class="text-body-secondary small">Desayunos calculados con las estancias registradas de la noche anterior</span>
                 </div>
             </div>
         </div>
@@ -75,40 +77,40 @@
         <x-ui.stat-card :label="$isHistorical ? 'Disponibles en la fecha' : 'Disponibles esta noche'" :value="$occupancy['available_units']" icon="ti ti-circle-check" tone="success" />
         <x-ui.stat-card :label="$isHistorical ? 'Check-ins en la fecha' : 'Check-ins hoy'" :value="$occupancy['check_ins_today']" icon="ti ti-login" tone="info" />
         <x-ui.stat-card :label="$isHistorical ? 'Check-outs en la fecha' : 'Check-outs hoy'" :value="$occupancy['check_outs_today']" icon="ti ti-logout" tone="warning" />
-        <x-ui.stat-card :label="$isHistorical ? 'Desayunos en la fecha' : 'Desayunos hoy'" :value="$breakfast['total_people']" icon="ti ti-coffee" tone="warning" />
+        <x-ui.stat-card :label="$isHistorical ? 'Desayunos ('.$today->format('d/m').')' : 'Desayunos (hoy)'" :value="$breakfast['total_people']" icon="ti ti-coffee" tone="warning" />
     </div>
 
     <div class="row g-3 mt-1">
         <div class="col-12">
             <x-ui.table-card title="Resumen por espacio">
-                <table class="table table-sm table-hover align-middle mb-0">
+                <table class="table table-sm table-hover align-middle mb-0 reservation-mobile-table">
                     <thead>
                         <tr>
                             <th>Espacio</th>
-                            <th>Modalidad</th>
                             <th class="text-end">Ocupacion</th>
                             <th class="text-end">Ocupadas</th>
                             <th class="text-end">Disponibles</th>
                             <th class="text-end">Check-ins</th>
                             <th class="text-end">Check-outs</th>
                             <th class="text-end">Huespedes</th>
-                            <th class="text-end">Desayunos</th>
+                            <th class="text-end">{{ $isHistorical ? 'Desayunos (fecha seleccionada)' : 'Desayunos (hoy)' }}</th>
+                            <th class="text-end">Desayunos {{ $breakfastTomorrowDate->locale('es')->dayName }}</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse ($occupancy['by_space'] as $row)
                             <tr>
-                                <td class="fw-semibold">{{ $row['space']?->title ?: $row['space']?->name ?: 'Espacio' }}</td>
-                                <td><span class="badge text-bg-secondary">{{ $modeLabel($row['mode']) }}</span></td>
-                                <td class="text-end">
+                                <td data-label="Espacio" class="fw-semibold">{{ $row['space']?->title ?: $row['space']?->name ?: 'Espacio' }}</td>
+                                <td data-label="Ocupación" class="text-end">
                                     <span class="badge bg-{{ $row['occupancy_rate'] >= 80 ? 'danger' : ($row['occupancy_rate'] >= 50 ? 'warning' : 'success') }}-lt">{{ $row['occupancy_rate'] }}%</span>
                                 </td>
-                                <td class="text-end">{{ $row['occupied_units'] }} / {{ $row['total_units'] }}</td>
-                                <td class="text-end fw-semibold text-success">{{ $row['available_units'] }}</td>
-                                <td class="text-end">{{ $row['check_ins_today'] }}</td>
-                                <td class="text-end">{{ $row['check_outs_today'] }}</td>
-                                <td class="text-end fw-semibold">{{ $row['guests'] }}</td>
-                                <td class="text-end fw-semibold">{{ $breakfastBySpace->get($row['space']?->id)['people'] ?? 0 }}</td>
+                                <td data-label="Ocupadas" class="text-end">{{ $row['occupied_units'] }} / {{ $row['total_units'] }}</td>
+                                <td data-label="Disponibles" class="text-end fw-semibold text-success">{{ $row['available_units'] }}</td>
+                                <td data-label="Check-ins" class="text-end">{{ $row['check_ins_today'] }}</td>
+                                <td data-label="Check-outs" class="text-end">{{ $row['check_outs_today'] }}</td>
+                                <td data-label="Personas" class="text-end fw-semibold">{{ $row['guests'] }}</td>
+                                <td data-label="{{ $isHistorical ? 'Desayunos (fecha seleccionada)' : 'Desayunos (hoy)' }}" class="text-end fw-semibold">{{ $breakfastBySpace->get($row['space']?->id)['people'] ?? 0 }}</td>
+                                <td data-label="Desayunos {{ $breakfastTomorrowDate->locale('es')->dayName }}" class="text-end fw-semibold">{{ $breakfastTomorrowBySpace->get($row['space']?->id)['people'] ?? 0 }}</td>
                             </tr>
                         @empty
                             <tr><td class="text-center text-body-secondary py-4" colspan="9">No hay espacios activos para mostrar.</td></tr>
@@ -135,52 +137,16 @@
             </button>
             <button class="dashboard-alert-card dashboard-alert-card-info" type="button" data-bs-toggle="modal" data-bs-target="#dashboardReservationsModal">
                 <span class="dashboard-alert-icon" aria-hidden="true"><i class="ti ti-calendar-event"></i></span>
-                <div><span>Reservas para hoy</span><strong>{{ $alerts['reservations_today']->count() }}</strong><small>{{ $alerts['pending_reservations'] }} pendientes de pago o revision</small></div>
+                <div><span>Reservas para hoy</span><strong>{{ $alerts['reservations_today']->count() }}</strong><small>Ingresos confirmados para hoy</small></div>
             </button>
         </div>
     </section>
 
     @include('dashboard.partials.operational-alert-modals', compact('alerts', 'dashboardCompany', 'stayUnit', 'reservationUnits'))
 
-    <div class="row g-3 mt-1">
-        <div class="col-12">
-            <x-ui.table-card :title="$isHistorical ? 'Proximas reservas (actuales)' : 'Proximas reservas'">
-                <table class="table table-sm table-hover align-middle mb-0">
-                    <thead>
-                        <tr>
-                            @if (! $dashboardCompany)<th>Empresa</th>@endif
-                            <th>Codigo</th>
-                            <th>Huesped</th>
-                            <th>Ingreso</th>
-                            <th>Salida</th>
-                            <th class="text-end">Personas</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($reservations['upcoming'] as $row)
-                            <tr>
-                                @if (! $dashboardCompany)<td>{{ $row['company'] ?: '-' }}</td>@endif
-                                <td>
-                                    <div class="fw-semibold">{{ $row['code'] }}</div>
-                                    <div class="text-body-secondary small">{{ $row['type'] }} · {{ str($row['status'])->replace('_', ' ') }}</div>
-                                </td>
-                                <td>{{ $row['guest'] ?: 'Sin huesped' }}</td>
-                                <td>{{ $row['check_in']?->format('Y-m-d') }}</td>
-                                <td>{{ $row['check_out']?->format('Y-m-d') }}</td>
-                                <td class="text-end fw-semibold">{{ $row['guests'] }}</td>
-                            </tr>
-                        @empty
-                            <tr><td class="text-center text-body-secondary py-4" colspan="{{ $dashboardCompany ? 5 : 6 }}">Sin reservas proximas.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </x-ui.table-card>
-        </div>
-    </div>
-
     @if (! $dashboardCompany)
         <x-ui.table-card title="Empresas" class="mt-3">
-            <table class="table table-sm table-hover align-middle mb-0">
+            <table class="table table-sm table-hover align-middle mb-0 reservation-mobile-table">
                 <thead>
                     <tr>
                         <th>Empresa</th>
@@ -193,11 +159,11 @@
                 <tbody>
                     @forelse ($dashboardCompanies as $company)
                         <tr>
-                            <td class="fw-semibold">{{ $company->name }}</td>
-                            <td class="text-end">{{ $company->users_count }}</td>
-                            <td class="text-end">{{ $company->active_spaces_count }}</td>
-                            <td class="text-end">{{ $company->private_spaces_count }}</td>
-                            <td class="text-end">{{ $company->shared_spaces_count }}</td>
+                            <td data-label="Empresa" class="fw-semibold">{{ $company->name }}</td>
+                            <td data-label="Usuarios" class="text-end">{{ $company->users_count }}</td>
+                            <td data-label="Espacios activos" class="text-end">{{ $company->active_spaces_count }}</td>
+                            <td data-label="Privados" class="text-end">{{ $company->private_spaces_count }}</td>
+                            <td data-label="Compartidos" class="text-end">{{ $company->shared_spaces_count }}</td>
                         </tr>
                     @empty
                         <tr><td class="text-center text-body-secondary py-4" colspan="5">Sin empresas registradas.</td></tr>

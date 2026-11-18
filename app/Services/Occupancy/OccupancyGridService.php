@@ -36,6 +36,8 @@ class OccupancyGridService
         $blocks = $this->blocks($companyId, $weekStart, $weekEnd, $filters);
         $availabilityStatuses = $this->availabilityStatuses($companyId, $weekStart, $weekEnd, $filters);
         $stays = $this->stays($companyId, $weekStart, $weekEnd, $filters);
+        $stays = $stays->merge(RoomCleaningService::pending($companyId)
+            ->with(['holderGuest', 'checkInGroup', 'accountStatement'])->get());
 
         return [
             'week_start' => $weekStart->toDateString(),
@@ -267,6 +269,9 @@ class OccupancyGridService
                 $block = $this->blockForDate($blocks, $spaceId, $roomId, $bedUnitId, $date['date']);
                 $availabilityStatus = $this->availabilityStatusForDate($availabilityStatuses, $spaceId, $roomId, $bedUnitId, $date['date']);
                 $stay = $this->stayForDate($stays, $spaceId, $roomId, $bedUnitId, $date['date']);
+                $dirty = Carbon::parse($date['date'])->isToday()
+                    ? RoomCleaningService::forResource($stays, $spaceId, $roomId, $bedUnitId)
+                    : null;
                 $isFullRoomStay = $stay !== null
                     && $roomId !== null
                     && $stay->room_bed_unit_id === null
@@ -311,6 +316,8 @@ class OccupancyGridService
                     'room_bed_unit_id' => $bedUnitId,
                     'guest_name' => $guestName,
                     'stay_id' => $stay?->id,
+                    'reference_stay_id' => null,
+                    'cleaning_pending' => $dirty !== null,
                     'check_in_group_id' => $stay?->check_in_group_id,
                     'check_in_code' => $stay?->checkInGroup?->code,
                     'holder_guest_name' => $this->holderGuestName($stay),
@@ -383,6 +390,10 @@ class OccupancyGridService
                 return false;
             }
 
+            if ($stay->status === 'checked_out' && $stay->checked_out_at !== null && $stay->checked_out_at->toDateString() <= $date) {
+                return false;
+            }
+
             if ($bedUnitId !== null) {
                 return (int) ($stay->room_bed_unit_id ?? 0) === $bedUnitId
                     || ((int) ($stay->space_room_id ?? 0) === (int) $roomId && $stay->room_bed_unit_id === null);
@@ -416,7 +427,7 @@ class OccupancyGridService
     private function toneForStay(Stay $stay): string
     {
         if ($stay->status === 'checked_out') {
-            return 'checkout-clean';
+            return $stay->cleaning_required_at && ! $stay->cleaned_at ? 'checkout-dirty' : 'checkout-clean';
         }
 
         return (float) ($stay->accountStatement?->balance ?? 0) > 0

@@ -24,7 +24,8 @@
         <div class="row g-3">
             <div class="col-12">
                 <label class="form-label" for="extra-charge-category">Categoria</label>
-                <select class="form-select" id="extra-charge-category" name="extra_charge_category_id" data-extra-charge-category required>
+                <select class="form-select" id="extra-charge-category" name="extra_charge_category_id" data-extra-charge-category data-tom-select data-placeholder="Buscar categoría..." required>
+                    <option value=""></option>
                     @foreach ($categories as $category)
                         <option
                             value="{{ $category->id }}"

@@ -97,13 +97,15 @@ class DashboardCompanyScopeTest extends TestCase
             ->assertSee('Disponibles esta noche')
             ->assertSee('Check-ins hoy')
             ->assertSee('Check-outs hoy')
-            ->assertSee('Desayunos hoy')
+            ->assertSee('Desayunos (hoy)')
+            ->assertSee('Desayunos mañana')
             ->assertSee('Resumen por espacio')
             ->assertSee('Alertas operativas')
             ->assertSee('Habitaciones para check-out')
             ->assertSee('Habitaciones con saldo pendiente')
             ->assertSee('Reservas para hoy')
-            ->assertSee('1 pendientes de pago o revision')
+            ->assertDontSee('pendientes de pago o revision')
+            ->assertDontSee('Pendiente Futuro')
             ->assertDontSee('Informacion de empresa')
             ->assertDontSee('Reservas por estado')
             ->assertSee('Casa Local')
@@ -131,10 +133,9 @@ class DashboardCompanyScopeTest extends TestCase
 
         $alerts = $response->viewData('alerts');
 
-        $this->assertSame(1, $alerts['pending_reservations']);
         $this->assertCount(1, $alerts['check_out_rooms']);
         $this->assertCount(0, $alerts['pending_balance_rooms']);
-        $this->assertCount(2, $alerts['reservations_today']);
+        $this->assertCount(1, $alerts['reservations_today']);
     }
 
     public function test_global_super_admin_dashboard_sees_company_summary_without_financial_details(): void

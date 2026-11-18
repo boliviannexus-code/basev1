@@ -75,7 +75,7 @@
         >
             <thead>
                 <tr>
-                    <th>Fecha</th>
+                    <th>Fecha y hora</th>
                     <th>Empresa</th>
                     <th>Usuario</th>
                     <th>Accion</th>

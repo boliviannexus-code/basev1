@@ -42,15 +42,14 @@ class DashboardController extends Controller
             'yesterday' => $today->subDay(),
             'occupancy' => $this->occupancySummary($companyId, $today),
             'breakfast' => $this->breakfastSummary($companyId, $today),
-            'reservations' => $this->reservationSummary($companyId, $currentDate),
+            'breakfastTomorrow' => $this->breakfastSummary($companyId, $today->addDay()),
             'alerts' => $this->operationalAlerts($companyId, $currentDate),
         ]);
     }
 
     private function operationalAlerts(?int $companyId, CarbonImmutable $today): array
     {
-        $pendingStatuses = ['pending_payment', 'payment_under_review'];
-        $activeReservationStatuses = ['pending_payment', 'payment_under_review', 'confirmed', 'checked_in'];
+        $activeReservationStatuses = ['confirmed', 'checked_in'];
 
         $reservationGroups = ReservationGroup::query()
             ->withoutGlobalScope('company')
@@ -80,7 +79,6 @@ class DashboardController extends Controller
             ->orderBy('guest_name')
             ->get();
         $reservationsToday = $todayGroups->concat($todaySingles)->values();
-        $pending = $reservationsToday->whereIn('status', $pendingStatuses)->count();
 
         $stays = Stay::query()
             ->withoutGlobalScope('company')
@@ -95,7 +93,6 @@ class DashboardController extends Controller
             ->get();
 
         return [
-            'pending_reservations' => $pending,
             'check_out_rooms' => $checkOuts,
             'pending_balance_rooms' => $pendingBalances,
             'reservations_today' => $reservationsToday,
@@ -240,8 +237,6 @@ class DashboardController extends Controller
     private function reservationSummary(?int $companyId, CarbonImmutable $today): array
     {
         $statuses = [
-            'pending_payment' => 'Pendientes de pago',
-            'payment_under_review' => 'En revision',
             'confirmed' => 'Confirmadas',
             'checked_in' => 'En check-in',
             'cancelled' => 'Canceladas',
@@ -282,7 +277,7 @@ class DashboardController extends Controller
 
     private function reservationArrivals(?int $companyId, CarbonImmutable $from, CarbonImmutable $to): int
     {
-        $statuses = ['pending_payment', 'payment_under_review', 'confirmed', 'checked_in'];
+        $statuses = ['confirmed', 'checked_in'];
 
         $groupArrivals = ReservationGroup::query()
             ->withoutGlobalScope('company')
@@ -304,7 +299,7 @@ class DashboardController extends Controller
 
     private function upcomingReservations(?int $companyId, CarbonImmutable $today): Collection
     {
-        $statuses = ['pending_payment', 'payment_under_review', 'confirmed', 'checked_in'];
+        $statuses = ['confirmed', 'checked_in'];
         $until = $today->addDays(7)->toDateString();
 
         $groups = ReservationGroup::query()

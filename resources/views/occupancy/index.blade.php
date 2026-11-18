@@ -1,5 +1,6 @@
 @extends('layouts.admin')
 
+@section('body-class', 'occupancy-page')
 @section('title', 'Ocupabilidad semanal | '.config('app.name', 'Base Admin'))
 @section('page-title', 'Ocupabilidad semanal')
 @section('page-subtitle', 'Grilla operativa por dias/noches para espacios y habitaciones')
@@ -38,6 +39,7 @@
         data-stay-room-change-url-template="{{ route('stays.room-change.create', ['stay' => '__ID__']) }}"
         data-check-out-modal-url="{{ route('occupancy.check-out.modal') }}"
         data-check-out-store-url-template="{{ route('occupancy.check-out.store', ['stay' => '__ID__']) }}"
+        data-cleaning-store-url-template="{{ route('occupancy.cleaning.store', ['stay' => '__ID__']) }}"
         data-extra-charge-modal-url="{{ route('occupancy.extra-charge.modal') }}"
         data-block-modal-url="{{ route('occupancy.block.modal') }}"
         data-store-url="{{ route('occupancy.blocks.store') }}"
@@ -98,6 +100,8 @@
                 <div class="occupancy-grid-shell" data-occupancy-grid></div>
             </div>
         </x-ui.card>
+
+
 
         <div class="occupancy-cell-actions-popover d-none" data-occupancy-actions-popover></div>
 

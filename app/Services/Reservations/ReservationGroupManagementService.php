@@ -167,7 +167,6 @@ class ReservationGroupManagementService
         });
     }
 
-
     public function startCheckIn(ReservationGroup $group): ReservationGroup
     {
         return DB::transaction(function () use ($group): ReservationGroup {
@@ -273,7 +272,7 @@ class ReservationGroupManagementService
         $requestedNights = max((int) ($data['nights'] ?? 0), 1);
         $newCheckOut = $newCheckIn->addDays($requestedNights);
 
-        if ($newCheckIn->lt(today())) {
+        if ($newCheckIn->lt(today()) && $newCheckIn->toDateString() !== $reservation->check_in->toDateString()) {
             throw ValidationException::withMessages([
                 "reservations.{$reservation->id}.check_in" => 'La fecha de ingreso no puede ser anterior a hoy.',
             ]);
@@ -477,11 +476,13 @@ class ReservationGroupManagementService
                         ->orWhere(fn (Builder $nested): Builder => $nested
                             ->where('space_room_id', $room?->id)
                             ->whereNull('room_bed_unit_id'));
+
                     return;
                 }
 
                 if ($room) {
                     $query->where('space_room_id', $room->id);
+
                     return;
                 }
 
@@ -511,6 +512,7 @@ class ReservationGroupManagementService
                         ->orWhere(fn (Builder $nested): Builder => $nested
                             ->whereNull('space_room_id')
                             ->whereNull('room_bed_unit_id'));
+
                     return;
                 }
 
@@ -526,6 +528,7 @@ class ReservationGroupManagementService
                                 ->whereNull('space_room_id')
                                 ->whereNull('room_bed_unit_id'));
                     });
+
                     return;
                 }
 
@@ -549,6 +552,7 @@ class ReservationGroupManagementService
                     $query->whereHas('bedUnitItems', fn (Builder $item): Builder => $item->where('room_bed_unit_id', $bedUnit->id))
                         ->orWhere('space_room_id', $room?->id)
                         ->orWhereHas('roomItems', fn (Builder $item): Builder => $item->where('space_room_id', $room?->id));
+
                     return;
                 }
 
@@ -556,6 +560,7 @@ class ReservationGroupManagementService
                     $query->where('space_room_id', $room->id)
                         ->orWhereHas('roomItems', fn (Builder $item): Builder => $item->where('space_room_id', $room->id))
                         ->orWhereHas('bedUnitItems.bedUnit', fn (Builder $item): Builder => $item->where('space_room_id', $room->id));
+
                     return;
                 }
 
@@ -581,11 +586,13 @@ class ReservationGroupManagementService
                         ->orWhere(fn (Builder $nested): Builder => $nested
                             ->where('space_room_id', $room?->id)
                             ->whereNull('room_bed_unit_id'));
+
                     return;
                 }
 
                 if ($room) {
                     $query->where('space_room_id', $room->id);
+
                     return;
                 }
 

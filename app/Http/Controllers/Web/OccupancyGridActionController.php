@@ -7,6 +7,7 @@ use App\Models\ExtraChargeCategory;
 use App\Models\Stay;
 use App\Services\CheckIn\CheckOutService;
 use App\Services\Occupancy\OccupancyGridActionService;
+use App\Services\Occupancy\RoomCleaningService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -36,6 +37,13 @@ class OccupancyGridActionController extends Controller
     public function openCheckIn(Request $request): View
     {
         return $this->modal($request, OccupancyGridActionService::ACTION_CHECK_IN, 'Check-in');
+    }
+
+    public function markClean(Request $request, Stay $stay, RoomCleaningService $cleaning): JsonResponse
+    {
+        $cleaning->markClean($stay, $request->user());
+
+        return response()->json(['success' => true, 'message' => 'Habitación limpia y disponible.']);
     }
 
     public function openCheckInSummary(Request $request): View

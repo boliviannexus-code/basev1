@@ -2,7 +2,9 @@
 
 @section('title', 'Cajas de espacios')
 @section('page-title', 'Cajas de espacios')
-@section('page-subtitle', 'Historial de aperturas para cobros de estancias y reservas')
+@section('page-subtitle', auth()->user()->can('space-cash.view-all')
+    ? 'Historial de cajas de todos los usuarios de la empresa'
+    : 'Historial de tus cajas para cobros de estancias y reservas')
 
 @section('content')
     <x-ui.table-card title="Listado de cajas de espacios">

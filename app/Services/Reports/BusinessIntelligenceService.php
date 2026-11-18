@@ -338,9 +338,9 @@ class BusinessIntelligenceService
         ];
     }
 
-    private function delta(float|int $current, float|int $previous): float
+    private function delta(float|int $current, float|int $previous): ?float
     {
-        return $previous > 0 ? (($current - $previous) / $previous) * 100 : ($current > 0 ? 100 : 0);
+        return $previous > 0 ? (($current - $previous) / $previous) * 100 : null;
     }
 
     private function periodBuckets(CarbonImmutable $from, CarbonImmutable $to, string $grain): array

@@ -11,52 +11,59 @@
     $lodgingTotal = (float) $activeItems->where('type', 'lodging_night')->sum('total');
     $extrasTotal = (float) $extraItems->sum('total');
     $relatedStays = $group->stays->sortBy('id')->values();
+    $countedStays = $group->status === 'checked_in'
+        ? $relatedStays->where('status', 'occupied')
+        : $relatedStays->where('status', '!=', 'cancelled');
+    $stayCount = $countedStays
+        ->unique(fn ($item) => $item->space_id.'|'.$item->space_room_id.'|'.$item->room_bed_unit_id)
+        ->count();
     $groupStatements = $relatedStays->map(fn ($item) => $item->accountStatement)->filter();
     $groupBalance = (float) $groupStatements->sum('balance');
     $statementTotal = fn ($account) => $account
         ? ((float) $account->subtotal + (float) $account->extra_charges_total - (float) $account->discount_total)
         : 0;
     $groupTotal = (float) $groupStatements->sum(fn ($account) => $statementTotal($account));
-    $selectedStayNumber = $relatedStays->search(fn ($item) => (int) $item->id === (int) $stay->id) + 1;
     $money = fn ($value) => number_format((float) $value, 2).' Bs';
     $statusLabels = [
         'checked_in' => 'En curso',
         'checked_out' => 'Finalizado',
         'cancelled' => 'Cancelado',
-        'no_show' => 'No show',
+        'no_show' => 'No se presentó',
     ];
 @endphp
 
-<div class="check-in-read-panel">
+<div class="check-in-read-panel check-in-summary-panel">
     <div class="check-in-read-header">
-        <div>
-            <div class="check-in-read-kicker">Vista de check-in</div>
-            <div class="check-in-read-title">{{ $group->code }}</div>
-            <div class="check-in-read-subtitle">{{ $holderName }} · Estancia {{ $selectedStayNumber }} de {{ $relatedStays->count() }}</div>
+        <div class="d-flex flex-wrap align-items-center gap-3 gap-md-5">
+            <h2 class="check-in-read-title fs-1 fw-bold text-break mb-0">{{ $holderName }}</h2>
+            <div class="fw-semibold text-break">{{ $resourceLabel }}</div>
         </div>
         <span class="badge bg-primary-lt check-in-read-status">{{ $statusLabels[$group->status] ?? $group->status }}</span>
     </div>
 
     <div class="check-in-read-stats">
         <div>
-            <span>Ingreso</span>
-            <strong>{{ $group->check_in_date->format('d/m/Y') }}</strong>
+            <div class="check-in-read-stat-line"><span>Ingreso</span><strong>{{ $group->check_in_date->format('d/m/Y') }}</strong></div>
+            <div class="check-in-read-stat-line"><span>Salida grupo</span><strong>{{ $group->check_out_date->format('d/m/Y') }}</strong></div>
         </div>
         <div>
-            <span>Salida grupo</span>
-            <strong>{{ $group->check_out_date->format('d/m/Y') }}</strong>
+            <div class="check-in-read-stat-line"><span>{{ $group->status === 'checked_in' ? 'Estancias activas' : 'Estancias' }}</span><strong>{{ $stayCount }}</strong></div>
+            <div class="check-in-read-stat-line"><span>Personas grupo</span><strong>{{ $group->total_people }}</strong></div>
         </div>
-        <div>
-            <span>Estancias</span>
-            <strong>{{ $relatedStays->count() }}</strong>
-        </div>
-        <div>
-            <span>Personas grupo</span>
-            <strong>{{ $group->total_people }}</strong>
-        </div>
-        <div>
+        <div class="check-in-read-balance {{ $groupBalance > 0 ? 'is-pending' : '' }}">
             <span>Saldo grupo</span>
-            <strong><x-ui.money :amount="$groupBalance" exchange-rate="{{ $stay->exchange_rate }}" /></strong>
+            <strong><x-ui.money :amount="$groupBalance" :exchange-rate="$stay->exchange_rate" /></strong>
+            <span @class(['text-danger' => $groupBalance > 0])>{{ $groupBalance > 0 ? 'Pendiente de pago' : 'Sin saldo pendiente' }}</span>
+            @if ($groupBalance > 0)
+                <button
+                    class="btn btn-success btn-sm justify-self-start mt-2"
+                    type="button"
+                    data-modal-url="{{ route('stays.payments.create', ['stay' => $stay, 'scope' => 'group']) }}"
+                    data-modal-title="Cobrar saldo del grupo"
+                >
+                    <i class="ti ti-cash-register me-1"></i>Cobrar
+                </button>
+            @endif
         </div>
     </div>
 
@@ -85,13 +92,61 @@
                 </div>
                 <dl class="check-in-read-dl">
                     <div><dt>Recurso</dt><dd>{{ $resourceLabel }}</dd></div>
-                    <div><dt>Precio noche</dt><dd><x-ui.money :amount="$stay->price_per_night_bob" :exchange-rate="$stay->exchange_rate" /></dd></div>
-                    <div><dt>Hospedaje</dt><dd><x-ui.money :amount="$lodgingTotal" :exchange-rate="$stay->exchange_rate" /></dd></div>
-                    <div><dt>Cargos extras</dt><dd><x-ui.money :amount="$extrasTotal" :exchange-rate="$stay->exchange_rate" /></dd></div>
-                    <div><dt>Saldo estancia</dt><dd><x-ui.money :amount="$statement?->balance ?? 0" :exchange-rate="$stay->exchange_rate" /></dd></div>
+                    <div><dt>Precio noche</dt><dd><x-ui.money :amount="$stay->price_per_night_bob" :exchange-rate="$stay->exchange_rate" :inline="true" /></dd></div>
+                    <div><dt>Hospedaje</dt><dd><x-ui.money :amount="$lodgingTotal" :exchange-rate="$stay->exchange_rate" :inline="true" /></dd></div>
+                    <div><dt>Cargos extras</dt><dd><x-ui.money :amount="$extrasTotal" :exchange-rate="$stay->exchange_rate" :inline="true" /></dd></div>
+                    <div><dt>Saldo estancia</dt><dd><x-ui.money :amount="$statement?->balance ?? 0" :exchange-rate="$stay->exchange_rate" :inline="true" /></dd></div>
                     <div><dt>Desayuno</dt><dd>{{ $stay->breakfast_included ? 'Incluido' : 'No incluido' }}</dd></div>
                 </dl>
             </div>
+        </div>
+    </div>
+
+    <div class="check-in-read-section mt-3">
+        <div class="check-in-read-section-title">
+            <i class="ti ti-cash"></i>
+            <span>Resumen de cuenta</span>
+        </div>
+        <dl class="check-in-read-dl check-in-read-dl-compact">
+            <div><dt>Total grupo</dt><dd><x-ui.money :amount="$groupTotal" :exchange-rate="$stay->exchange_rate" /></dd></div>
+            <div><dt>Saldo grupo</dt><dd><x-ui.money :amount="$groupBalance" :exchange-rate="$stay->exchange_rate" /></dd></div>
+            <div><dt>Total estancia seleccionada</dt><dd><x-ui.money :amount="$statementTotal($statement)" :exchange-rate="$stay->exchange_rate" /></dd></div>
+            <div><dt>Saldo estancia seleccionada</dt><dd><x-ui.money :amount="$statement?->balance ?? 0" :exchange-rate="$stay->exchange_rate" /></dd></div>
+        </dl>
+    </div>
+
+    <div class="check-in-read-section mt-3">
+        <div class="check-in-read-section-title">
+            <i class="ti ti-receipt"></i>
+            <span>Cargos extras activos</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 reservation-mobile-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Categoria</th>
+                        <th>Detalle</th>
+                        <th class="text-end">Cantidad</th>
+                        <th class="text-end">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($extraItems as $item)
+                        <tr>
+                            <td data-label="Fecha">{{ $item->date?->format('d/m/Y') ?: '-' }}</td>
+                            <td data-label="Categoría">{{ $item->extraChargeCategory?->name ?: '-' }}</td>
+                            <td data-label="Detalle">{{ $item->description }}</td>
+                            <td data-label="Cantidad" class="text-end">{{ number_format((float) $item->quantity, 2) }}</td>
+                            <td data-label="Total" class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$item->total" :currency="$item->currency" :exchange-rate="$stay->exchange_rate" /></td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td class="text-center text-body-secondary py-3" colspan="5">No hay cargos extras activos.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -131,7 +186,7 @@
             <span>Huespedes de la estancia seleccionada</span>
         </div>
         <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
+            <table class="table table-sm align-middle mb-0 reservation-mobile-table">
                 <thead>
                     <tr>
                         <th>Nombre</th>
@@ -144,11 +199,11 @@
                 <tbody>
                     @forelse ($stay->guests->sortByDesc(fn ($guest) => (bool) $guest->pivot?->is_holder) as $guest)
                         <tr>
-                            <td>{{ $guest->full_name }}</td>
-                            <td>{{ strtoupper((string) $guest->document_type) }} {{ $guest->document_number ?: '-' }}</td>
-                            <td>{{ $guest->birth_date?->format('d/m/Y') ?: '-' }}{{ $guest->age ? ' · '.$guest->age.' años' : '' }}</td>
-                            <td>{{ $guest->birthCountry?->name ?: '-' }}</td>
-                            <td class="text-end">
+                            <td data-label="Nombre">{{ $guest->full_name }}</td>
+                            <td data-label="Documento">{{ strtoupper((string) $guest->document_type) }} {{ $guest->document_number ?: '-' }}</td>
+                            <td data-label="Nacimiento">{{ $guest->birth_date?->format('d/m/Y') ?: '-' }}{{ $guest->age ? ' · '.$guest->age.' años' : '' }}</td>
+                            <td data-label="País">{{ $guest->birthCountry?->name ?: '-' }}</td>
+                            <td data-label="Tipo" class="text-end">
                                 <span class="badge text-bg-{{ $guest->pivot?->is_holder ? 'primary' : 'light' }}">
                                     {{ $guest->pivot?->is_holder ? 'Titular' : 'Acompañante' }}
                                 </span>
@@ -157,54 +212,6 @@
                     @empty
                         <tr>
                             <td class="text-center text-body-secondary py-3" colspan="5">No hay huespedes registrados.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="check-in-read-section mt-3">
-        <div class="check-in-read-section-title">
-            <i class="ti ti-cash"></i>
-            <span>Resumen de cuenta</span>
-        </div>
-        <dl class="check-in-read-dl check-in-read-dl-compact">
-            <div><dt>Total grupo</dt><dd><x-ui.money :amount="$groupTotal" :exchange-rate="$stay->exchange_rate" /></dd></div>
-            <div><dt>Saldo grupo</dt><dd><x-ui.money :amount="$groupBalance" :exchange-rate="$stay->exchange_rate" /></dd></div>
-            <div><dt>Total estancia seleccionada</dt><dd><x-ui.money :amount="$statementTotal($statement)" :exchange-rate="$stay->exchange_rate" /></dd></div>
-            <div><dt>Saldo estancia seleccionada</dt><dd><x-ui.money :amount="$statement?->balance ?? 0" :exchange-rate="$stay->exchange_rate" /></dd></div>
-        </dl>
-    </div>
-
-    <div class="check-in-read-section mt-3">
-        <div class="check-in-read-section-title">
-            <i class="ti ti-receipt"></i>
-            <span>Cargos extras activos</span>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Categoria</th>
-                        <th>Detalle</th>
-                        <th class="text-end">Cantidad</th>
-                        <th class="text-end">Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($extraItems as $item)
-                        <tr>
-                            <td>{{ $item->date?->format('d/m/Y') ?: '-' }}</td>
-                            <td>{{ $item->extraChargeCategory?->name ?: '-' }}</td>
-                            <td>{{ $item->description }}</td>
-                            <td class="text-end">{{ number_format((float) $item->quantity, 2) }}</td>
-                            <td class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$item->total" :currency="$item->currency" :exchange-rate="$stay->exchange_rate" /></td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td class="text-center text-body-secondary py-3" colspan="5">No hay cargos extras activos.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -228,7 +235,7 @@
     @endif
 
     @if ($stay->status === 'occupied' || (float) ($statement?->balance ?? 0) > 0)
-        <div class="d-flex justify-content-end gap-2 mt-3">
+        <div class="d-flex flex-wrap justify-content-end gap-2 mt-3 check-in-summary-actions">
             @if ($stay->status === 'occupied')
                 <button
                     class="btn btn-outline-primary btn-sm"

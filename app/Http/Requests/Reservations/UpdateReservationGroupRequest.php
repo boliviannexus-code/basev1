@@ -33,7 +33,7 @@ class UpdateReservationGroupRequest extends FormRequest
             'birth_country_id' => ['nullable', 'integer', Rule::exists('countries', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
             'birth_date' => ['nullable', 'date', 'before_or_equal:today'],
             'total_people' => ['nullable', 'integer', 'min:1'],
-            'check_in_date' => ['nullable', 'date', 'after_or_equal:today'],
+            'check_in_date' => ['nullable', 'date'],
             'check_out_date' => ['nullable', 'date', 'after:check_in_date'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'guest_name' => ['required', 'string', 'max:255'],
@@ -43,7 +43,7 @@ class UpdateReservationGroupRequest extends FormRequest
             'guest_phone' => ['nullable', 'string', 'max:255'],
             'guest_document' => ['nullable', 'string', 'max:255'],
             'reservations' => ['required', 'array', 'min:1'],
-            'reservations.*.check_in' => ['required', 'date', 'after_or_equal:today'],
+            'reservations.*.check_in' => ['required', 'date'],
             'reservations.*.check_out' => ['required', 'date'],
             'reservations.*.nights' => ['required', 'integer', 'min:1'],
             'reservations.*.guests' => ['required', 'integer', 'min:1'],
@@ -96,6 +96,11 @@ class UpdateReservationGroupRequest extends FormRequest
             $group = $this->route('group');
             $reservations = $group?->reservations()->get()->keyBy('id') ?? collect();
 
+            if ($this->filled('check_in_date') && CarbonImmutable::parse($this->input('check_in_date'))->lt(today())
+                && CarbonImmutable::parse($this->input('check_in_date'))->toDateString() !== $group?->check_in?->toDateString()) {
+                $validator->errors()->add('check_in_date', 'La nueva fecha de ingreso no puede ser anterior a hoy. Puedes conservar la fecha original.');
+            }
+
             foreach ($this->input('reservations', []) as $reservationId => $reservationData) {
                 $reservation = $reservations->get((int) $reservationId);
 
@@ -103,6 +108,11 @@ class UpdateReservationGroupRequest extends FormRequest
                     $validator->errors()->add("reservations.{$reservationId}", 'La reserva seleccionada no pertenece al grupo.');
 
                     continue;
+                }
+
+                if (CarbonImmutable::parse($reservationData['check_in'])->lt(today())
+                    && CarbonImmutable::parse($reservationData['check_in'])->toDateString() !== $reservation->check_in->toDateString()) {
+                    $validator->errors()->add("reservations.{$reservationId}.check_in", 'La nueva fecha de ingreso no puede ser anterior a hoy. Puedes conservar la fecha original.');
                 }
 
                 if ((string) $reservationData['check_out'] <= (string) $reservationData['check_in']) {

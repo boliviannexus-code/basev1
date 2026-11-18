@@ -500,6 +500,33 @@ function confirmSubmit(form) {
     });
 }
 
+async function confirmReservationReason(form) {
+    if (form.dataset.reasonPromptOpen === '1') return;
+    form.dataset.reasonPromptOpen = '1';
+    try {
+        const result = await Swal.fire({
+            icon: 'warning',
+            title: form.dataset.reasonTitle || 'Actualizar reserva',
+            target: form.closest('.modal') || document.body,
+            keydownListenerCapture: true,
+            input: 'textarea',
+            inputLabel: 'Motivo (opcional)',
+            inputPlaceholder: 'Escribe el motivo para dejarlo registrado',
+            inputAttributes: { maxlength: 1000 },
+            inputValue: form.elements.reason?.value || '',
+            showCancelButton: true,
+            confirmButtonText: 'Confirmar',
+            cancelButtonText: 'Volver',
+            confirmButtonColor: '#d63939',
+        });
+        if (!result.isConfirmed) return;
+        form.elements.reason.value = String(result.value || '').trim();
+        form.submit();
+    } finally {
+        delete form.dataset.reasonPromptOpen;
+    }
+}
+
 function confirmUnattendedResolution(form, submitter = null) {
     const button = submitter?.matches?.('[data-requires-unattended-comment]')
         ? submitter
@@ -1559,13 +1586,26 @@ function initTomSelects(scope = document) {
             return;
         }
 
+        const isExtraChargeCategory = select.matches('[data-extra-charge-category]');
         new TomSelect(select, {
-            allowEmptyOption: true,
+            allowEmptyOption: !isExtraChargeCategory,
             create: false,
-            dropdownParent: 'body',
+            dropdownParent: isExtraChargeCategory ? null : 'body',
             maxItems: select.multiple ? null : 1,
+            maxOptions: isExtraChargeCategory ? null : 50,
             placeholder: select.dataset.placeholder ?? 'Seleccionar',
             plugins: ['clear_button'],
+            onFocus() {
+                if (isExtraChargeCategory) {
+                    this.settings.placeholder = '';
+                }
+            },
+            onBlur() {
+                if (isExtraChargeCategory) {
+                    this.settings.placeholder = select.dataset.placeholder ?? 'Buscar categoría...';
+                    this.inputState();
+                }
+            },
             render: {
                 no_results() {
                     return '<div class="no-results">Sin resultados</div>';
@@ -3137,14 +3177,13 @@ function initOccupancyWeekGrid() {
         && String(row.room_bed_unit_id ?? '') === String(bedUnitId ?? ''));
     const findCell = (spaceId, roomId, date, bedUnitId = '') => findRow(spaceId, roomId, bedUnitId)?.cells?.find((cell) => cell.date === date);
     const cellContent = (cell) => {
-        if (cell.stay_id) {
+        if (cell.stay_id || cell.reference_stay_id) {
             const holderName = cell.holder_guest_name ?? '';
 
             return `
-                <span class="occupancy-cell-label occupancy-cell-stay" data-stay-id="${escapeHtml(cell.stay_id)}">
+                <span class="occupancy-cell-label occupancy-cell-stay" data-stay-id="${escapeHtml(cell.stay_id || cell.reference_stay_id)}">
                     ${holderName ? '' : `<span class="occupancy-cell-state">${escapeHtml(cell.status_label ?? 'Ocupado')}</span>`}
                     <span class="occupancy-cell-guest">${escapeHtml(holderName || 'Sin titular')}</span>
-                    <span class="occupancy-cell-code">${escapeHtml(cell.check_in_code ?? '')}</span>
                 </span>
             `;
         }
@@ -3176,6 +3215,8 @@ function initOccupancyWeekGrid() {
 
     const emptyOccupancyCell = () => '<td class="occupancy-cell-empty"></td>';
     const occupancyMergeKey = (cell = {}) => {
+        if (cell.status === 'dirty') return '';
+
         if (cell.stay_id) {
             return `stay:${cell.stay_id}`;
         }
@@ -3608,6 +3649,16 @@ function initOccupancyWeekGrid() {
     const openActionFromMenu = (button) => {
         const { occupancyAction, spaceId, roomId, roomBedUnitId, date, stayId, reservationId, reservationGroupId } = button.dataset;
         const handlers = {
+            mark_clean: async () => {
+                const response = await fetch(routeFor(root.dataset.cleaningStoreUrlTemplate, button.dataset.cleaningStayId), {
+                    method: 'POST',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.message || 'No se pudo registrar la limpieza.');
+                await loadWeekData();
+                toast.fire({ icon: 'success', title: payload.message });
+            },
             view_check_in: () => openCheckInSummaryModal(spaceId, date, roomId, roomBedUnitId),
             move_stay: () => openStayMoveModal(stayId),
             move_reservation: () => openReservationMoveModal(reservationId),
@@ -3777,6 +3828,11 @@ function initOccupancyWeekGrid() {
     });
 
     actionsPopover.addEventListener('click', (event) => {
+        if (event.target.closest('[data-copy-reservation], a[data-modal-url]')) {
+            window.setTimeout(hideCellActions, 0);
+            return;
+        }
+
         const actionButton = event.target.closest('[data-occupancy-action]');
 
         if (!actionButton) {
@@ -4608,6 +4664,7 @@ function initCheckInForm(scope = document) {
         reserved: 'Reservado',
         closed: 'Cerrado',
         occupied: 'Ocupado',
+        dirty: 'Libre y sucia · limpieza pendiente',
     };
 
     const selectedResource = (row) => resources.find((resource) => resource.key === row.querySelector('[data-stay-resource-select]')?.value);
@@ -5487,7 +5544,10 @@ function updateExtraChargeForm(form) {
     }
 
     if (document.activeElement !== unit && unit.dataset.manualValue !== '1') {
-        unit.value = Number(category.selectedOptions[0]?.dataset.unitPrice || 0).toFixed(2);
+        const defaultPrice = category.tomselect?.options[category.value]?.unitPrice
+            ?? category.selectedOptions[0]?.dataset.unitPrice
+            ?? 0;
+        unit.value = Number(defaultPrice).toFixed(2);
     }
 
     const amount = Math.max(0, Number(unit.value || 0)) * Math.max(0, Number(quantity.value || 0));
@@ -5499,6 +5559,8 @@ function initExtraChargeForms(scope = document) {
         if (form.dataset.extraChargeInitialized === '1') {
             return;
         }
+
+        initTomSelects(form);
 
         const unit = form.querySelector('[data-extra-charge-unit]');
         const category = form.querySelector('[data-extra-charge-category]');
@@ -5753,12 +5815,13 @@ function initReservationGroupForms(scope = document) {
         const globalCheckIn = form.querySelector('[data-reservation-global-check-in]');
         const globalCheckOut = form.querySelector('[data-reservation-global-check-out]');
         const globalNights = form.querySelector('[data-reservation-global-nights]');
-        const daysBetween = (start, end) => Math.round((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000);
+        const globalNightsInput = form.querySelector('[data-reservation-global-nights-input]');
+        const daysBetween = (start, end) => Math.round((new Date(`${end}T00:00:00Z`) - new Date(`${start}T00:00:00Z`)) / 86400000);
         let linkedNights = globalCheckIn?.value && globalCheckOut?.value
             ? Math.max(daysBetween(globalCheckIn.value, globalCheckOut.value), 1)
             : 1;
 
-        const syncGlobalDates = () => {
+        const syncGlobalDates = (applyToSpaces = true) => {
             if (!globalCheckIn?.value || !globalCheckOut?.value) {
                 return;
             }
@@ -5766,9 +5829,20 @@ function initReservationGroupForms(scope = document) {
             const minCheckOut = addDays(globalCheckIn.value, 1);
             globalCheckOut.min = minCheckOut;
 
-            if (globalNights) {
-                globalNights.textContent = `${linkedNights} ${linkedNights === 1 ? 'noche' : 'noches'} · fechas vinculadas`;
+            if (globalCheckOut.value < minCheckOut) {
+                globalCheckOut.setCustomValidity('La salida debe ser posterior al ingreso.');
+                return;
             }
+            globalCheckOut.setCustomValidity('');
+            linkedNights = daysBetween(globalCheckIn.value, globalCheckOut.value);
+            if (globalNightsInput) globalNightsInput.value = String(linkedNights);
+
+            if (globalNights) {
+                globalNights.textContent = 'Cambiar la salida o las noches mantiene la fecha de ingreso. Estos cambios se aplican a todos los espacios.';
+            }
+
+            // Opening the form must preserve each space's individual dates.
+            if (!applyToSpaces) return;
 
             form.querySelectorAll('[data-reservation-date-row]').forEach((row) => {
                 const checkIn = row.querySelector('[data-reservation-check-in]');
@@ -5776,7 +5850,10 @@ function initReservationGroupForms(scope = document) {
                 const nightsInput = row.querySelector('[data-reservation-nights]');
 
                 if (checkIn) checkIn.value = globalCheckIn.value;
-                if (checkOut) checkOut.value = globalCheckOut.value;
+                if (checkOut) {
+                    checkOut.value = globalCheckOut.value;
+                    checkOut.min = minCheckOut;
+                }
                 if (nightsInput) nightsInput.value = String(linkedNights);
             });
         };
@@ -5789,13 +5866,17 @@ function initReservationGroupForms(scope = document) {
             syncGlobalDates();
         });
         globalCheckOut?.addEventListener('change', () => {
-            if (globalCheckOut.value && globalCheckIn) {
-                globalCheckIn.value = addDays(globalCheckOut.value, -linkedNights);
-            }
-
             syncGlobalDates();
         });
-        syncGlobalDates();
+        globalNightsInput?.addEventListener('input', () => {
+            const nights = Number(globalNightsInput.value);
+            if (!Number.isInteger(nights) || nights < 1 || !globalCheckIn?.value || !globalCheckOut) {
+                return;
+            }
+            globalCheckOut.value = addDays(globalCheckIn.value, nights);
+            syncGlobalDates();
+        });
+        syncGlobalDates(false);
 
         form.dataset.reservationGroupInitialized = '1';
     });
@@ -6041,6 +6122,13 @@ document.addEventListener('submit', async (event) => {
     const unattendedResolutionForm = event.target.closest('[data-unattended-resolution-form]');
     const submitter = event.submitter ?? null;
 
+    const reservationReasonForm = event.target.closest('[data-reservation-reason-form]');
+    if (reservationReasonForm) {
+        event.preventDefault();
+        await confirmReservationReason(reservationReasonForm);
+        return;
+    }
+
     if (transactionPinForm && transactionPinForm.dataset.transactionPinAuthorized !== '1') {
         event.preventDefault();
 
@@ -6109,5 +6197,43 @@ document.addEventListener('submit', async (event) => {
         }
 
         submitAjaxForm(ajaxForm, submitter);
+    }
+});
+
+// Delegation also covers reservation details loaded into a modal.
+document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-copy-reservation]');
+    if (!button) return;
+
+    const messages = JSON.parse(button.dataset.copyReservation);
+    const selection = await Swal.fire({
+        title: 'Selecciona el idioma',
+        input: 'select',
+        inputOptions: { es: 'Español', en: 'English', fr: 'Français', pt: 'Português' },
+        inputValue: 'es',
+        showCancelButton: true,
+        confirmButtonText: 'Copiar',
+        cancelButtonText: 'Cancelar',
+    });
+    if (!selection.isConfirmed) return;
+    const text = messages[selection.value];
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const field = document.createElement('textarea');
+            field.value = text;
+            field.style.position = 'fixed';
+            field.style.opacity = '0';
+            (button.closest('.modal') || document.body).appendChild(field);
+            field.focus();
+            field.select();
+            const copied = document.execCommand('copy');
+            field.remove();
+            if (!copied) throw new Error('No se pudo copiar');
+        }
+        Swal.fire({ icon: 'success', title: 'Datos copiados', text: 'Ya puedes pegarlos en WhatsApp.', timer: 1800, showConfirmButton: false });
+    } catch {
+        Swal.fire({ icon: 'info', title: 'Copia los datos manualmente', input: 'textarea', inputValue: text, confirmButtonText: 'Cerrar' });
     }
 });

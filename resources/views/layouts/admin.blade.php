@@ -8,7 +8,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>
-<body class="layout-fluid">
+<body class="layout-fluid @yield('body-class')">
 <script>
     if (localStorage.getItem('app-sidebar-collapsed') === '1') {
         document.body.classList.add('app-sidebar-collapsed');

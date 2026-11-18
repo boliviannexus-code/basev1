@@ -64,7 +64,9 @@ class StayController extends Controller
 
         $this->updates->updateStay($stay, $data, $request->user());
 
-        return back()->with('success', 'Estancia actualizada correctamente.');
+        return redirect()->route('occupancy.index', [
+            'view' => $stay->space_room_id ? 'shared:'.$stay->space_id : 'private',
+        ])->with('success', 'Estancia actualizada correctamente.');
     }
 
     public function updateHolder(UpdateStayHolderRequest $request, Stay $stay): RedirectResponse

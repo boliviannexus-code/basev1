@@ -2,6 +2,7 @@
     'amount',
     'currency' => 'BOB',
     'exchangeRate' => null,
+    'inline' => false,
 ])
 
 @php
@@ -18,9 +19,9 @@
         : null;
 @endphp
 
-<span {{ $attributes->class(['d-inline-flex flex-column lh-sm']) }}>
-    <span>{{ $primary }}</span>
+<span {{ $attributes->class(['d-inline-flex lh-sm', 'flex-column' => ! $inline, 'flex-row flex-wrap align-items-baseline gap-2' => $inline]) }}>
+    <span @class(['text-success' => $isUsd])>{{ $primary }}</span>
     @if ($reference)
-        <small class="text-body-secondary mt-1">≈ {{ $reference }}</small>
+        <small @class(['text-success' => ! $isUsd, 'text-body-secondary' => $isUsd, 'mt-1' => ! $inline])>≈ {{ $reference }}</small>
     @endif
 </span>

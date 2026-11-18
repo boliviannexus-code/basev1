@@ -49,6 +49,17 @@ class OccupancyGridActionService
         $reservation = $this->reservationForBlock($block);
         $occupancyState = $this->occupancyState($block, $availabilityStatus, $stay ?: $pendingCheckOutStay, $reservation, $pendingCheckOutStay !== null);
         $contextStay = $pendingCheckOutStay && $reservation ? null : ($stay ?: $pendingCheckOutStay);
+        $dirty = $date->isToday() && ! $contextStay
+            ? RoomCleaningService::forResource(RoomCleaningService::pending($companyId)->where('space_id', $space->id)->get(), $space->id, $room?->id, $bedUnit?->id)
+            : null;
+        if ($dirty) {
+            $occupancyState['status'] = 'dirty';
+            $occupancyState['label'] = 'Libre y sucia';
+            $occupancyState['cleaning_stay_id'] = $dirty->id;
+        }
+        if ($contextStay?->status === 'checked_out' && $contextStay->cleaning_required_at && ! $contextStay->cleaned_at) {
+            $occupancyState['cleaning_stay_id'] = $contextStay->id;
+        }
 
         return [
             'space' => $space,
@@ -84,6 +95,15 @@ class OccupancyGridActionService
     public function actionsForDate(Carbon $date, ?AvailabilityStatus $availabilityStatus = null, ?array $occupancyState = null, ?Stay $stay = null, ?Reservation $reservation = null): array
     {
         $today = today();
+
+        if ($date->lte($today) && ! empty($occupancyState['cleaning_stay_id'])) {
+            return [
+                ['key' => 'mark_clean', 'label' => 'Marcar limpia y disponible', 'icon' => 'ti-sparkles', 'tone' => 'info'],
+                ...($stay ? $this->stayActions($stay) : ($reservation ? $this->reservationActions($reservation) : [
+                    ['key' => self::ACTION_RESERVATION, 'label' => 'Reserva', 'icon' => 'ti-calendar-plus', 'tone' => 'success'],
+                ])),
+            ];
+        }
 
         if (($occupancyState['status'] ?? null) === 'pending_check_out' && $reservation) {
             return $this->reservationActions($reservation);
@@ -181,6 +201,13 @@ class OccupancyGridActionService
                 'tone' => 'success',
             ];
         }
+
+        $actions[] = [
+            'key' => 'copy_reservation',
+            'label' => 'Copiar datos para WhatsApp',
+            'icon' => 'ti-copy',
+            'tone' => 'primary',
+        ];
 
         $actions[] = [
             'key' => 'view_reservation',
@@ -361,6 +388,10 @@ class OccupancyGridActionService
             ->where('company_id', $companyId)
             ->where('space_id', $space->id)
             ->whereIn('status', ['occupied', 'checked_out'])
+            ->where(fn ($query) => $query
+                ->whereNull('checked_out_at')
+                ->orWhere('status', '!=', 'checked_out')
+                ->orWhereDate('checked_out_at', '>', $date->toDateString()))
             ->whereDate('check_in_date', '<=', $date->toDateString())
             ->whereDate('check_out_date', '>', $date->toDateString());
 

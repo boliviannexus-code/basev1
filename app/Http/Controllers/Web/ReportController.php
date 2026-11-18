@@ -74,6 +74,23 @@ class ReportController extends Controller
         ]);
     }
 
+    public function projected(Request $request, \App\Services\Reports\ProjectedCollectionsService $projection): View
+    {
+        $company = CompanyContext::activeCompany($request->user());
+        abort_unless($company, 403);
+
+        $filters = $request->validate(['to' => ['nullable', 'date_format:Y-m-d']]);
+        $to = $filters['to'] ?? null;
+        $today = today()->toDateString();
+        $rows = $projection->build((int) $company->id)
+            ->filter(fn (array $row): bool => $row['date'] && $row['date']->toDateString() >= $today);
+
+        return view('reports.projected.index', [
+            'rows' => $to ? $rows->filter(fn (array $row): bool => $row['date'] && $row['date']->toDateString() <= $to)->values() : $rows,
+            'to' => $to,
+        ]);
+    }
+
     public function occupancy(Request $request): View
     {
         $company = CompanyContext::activeCompany($request->user());

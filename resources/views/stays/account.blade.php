@@ -121,7 +121,7 @@
                         </div>
                         <div class="col-md-3">
                             <div class="text-secondary small">Precio USD</div>
-                            <div>{{ $money($stay->price_per_night_usd, 'USD') }}</div>
+                            <div class="text-success">{{ $money($stay->price_per_night_usd, 'USD') }}</div>
                         </div>
                         <div class="col-md-3">
                             <div class="text-secondary small">Moneda principal</div>

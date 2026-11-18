@@ -5,6 +5,8 @@ namespace App\Services\CheckIn;
 use App\Models\AccountStatement;
 use App\Models\Stay;
 use App\Models\User;
+use App\Services\Availability\AvailabilityStatusService;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -13,6 +15,7 @@ class CheckOutService
 {
     public function __construct(
         private readonly AccountStatementService $accountStatements,
+        private readonly AvailabilityStatusService $availability,
     ) {}
 
     public function debtSummary(Stay $stay): array
@@ -63,13 +66,22 @@ class CheckOutService
                 ]);
             }
 
-            $updates = ['status' => 'checked_out'];
+            $updates = ['status' => 'checked_out', 'checked_out_at' => now(), 'cleaning_required_at' => now()];
 
             if (filled($note)) {
                 $updates['notes'] = $this->appendSystemNote($stay->notes, $note);
             }
 
             $stay->update($updates);
+
+            $releaseStart = CarbonImmutable::today()->max(CarbonImmutable::parse($stay->check_in_date));
+            $releaseEnd = CarbonImmutable::parse($stay->check_out_date);
+            if ($releaseStart->lessThan($releaseEnd)) {
+                $dates = collect($releaseStart->daysUntil($releaseEnd))
+                    ->map(fn (CarbonImmutable $date): string => $date->toDateString())
+                    ->all();
+                $this->availability->releaseOccupiedRange($stay, $dates);
+            }
 
             $hasOccupiedStays = $stay->checkInGroup
                 ->stays()
