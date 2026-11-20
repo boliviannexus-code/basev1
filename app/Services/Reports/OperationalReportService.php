@@ -7,6 +7,7 @@ use App\Models\ExtraChargeCategory;
 use App\Models\OccupancyBlock;
 use App\Models\PaymentMethod;
 use App\Models\Reservation;
+use App\Models\RoomBedUnit;
 use App\Models\Space;
 use App\Models\SpaceCashExpense;
 use App\Models\SpaceCashIncome;
@@ -66,7 +67,6 @@ class OperationalReportService
     public function occupancyOptions(int $companyId): array
     {
         return [
-            'users' => User::query()->where('company_id', $companyId)->orderBy('name')->get(['id', 'name']),
             'spaces' => Space::query()->where('company_id', $companyId)->where('status', 'active')->orderBy('title')->orderBy('name')->get(['id', 'title', 'name']),
             'occupancyStatuses' => [
                 'occupied' => 'Ocupadas',
@@ -298,10 +298,13 @@ class OperationalReportService
         $reservedPersonNights = (int) $reservations->sum(fn (Reservation $reservation): int => $this->overlapNights($reservation->check_in, $reservation->check_out, $filters) * max(1, (int) $reservation->guests));
         $blockedNights = (int) $blocks->sum(fn (OccupancyBlock $block): int => $this->inclusiveOverlapDays($block->start_date, $block->end_date, $filters));
 
+        $hotelSummary = $this->hotelPeriodSummary($companyId, $filters);
+
         return [
             'stays' => $stays,
             'reservations' => $reservations,
             'blocks' => $blocks,
+            'hotel_summary' => $hotelSummary,
             'summary' => [
                 'spaces' => $spaces->count(),
                 'capacity_nights' => $capacityNights,
@@ -313,13 +316,61 @@ class OperationalReportService
         ];
     }
 
+    private function hotelPeriodSummary(int $companyId, array $filters): Collection
+    {
+        $from = $filters['from']->startOfDay();
+        $to = $filters['to']->startOfDay();
+        $rooms = SpaceRoom::query()->with('space')->where('company_id', $companyId)->where('status', 'active')
+            ->whereHas('space', fn (Builder $query) => $query->where('status', 'active'))
+            ->when($filters['space_id'], fn (Builder $query, int $id) => $query->where('space_id', $id))->get();
+        $spaces = Space::query()->where('company_id', $companyId)->where('status', 'active')
+            ->when($filters['space_id'], fn (Builder $query, int $id) => $query->whereKey($id))
+            ->whereDoesntHave('rooms', fn (Builder $query) => $query->where('status', 'active'))->get();
+        $stays = Stay::query()->with(['holderGuest', 'accountStatement'])->where('company_id', $companyId)
+            ->whereIn('status', ['occupied', 'checked_out'])->whereDate('check_in_date', '<=', $to->toDateString())
+            ->whereDate('check_out_date', '>', $from->toDateString())
+            ->when($filters['space_id'], fn (Builder $query, int $id) => $query->where('space_id', $id))->get();
+        $reservations = Reservation::query()->with('roomItems')->where('company_id', $companyId)
+            ->whereIn('status', Reservation::BLOCKING_STATUSES)->whereDate('check_in', '<=', $to->toDateString())
+            ->whereDate('check_out', '>', $from->toDateString())
+            ->when($filters['space_id'], fn (Builder $query, int $id) => $query->where('space_id', $id))->get();
+        $blocks = OccupancyBlock::query()->where('company_id', $companyId)->where('status', 'active')
+            ->whereDate('start_date', '<=', $to->toDateString())->whereDate('end_date', '>=', $from->toDateString())
+            ->when($filters['space_id'], fn (Builder $query, int $id) => $query->where('space_id', $id))->get();
+
+        $totals = collect();
+        foreach (\Carbon\CarbonPeriod::create($from, $to) as $date) {
+            $day = $date->format('Y-m-d');
+            $dayStays = $stays->filter(fn (Stay $stay): bool => $stay->check_in_date->toDateString() <= $day
+                && $stay->check_out_date->toDateString() > $day
+                && ($stay->status === 'occupied' || ($stay->checked_out_at && $stay->checked_out_at->toDateString() > $day)));
+            $dayReservations = $reservations->filter(fn (Reservation $reservation): bool => $reservation->check_in->toDateString() <= $day && $reservation->check_out->toDateString() > $day);
+            $dayBlocks = $blocks->filter(fn (OccupancyBlock $block): bool => $block->start_date->toDateString() <= $day && $block->end_date->toDateString() >= $day);
+            $rows = $rooms->map(fn (SpaceRoom $room): array => ['space_id' => $room->space_id, ...$this->dailyRoomRow($room, $dayStays, $dayReservations, $dayBlocks)])
+                ->merge($spaces->map(fn (Space $space): array => ['space_id' => $space->id, ...$this->dailySpaceRow($space, $dayStays, $dayReservations, $dayBlocks)]));
+            foreach ($rows as $row) {
+                $id = $row['space_id'];
+                $total = $totals->get($id, ['name' => $row['space'], 'occupied' => 0, 'free' => 0, 'people' => 0, 'units' => 0]);
+                $total['units']++;
+                $total['occupied'] += (int) ($row['status'] === 'occupied');
+                $total['free'] += (int) ($row['status'] === 'free');
+                $total['people'] += $row['status'] === 'occupied' ? (int) $row['people'] : 0;
+                $totals->put($id, $total);
+            }
+        }
+
+        return $totals->map(function (array $total): array {
+            $total['rate'] = $total['units'] ? round($total['occupied'] * 100 / $total['units'], 2) : 0;
+            return $total;
+        })->values();
+    }
+
     public function dailyOccupancy(int $companyId, CarbonImmutable $date, array $filters): array
     {
         $reportDate = $date->startOfDay();
-        $previousDate = $reportDate->subDay();
 
         $rooms = SpaceRoom::query()
-            ->with('space')
+            ->with(['space', 'bedUnits' => fn ($query) => $query->where('status', 'active')->orderBy('sort_order')->orderBy('id')])
             ->where('company_id', $companyId)
             ->where('status', 'active')
             ->whereHas('space', fn (Builder $query) => $query->where('status', 'active'))
@@ -341,7 +392,10 @@ class OperationalReportService
         $stays = Stay::query()
             ->with(['space', 'room', 'bedUnit', 'holderGuest', 'accountStatement'])
             ->where('company_id', $companyId)
-            ->where('status', 'occupied')
+            ->where(function (Builder $query) use ($reportDate): void {
+                $query->where('status', 'occupied')
+                    ->orWhere(fn (Builder $query) => $query->where('status', 'checked_out')->whereDate('checked_out_at', '>', $reportDate->toDateString()));
+            })
             ->whereDate('check_in_date', '<=', $reportDate->toDateString())
             ->whereDate('check_out_date', '>', $reportDate->toDateString())
             ->when($filters['space_id'], fn (Builder $query, int $id) => $query->where('space_id', $id))
@@ -349,7 +403,7 @@ class OperationalReportService
             ->get();
 
         $reservations = Reservation::query()
-            ->with(['space', 'room', 'roomItems'])
+            ->with(['space', 'room', 'roomItems', 'bedUnitItems'])
             ->where('company_id', $companyId)
             ->whereIn('status', Reservation::BLOCKING_STATUSES)
             ->whereDate('check_in', '<=', $reportDate->toDateString())
@@ -369,35 +423,53 @@ class OperationalReportService
             ->get();
 
         $roomRows = $rooms
-            ->map(fn (SpaceRoom $room): array => $this->dailyRoomRow($room, $stays, $reservations, $blocks))
-            ->merge($spaceOnlyRows->map(fn (Space $space): array => $this->dailySpaceRow($space, $stays, $reservations, $blocks)))
+            ->flatMap(fn (SpaceRoom $room): array => $this->dailyRoomRows($room, $stays, $reservations, $blocks))
+            ->merge($spaceOnlyRows->map(fn (Space $space): array => ['space_id' => $space->id, 'room_id' => null, 'bed_id' => null, ...$this->dailySpaceRow($space, $stays, $reservations, $blocks)]))
             ->values();
 
-        $breakfastRows = Stay::query()
-            ->with(['space', 'room', 'holderGuest'])
-            ->where('company_id', $companyId)
-            ->where('breakfast_included', true)
-            ->whereIn('status', ['occupied', 'checked_out'])
-            ->whereDate('check_in_date', '<=', $previousDate->toDateString())
-            ->whereDate('check_out_date', '>', $previousDate->toDateString())
-            ->when($filters['space_id'], fn (Builder $query, int $id) => $query->where('space_id', $id))
-            ->when($filters['user_id'], fn (Builder $query, int $id) => $query->whereHas('checkInGroup', fn (Builder $group) => $group->where('created_by', $id)))
-            ->orderBy('space_id')
-            ->orderBy('space_room_id')
-            ->get()
-            ->map(fn (Stay $stay): array => [
-                'space' => $stay->space?->title ?: $stay->space?->name ?: '-',
-                'room' => $stay->room?->title ?: $stay->room?->name ?: 'Sin habitacion',
-                'guest' => $stay->holderGuest?->full_name ?? '-',
-                'people' => max(1, (int) $stay->people_count),
-            ])
-            ->values();
+        if ($reportDate->isSameDay(today())) {
+            $pendingStays = Stay::query()
+                ->with(['space', 'room', 'bedUnit', 'holderGuest', 'accountStatement'])
+                ->where('company_id', $companyId)
+                ->where('status', 'occupied')
+                ->whereDate('check_in_date', '<=', $reportDate->toDateString())
+                ->whereDate('check_out_date', '<=', $reportDate->toDateString())
+                ->when($filters['space_id'], fn (Builder $query, int $id) => $query->where('space_id', $id))
+                ->when($filters['user_id'], fn (Builder $query, int $id) => $query->whereHas('checkInGroup', fn (Builder $group) => $group->where('created_by', $id)))
+                ->orderBy('check_out_date')->orderBy('id')->get();
+
+            $remaining = $pendingStays->keyBy('id');
+            $roomRows = $roomRows->flatMap(function (array $row) use ($remaining, $pendingStays): array {
+                $matches = $remaining->filter(function (Stay $stay) use ($row): bool {
+                    if ((int) $stay->space_id !== (int) $row['space_id'] || (int) ($stay->space_room_id ?? 0) !== (int) ($row['room_id'] ?? 0)) {
+                        return false;
+                    }
+
+                    return $row['bed_id'] === null || $stay->room_bed_unit_id === null || (int) $stay->room_bed_unit_id === (int) $row['bed_id'];
+                });
+                $pendingRows = $matches->map(function (Stay $stay) use ($remaining): array {
+                    $remaining->forget($stay->id);
+                    $spaceName = $stay->space?->title ?: $stay->space?->name ?: '-';
+                    $roomName = $stay->room?->title ?: $stay->room?->name ?: 'Unidad completa';
+                    $label = $roomName.($stay->bedUnit ? ' / '.$stay->bedUnit->label : '');
+                    $pending = $this->dailyResourceRow($spaceName, $label, 1, $stay, null, null);
+                    $pending['status'] = 'pending_checkout';
+                    $pending['status_label'] = 'Check-out pendiente';
+
+                    return ['space_id' => $stay->space_id, 'room_id' => $stay->space_room_id, 'bed_id' => $stay->room_bed_unit_id, ...$pending];
+                })->values()->all();
+
+                $coveredByPending = $pendingStays->contains(fn (Stay $stay): bool => (int) $stay->space_id === (int) $row['space_id']
+                    && (int) ($stay->space_room_id ?? 0) === (int) ($row['room_id'] ?? 0)
+                    && ($row['bed_id'] === null || $stay->room_bed_unit_id === null || (int) $stay->room_bed_unit_id === (int) $row['bed_id']));
+
+                return [...$pendingRows, ...($coveredByPending && $row['status'] === 'free' ? [] : [$row])];
+            })->values();
+        }
 
         return [
             'date' => $reportDate,
-            'previousDate' => $previousDate,
             'rooms' => $roomRows,
-            'breakfasts' => $breakfastRows,
             'summary' => [
                 'rooms' => $roomRows->count(),
                 'free' => $roomRows->where('status', 'free')->count(),
@@ -405,10 +477,39 @@ class OperationalReportService
                 'reserved' => $roomRows->where('status', 'reserved')->count(),
                 'blocked' => $roomRows->where('status', 'blocked')->count(),
                 'people' => (int) $roomRows->sum('people'),
-                'breakfasts' => (int) $breakfastRows->sum('people'),
+                'breakfasts' => (int) $roomRows->sum('breakfast'),
                 'balance' => (float) $roomRows->sum('balance'),
             ],
         ];
+    }
+
+    private function dailyRoomRows(SpaceRoom $room, Collection $stays, Collection $reservations, Collection $blocks): array
+    {
+        $roomStays = $stays->where('space_room_id', $room->id);
+        $roomReservations = $reservations->filter(fn (Reservation $reservation): bool => $this->reservationMatchesRoom($reservation, $room));
+        $wholeRoom = $roomStays->contains(fn (Stay $stay): bool => $stay->room_bed_unit_id === null)
+            || $roomReservations->contains(fn (Reservation $reservation): bool => $reservation->roomItems->contains(fn ($item): bool => (int) $item->space_room_id === (int) $room->id)
+                || ((int) $reservation->space_room_id === (int) $room->id && $reservation->bedUnitItems->isEmpty()));
+        if (! in_array($room->sale_mode, ['bed_unit', 'flexible'], true) || $room->bedUnits->isEmpty() || $wholeRoom) {
+            return [['space_id' => $room->space_id, 'room_id' => $room->id, 'bed_id' => null, ...$this->dailyRoomRow($room, $stays, $reservations, $blocks)]];
+        }
+
+        return $room->bedUnits->map(function (RoomBedUnit $bed) use ($room, $roomStays, $reservations, $blocks): array {
+            $bedStay = $roomStays->first(fn (Stay $stay): bool => (int) $stay->room_bed_unit_id === (int) $bed->id);
+            $reservation = $reservations->first(fn (Reservation $reservation): bool => $reservation->bedUnitItems->contains(fn ($item): bool => (int) $item->room_bed_unit_id === (int) $bed->id));
+            $bedItem = $reservation?->bedUnitItems->first(fn ($item): bool => (int) $item->room_bed_unit_id === (int) $bed->id);
+            $block = $blocks->first(fn (OccupancyBlock $block): bool => (int) $block->space_room_id === (int) $room->id && ($block->room_bed_unit_id === null || (int) $block->room_bed_unit_id === (int) $bed->id));
+            $row = $this->dailyResourceRow($room->space?->title ?: $room->space?->name ?: '-', ($room->title ?: $room->name).' / '.$bed->label, 1, $bedStay, $reservation, $block);
+            if (! $bedStay && $bedItem) {
+                $row['guest'] = $bedItem->guest_name ?: $reservation->guest_name;
+                $row['people'] = 1;
+                $row['breakfast'] = $reservation->breakfast_included ? 1 : 0;
+                $row['total'] = (float) $bedItem->subtotal_amount;
+                $row['advance'] = 0;
+                $row['balance'] = 0;
+            }
+            return ['space_id' => $room->space_id, 'room_id' => $room->id, 'bed_id' => $bed->id, ...$row];
+        })->all();
     }
 
     private function dailyRoomRow(SpaceRoom $room, Collection $stays, Collection $reservations, Collection $blocks): array
@@ -447,8 +548,17 @@ class OperationalReportService
 
     private function dailySpaceRow(Space $space, Collection $stays, Collection $reservations, Collection $blocks): array
     {
-        $stay = $stays->first(fn (Stay $stay): bool => (int) $stay->space_id === (int) $space->id && blank($stay->space_room_id));
-        $reservation = $stay ? null : $reservations->first(fn (Reservation $reservation): bool => (int) $reservation->space_id === (int) $space->id && blank($reservation->space_room_id));
+        $spaceStays = $stays->filter(fn (Stay $stay): bool => (int) $stay->space_id === (int) $space->id && blank($stay->space_room_id))->values();
+        if ($spaceStays->isNotEmpty()) {
+            return $this->dailyStayGroupRow(
+                $space->title ?: $space->name ?: '-',
+                'Unidad completa',
+                max(1, (int) ($space->max_capacity ?: 1)),
+                $spaceStays,
+            );
+        }
+        $stay = null;
+        $reservation = $reservations->first(fn (Reservation $reservation): bool => (int) $reservation->space_id === (int) $space->id && blank($reservation->space_room_id));
         $block = ($stay || $reservation) ? null : $blocks->first(fn (OccupancyBlock $block): bool => (int) $block->space_id === (int) $space->id && blank($block->space_room_id));
 
         return $this->dailyResourceRow(

@@ -1,8 +1,16 @@
 @php
     $font = 'font-family: dejavusans, sans-serif; font-size: 7px;';
-    $th = 'border: 1px solid #555; background-color: #f1f3f5; font-weight: bold; padding: 4px;';
-    $td = 'border: 1px solid #777; padding: 4px;';
-    $money = fn ($value, $currency = 'BOB') => number_format((float) $value, 2, '.', ',').' '.$currency;
+    $th = 'border: 1px solid #aab9c7; background-color: #e3edf5; color: #18364d; font-weight: bold; padding: 2px;';
+    $td = 'border: 1px solid #777; padding: 2px;';
+    $states = [
+        'reserved' => ['R', '#dceeff'],
+        'occupied' => ['O', '#e2eaff'],
+        'free' => ['L', '#e4f5e8'],
+        'checked_out' => ['CO', '#e9ecef'],
+        'pending_checkout' => ['CP', '#ffe5d9'],
+        'blocked' => ['B', '#fff1cf'],
+    ];
+    $money = fn ($value, $currency = 'BOB') => number_format((float) $value, 2, '.', ',').($currency && $currency !== 'BOB' ? ' '.$currency : '');
 @endphp
 
 <table cellpadding="4" cellspacing="0" style="{{ $font }} border-bottom: 1px solid #444;">
@@ -31,84 +39,37 @@
 
 <h1 style="{{ $font }} font-size: 18px; text-align: center;">{{ $dailyOccupancy['date']->format('d/m/Y') }}</h1>
 
-<table cellpadding="4" cellspacing="0" style="{{ $font }}">
+<h2 style="{{ $font }} font-size: 12px;">Habitaciones del día · Importes en BOB</h2>
+<table cellpadding="2" cellspacing="0" style="{{ $font }}">
     <tr>
-        <th style="{{ $th }}">Habitaciones</th>
-        <th style="{{ $th }}">Libres</th>
-        <th style="{{ $th }}">Ocupadas</th>
-        <th style="{{ $th }}">Reservadas</th>
-        <th style="{{ $th }}">Bloqueadas</th>
-        <th style="{{ $th }}">Desayunos</th>
-        <th style="{{ $th }}">Saldo</th>
+        <th width="12%" style="{{ $th }}">Habitacion</th>
+        <th width="6%" style="{{ $th }}">Estado</th>
+        <th width="32%" style="{{ $th }}">Huesped / detalle</th>
+        <th width="9%" style="{{ $th }}">Check-in</th>
+        <th width="9%" style="{{ $th }}">Check-out</th>
+        <th width="5%" style="{{ $th }}" align="right">Pers.</th>
+        <th width="9%" style="{{ $th }}" align="right">Adelanto</th>
+        <th width="9%" style="{{ $th }}" align="right">Total</th>
+        <th width="9%" style="{{ $th }}" align="right">Saldo</th>
     </tr>
-    <tr>
-        <td style="{{ $td }}" align="right">{{ $dailyOccupancy['summary']['rooms'] }}</td>
-        <td style="{{ $td }}" align="right">{{ $dailyOccupancy['summary']['free'] }}</td>
-        <td style="{{ $td }}" align="right">{{ $dailyOccupancy['summary']['occupied'] }}</td>
-        <td style="{{ $td }}" align="right">{{ $dailyOccupancy['summary']['reserved'] }}</td>
-        <td style="{{ $td }}" align="right">{{ $dailyOccupancy['summary']['blocked'] }}</td>
-        <td style="{{ $td }}" align="right">{{ $dailyOccupancy['summary']['breakfasts'] }}</td>
-        <td style="{{ $td }}" align="right">{{ number_format((float) $dailyOccupancy['summary']['balance'], 2, '.', ',') }}</td>
-    </tr>
-</table>
-
-<br>
-<h2 style="{{ $font }} font-size: 12px;">Habitaciones del dia</h2>
-<table cellpadding="4" cellspacing="0" style="{{ $font }}">
-    <tr>
-        <th style="{{ $th }}">Alojamiento</th>
-        <th style="{{ $th }}">Habitacion</th>
-        <th style="{{ $th }}">Estado</th>
-        <th style="{{ $th }}">Huesped / detalle</th>
-        <th style="{{ $th }}">Check-in</th>
-        <th style="{{ $th }}">Check-out</th>
-        <th style="{{ $th }}" align="right">Pers.</th>
-        <th style="{{ $th }}">Pago</th>
-        <th style="{{ $th }}" align="right">Adelanto</th>
-        <th style="{{ $th }}" align="right">Total</th>
-        <th style="{{ $th }}" align="right">Saldo</th>
-    </tr>
-    @forelse ($dailyOccupancy['rooms'] as $row)
+    @forelse ($dailyOccupancy['rooms']->groupBy('space_id') as $hotelRooms)
+        <tr><td style="{{ $th }}" colspan="9">{{ $hotelRooms->first()['space'] }}</td></tr>
+        @foreach ($hotelRooms as $row)
         <tr>
-            <td style="{{ $td }}">{{ $row['space'] }}</td>
-            <td style="{{ $td }}">{{ $row['room'] }}</td>
-            <td style="{{ $td }}">{{ $row['status_label'] }}</td>
-            <td style="{{ $td }}">{{ $row['guest'] ?: '-' }}</td>
-            <td style="{{ $td }}">{{ $row['check_in']?->format('Y-m-d') ?: '-' }}</td>
-            <td style="{{ $td }}">{{ $row['check_out']?->format('Y-m-d') ?: '-' }}</td>
-            <td style="{{ $td }}" align="right">{{ $row['people'] }}</td>
-            <td style="{{ $td }}">{{ $row['payment_status'] ?: '-' }}</td>
-            <td style="{{ $td }}" align="right">{{ $row['advance'] > 0 ? $money($row['advance'], $row['currency']) : '-' }}</td>
-            <td style="{{ $td }}" align="right">{{ $row['total'] > 0 ? $money($row['total'], $row['currency']) : '-' }}</td>
-            <td style="{{ $td }}" align="right">{{ $row['balance'] > 0 ? $money($row['balance'], $row['currency']) : '-' }}</td>
+            <td width="12%" style="{{ $td }}">{{ $row['room'] }}</td>
+            <td width="6%" style="{{ $td }} background-color: {{ $states[$row['status']][1] ?? '#ffffff' }}; font-weight: bold;" align="center">{{ $states[$row['status']][0] ?? $row['status_label'] }}</td>
+            <td width="32%" style="{{ $td }}">{{ $row['guest'] ?: '-' }}</td>
+            <td width="9%" style="{{ $td }}">{{ $row['check_in']?->format('Y-m-d') ?: '-' }}</td>
+            <td width="9%" style="{{ $td }}">{{ $row['check_out']?->format('Y-m-d') ?: '-' }}</td>
+            <td width="5%" style="{{ $td }}" align="right">{{ $row['people'] }}</td>
+            <td width="9%" style="{{ $td }}" align="right">{{ $row['advance'] > 0 ? $money($row['advance'], $row['currency']) : '-' }}</td>
+            <td width="9%" style="{{ $td }}" align="right">{{ $row['total'] > 0 ? $money($row['total'], $row['currency']) : '-' }}</td>
+            <td width="9%" style="{{ $td }}" align="right">{{ $row['balance'] > 0 ? $money($row['balance'], $row['currency']) : '-' }}</td>
         </tr>
+        @endforeach
     @empty
-        <tr><td style="{{ $td }}" colspan="11">Sin habitaciones activas.</td></tr>
+        <tr><td style="{{ $td }}" colspan="9">Sin habitaciones activas.</td></tr>
     @endforelse
 </table>
 
-<br>
-<h2 style="{{ $font }} font-size: 12px;">Desayunos para el dia</h2>
-<p style="{{ $font }}">Calculados con la ocupabilidad de {{ $dailyOccupancy['previousDate']->format('d/m/Y') }}.</p>
-<table cellpadding="4" cellspacing="0" style="{{ $font }}">
-    <tr>
-        <th style="{{ $th }}">Alojamiento</th>
-        <th style="{{ $th }}">Habitacion</th>
-        <th style="{{ $th }}">Huesped</th>
-        <th style="{{ $th }}" align="right">Cantidad</th>
-    </tr>
-    @forelse ($dailyOccupancy['breakfasts'] as $row)
-        <tr>
-            <td style="{{ $td }}">{{ $row['space'] }}</td>
-            <td style="{{ $td }}">{{ $row['room'] }}</td>
-            <td style="{{ $td }}">{{ $row['guest'] }}</td>
-            <td style="{{ $td }}" align="right">{{ $row['people'] }}</td>
-        </tr>
-    @empty
-        <tr><td style="{{ $td }}" colspan="4">Sin desayunos.</td></tr>
-    @endforelse
-    <tr>
-        <td style="{{ $td }}" colspan="3" align="right"><strong>Total desayunos</strong></td>
-        <td style="{{ $td }}" align="right"><strong>{{ $dailyOccupancy['summary']['breakfasts'] }}</strong></td>
-    </tr>
-</table>
+<p style="{{ $font }} color: #344b5f;"><strong>Estados:</strong> R = Reservada &nbsp; O = Ocupada &nbsp; L = Libre &nbsp; CO = Check-out &nbsp; CP = Check-out pendiente &nbsp; B = Bloqueada</p>

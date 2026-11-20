@@ -30,24 +30,14 @@
 </table>
 
 <br>
-<h2 style="{{ $font }} font-size: 12px;">Resumen de ocupabilidad</h2>
+<h2 style="{{ $font }} font-size: 12px;">Resumen por hotel en el periodo</h2>
 <table cellpadding="4" cellspacing="0" style="{{ $font }}">
-    <tr>
-        <th style="{{ $th }}">Alojamientos</th>
-        <th style="{{ $th }}">Capacidad-noches</th>
-        <th style="{{ $th }}">Persona-noches ocupadas</th>
-        <th style="{{ $th }}">Persona-noches reservadas</th>
-        <th style="{{ $th }}">Noches bloqueadas</th>
-        <th style="{{ $th }}">Ocupabilidad</th>
-    </tr>
-    <tr>
-        <td style="{{ $td }}" align="right">{{ $occupancy['summary']['spaces'] }}</td>
-        <td style="{{ $td }}" align="right">{{ $occupancy['summary']['capacity_nights'] }}</td>
-        <td style="{{ $td }}" align="right">{{ $occupancy['summary']['occupied_person_nights'] }}</td>
-        <td style="{{ $td }}" align="right">{{ $occupancy['summary']['reserved_person_nights'] }}</td>
-        <td style="{{ $td }}" align="right">{{ $occupancy['summary']['blocked_nights'] }}</td>
-        <td style="{{ $td }}" align="right">{{ number_format((float) $occupancy['summary']['occupancy_rate'], 2) }} %</td>
-    </tr>
+    <tr><th style="{{ $th }}">Hotel / espacio</th><th style="{{ $th }}">Ocupaciones por día</th><th style="{{ $th }}">Libres por día</th><th style="{{ $th }}">Personas por día</th><th style="{{ $th }}">Ocupabilidad</th></tr>
+    @forelse ($occupancy['hotel_summary'] as $hotel)
+        <tr><td style="{{ $td }}">{{ $hotel['name'] }}</td><td style="{{ $td }}" align="right">{{ $hotel['occupied'] }}</td><td style="{{ $td }}" align="right">{{ $hotel['free'] }}</td><td style="{{ $td }}" align="right">{{ $hotel['people'] }}</td><td style="{{ $td }}" align="right">{{ number_format($hotel['rate'], 2) }} %</td></tr>
+    @empty
+        <tr><td style="{{ $td }}" colspan="5">No hay espacios activos.</td></tr>
+    @endforelse
 </table>
 
 <br>

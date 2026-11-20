@@ -269,6 +269,11 @@ class OccupancyGridService
                 $block = $this->blockForDate($blocks, $spaceId, $roomId, $bedUnitId, $date['date']);
                 $availabilityStatus = $this->availabilityStatusForDate($availabilityStatuses, $spaceId, $roomId, $bedUnitId, $date['date']);
                 $stay = $this->stayForDate($stays, $spaceId, $roomId, $bedUnitId, $date['date']);
+                // Los estados generados por check-in reflejan una estancia; si ya no
+                // existe para esta fecha, no deben mantener ocupada la celda.
+                if (! $stay && $availabilityStatus?->status === 'occupied' && $availabilityStatus->source === 'check_in') {
+                    $availabilityStatus = null;
+                }
                 $dirty = Carbon::parse($date['date'])->isToday()
                     ? RoomCleaningService::forResource($stays, $spaceId, $roomId, $bedUnitId)
                     : null;

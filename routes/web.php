@@ -160,6 +160,7 @@ Route::middleware('auth')->group(function (): void {
             Route::get('guest-lookup', [CheckInController::class, 'guestLookup'])->name('guest-lookup');
             Route::get('{checkInGroup}/edit', [CheckInController::class, 'edit'])->whereNumber('checkInGroup')->name('edit');
             Route::put('{checkInGroup}', [CheckInController::class, 'update'])->whereNumber('checkInGroup')->name('update');
+            Route::delete('{checkInGroup}', [CheckInController::class, 'destroy'])->whereNumber('checkInGroup')->name('destroy');
         });
     Route::patch('stays/{stay}', [StayController::class, 'update'])
         ->whereNumber('stay')

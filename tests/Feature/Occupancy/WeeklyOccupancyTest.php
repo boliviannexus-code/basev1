@@ -246,6 +246,32 @@ class WeeklyOccupancyTest extends TestCase
             ->assertJsonValidationErrors('start_date');
     }
 
+    public function test_checked_out_stay_does_not_leave_an_occupied_cell_from_check_in_status(): void
+    {
+        Carbon::setTestNow('2026-11-18 10:00:00');
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user, $company] = $this->companyUser();
+            $space = $this->privateSpace($company);
+            $stay = Stay::factory()->create([
+                'company_id' => $company->id, 'space_id' => $space->id,
+                'check_in_date' => '2026-11-17', 'check_out_date' => '2026-11-18',
+                'status' => 'checked_out', 'checked_out_at' => '2026-11-17 14:01:42',
+            ]);
+            AvailabilityStatus::query()->create([
+                'company_id' => $company->id, 'space_id' => $space->id,
+                'date' => '2026-11-17', 'status' => 'occupied', 'source' => 'check_in',
+            ]);
+
+            $rows = $this->actingAs($user)->getJson(route('occupancy.week-data', ['week_start' => '2026-11-17']))->assertOk()->json('rows');
+            $cell = collect(collect($rows)->firstWhere('space_id', $space->id)['cells'])->firstWhere('date', '2026-11-17');
+            $this->assertSame('available', $cell['status']);
+            $this->assertNull($cell['stay_id']);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_occupied_availability_status_allows_occupancy_grid_operations(): void
     {
         Carbon::setTestNow('2026-06-03 10:00:00');
@@ -298,6 +324,27 @@ class WeeklyOccupancyTest extends TestCase
                     'end_date' => '2026-06-03',
                 ])
                 ->assertCreated();
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_actions_find_a_reservation_block_covering_the_entire_space_on_a_past_day(): void
+    {
+        Carbon::setTestNow('2026-11-18 10:00:00');
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user, $company] = $this->companyUser();
+            [$space, $room] = $this->sharedSpaceWithRooms($company);
+            $bed = RoomBedUnit::factory()->create(['company_id' => $company->id, 'space_room_id' => $room->id, 'status' => 'active']);
+            $block = OccupancyBlock::factory()->create(['company_id' => $company->id, 'space_id' => $space->id, 'space_room_id' => null, 'start_date' => '2026-11-17', 'end_date' => '2026-11-19']);
+            Reservation::factory()->create(['company_id' => $company->id, 'space_id' => $space->id, 'occupancy_block_id' => $block->id, 'status' => 'confirmed']);
+
+            $actions = $this->actingAs($user)->getJson(route('occupancy.cell-actions', [
+                'space_id' => $space->id, 'space_room_id' => $room->id, 'room_bed_unit_id' => $bed->id, 'date' => '2026-11-17',
+            ]))->assertOk()->json('actions');
+
+            $this->assertContains('view_reservation', collect($actions)->pluck('key')->all());
         } finally {
             Carbon::setTestNow();
         }

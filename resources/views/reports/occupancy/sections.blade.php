@@ -1,11 +1,15 @@
-<div class="row g-3 mt-1">
-    <div class="col-sm-6 col-xl-2"><x-ui.stat-card label="Alojamientos" :value="$occupancy['summary']['spaces']" icon="ti ti-home" /></div>
-    <div class="col-sm-6 col-xl-2"><x-ui.stat-card label="Capacidad-noches" :value="$occupancy['summary']['capacity_nights']" icon="ti ti-bed" tone="info" /></div>
-    <div class="col-sm-6 col-xl-2"><x-ui.stat-card label="Ocupadas" :value="$occupancy['summary']['occupied_person_nights']" icon="ti ti-user-check" tone="success" /></div>
-    <div class="col-sm-6 col-xl-2"><x-ui.stat-card label="Reservadas" :value="$occupancy['summary']['reserved_person_nights']" icon="ti ti-calendar-check" tone="primary" /></div>
-    <div class="col-sm-6 col-xl-2"><x-ui.stat-card label="Bloqueadas" :value="$occupancy['summary']['blocked_nights']" icon="ti ti-calendar-x" tone="warning" /></div>
-    <div class="col-sm-6 col-xl-2"><x-ui.stat-card label="Ocupabilidad" :value="number_format((float) $occupancy['summary']['occupancy_rate'], 2).' %'" icon="ti ti-chart-line" tone="success" /></div>
-</div>
+<x-ui.table-card title="Resumen por hotel" class="mt-3">
+    <table class="table table-sm table-hover align-middle mb-0 reservation-mobile-table">
+        <thead><tr><th>Hotel / espacio</th><th class="text-end">Ocupaciones por día</th><th class="text-end">Habitaciones libres por día</th><th class="text-end">Personas alojadas por día</th><th class="text-end">Ocupabilidad</th></tr></thead>
+        <tbody>
+            @forelse ($occupancy['hotel_summary'] as $hotel)
+                <tr><td data-label="Hotel / espacio" class="fw-semibold">{{ $hotel['name'] }}</td><td data-label="Ocupaciones por día" class="text-end">{{ $hotel['occupied'] }}</td><td data-label="Habitaciones libres por día" class="text-end">{{ $hotel['free'] }}</td><td data-label="Personas alojadas por día" class="text-end">{{ $hotel['people'] }}</td><td data-label="Ocupabilidad" class="text-end">{{ number_format($hotel['rate'], 2) }} %</td></tr>
+            @empty
+                <tr><td colspan="5" class="text-center text-body-secondary py-3">No hay espacios activos para mostrar.</td></tr>
+            @endforelse
+        </tbody>
+    </table>
+</x-ui.table-card>
 
 <x-ui.table-card title="Estadias" class="mt-3">
     <div class="table-responsive">

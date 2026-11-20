@@ -342,22 +342,23 @@ class OccupancyGridActionService
         $query = OccupancyBlock::query()
             ->with(['reservation', 'reservationRoom.reservation', 'reservationBedUnit.reservation'])
             ->where('company_id', $companyId)
+            ->where('space_id', $space->id)
             ->where('status', 'active')
             ->where('start_date', '<=', $date->toDateString())
             ->where('end_date', '>=', $date->toDateString());
 
         if ($bedUnit) {
             return (clone $query)->where('room_bed_unit_id', $bedUnit->id)->first()
-                ?: (clone $query)->where('space_room_id', $room->id)->whereNull('room_bed_unit_id')->first();
+                ?: (clone $query)->where('space_room_id', $room->id)->whereNull('room_bed_unit_id')->first()
+                ?: (clone $query)->whereNull('space_room_id')->whereNull('room_bed_unit_id')->first();
         }
 
-        return $query
-            ->when(
-                $room,
-                fn ($query) => $query->where('space_room_id', $room->id)->whereNull('room_bed_unit_id'),
-                fn ($query) => $query->where('space_id', $space->id)->whereNull('space_room_id')->whereNull('room_bed_unit_id'),
-            )
-            ->first();
+        if ($room) {
+            return (clone $query)->where('space_room_id', $room->id)->whereNull('room_bed_unit_id')->first()
+                ?: (clone $query)->whereNull('space_room_id')->whereNull('room_bed_unit_id')->first();
+        }
+
+        return $query->whereNull('space_room_id')->whereNull('room_bed_unit_id')->first();
     }
 
     private function currentAvailabilityStatus(int $companyId, Space $space, ?SpaceRoom $room, ?RoomBedUnit $bedUnit, Carbon $date): ?AvailabilityStatus

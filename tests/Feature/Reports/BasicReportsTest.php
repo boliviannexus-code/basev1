@@ -49,6 +49,25 @@ final class BasicReportsTest extends TestCase
             ->assertHeader('Content-Type', 'application/pdf');
     }
 
+    public function test_occupancy_opens_on_today_and_general_remains_available(): void
+    {
+        Permission::findOrCreate('reports.view');
+        Permission::findOrCreate('reports.print');
+        $company = Company::factory()->create();
+        $user = User::factory()->create(['company_id' => $company->id]);
+        $user->givePermissionTo(['reports.view', 'reports.print']);
+        $this->travelTo(\Carbon\Carbon::parse('2026-11-18 10:00:00'));
+        $this->withoutVite();
+
+        $this->actingAs($user)->get(route('reports.occupancy.index'))
+            ->assertOk()->assertViewHas('isDaily', true)->assertSee('2026-11-18')->assertDontSee('occupancy-user');
+        $this->get(route('reports.occupancy.index', ['user_id' => 999999]))
+            ->assertOk()->assertViewHas('filters', fn (array $filters): bool => $filters['user_id'] === null);
+        $this->get(route('reports.occupancy.index', ['daily' => 0]))
+            ->assertOk()->assertViewHas('isDaily', false)->assertSee('Resumen por hotel');
+        $this->get(route('reports.occupancy.print'))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+    }
+
     public function test_user_without_reports_permission_cannot_view_reports(): void
     {
         $user = User::factory()->create(['company_id' => Company::factory()]);

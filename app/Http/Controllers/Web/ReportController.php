@@ -97,10 +97,10 @@ class ReportController extends Controller
         abort_unless($company, 403);
 
         $companyId = (int) $company->id;
-        $filters = $this->reports->filters($request->query() + ['type' => 'occupancy']);
-        $occupancy = $this->reports->occupancy($companyId, $filters);
-        $isDaily = $request->boolean('daily');
-        $dailyDate = CarbonImmutable::parse($request->query('date', $filters['from']->toDateString()))->startOfDay();
+        $filters = $this->reports->filters($request->except('user_id') + ['type' => 'occupancy']);
+        $isDaily = $request->boolean('daily', true);
+        $occupancy = $isDaily ? null : $this->reports->occupancy($companyId, $filters);
+        $dailyDate = CarbonImmutable::parse($request->query('date', today()->toDateString()))->startOfDay();
         $dailyOccupancy = $isDaily ? $this->reports->dailyOccupancy($companyId, $dailyDate, $filters) : null;
 
         return view('reports.occupancy.index', [
@@ -121,9 +121,9 @@ class ReportController extends Controller
         abort_unless($company, 403);
 
         $companyId = (int) $company->id;
-        $filters = $this->reports->filters($request->query() + ['type' => 'occupancy']);
-        $isDaily = $request->boolean('daily');
-        $dailyDate = CarbonImmutable::parse($request->query('date', $filters['from']->toDateString()))->startOfDay();
+        $filters = $this->reports->filters($request->except('user_id') + ['type' => 'occupancy']);
+        $isDaily = $request->boolean('daily', true);
+        $dailyDate = CarbonImmutable::parse($request->query('date', today()->toDateString()))->startOfDay();
 
         if ($isDaily) {
             $dailyOccupancy = $this->reports->dailyOccupancy($companyId, $dailyDate, $filters);

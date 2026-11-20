@@ -234,6 +234,17 @@
         </div>
     @endif
 
+    @if (auth()->user()?->hasRole('super_admin'))
+        <form method="POST" action="{{ route('check-ins.destroy', $group) }}" class="mt-3"
+              data-confirm-submit="¿Eliminar el check-in completo?"
+              data-confirm-text="Se eliminarán todas las estancias de este check-in y se anularán sus cobros. Las reservas y sus adelantos se mantienen. Esta acción afecta los informes y las cajas, incluso las cerradas; no realiza una devolución de dinero."
+              data-confirm-button="Eliminar check-in" data-confirm-color="#dc3545" data-confirm-icon="warning">
+            @csrf
+            @method('DELETE')
+            <button class="btn btn-outline-danger btn-sm" type="submit"><i class="ti ti-trash me-1"></i>Eliminar check-in completo</button>
+        </form>
+    @endif
+
     @if ($stay->status === 'occupied' || (float) ($statement?->balance ?? 0) > 0)
         <div class="d-flex flex-wrap justify-content-end gap-2 mt-3 check-in-summary-actions">
             @if ($stay->status === 'occupied')

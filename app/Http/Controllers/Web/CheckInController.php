@@ -77,6 +77,15 @@ class CheckInController extends Controller
             ->with('success', 'Check-in '.$group->code.' registrado correctamente.');
     }
 
+    public function destroy(Request $request, CheckInGroup $checkInGroup, \App\Services\CheckIn\DeleteCheckInService $deletion): RedirectResponse
+    {
+        abort_unless($request->user()?->hasRole('super_admin'), 403);
+        $this->ensureOwnership($checkInGroup);
+        $deletion->delete($checkInGroup, $request->user());
+
+        return redirect()->route('occupancy.index')->with('success', 'Check-in eliminado y cobros asociados anulados.');
+    }
+
     public function edit(Request $request, CheckInGroup $checkInGroup): View
     {
         Gate::authorize('occupancy.manage');
