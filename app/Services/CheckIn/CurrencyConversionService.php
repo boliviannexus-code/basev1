@@ -16,7 +16,7 @@ class CurrencyConversionService
         $exchangeRate ??= $companyId ? ExchangeRate::currentRateForCompany($companyId) : null;
 
         if ($currency === 'BOB' && $priceBob === null && $priceUsd === null) {
-            throw ValidationException::withMessages(['stays' => 'Ingresa precio por noche en BOB.']);
+            throw ValidationException::withMessages(['stays' => 'Ingresa precio por noche en '.company_currency_code().'.']);
         }
 
         if ($currency === 'USD' && $priceUsd === null) {
@@ -25,7 +25,7 @@ class CurrencyConversionService
 
         if ($currency === 'BOB' && $priceBob === null && $priceUsd !== null) {
             if ($exchangeRate === null || $exchangeRate <= 0) {
-                throw ValidationException::withMessages(['stays' => 'Configura un tipo de cambio vigente para guardar BOB y USD.']);
+                throw ValidationException::withMessages(['stays' => 'Configura un tipo de cambio vigente para guardar '.company_currency_code().' y USD.']);
             }
 
             $priceBob = round($priceUsd * $exchangeRate, 2);
@@ -33,7 +33,7 @@ class CurrencyConversionService
 
         if ($currency === 'BOB' && $priceBob !== null && $priceUsd === null) {
             if ($exchangeRate === null || $exchangeRate <= 0) {
-                throw ValidationException::withMessages(['stays' => 'Configura un tipo de cambio vigente para guardar BOB y USD.']);
+                throw ValidationException::withMessages(['stays' => 'Configura un tipo de cambio vigente para guardar '.company_currency_code().' y USD.']);
             }
 
             $priceUsd = round($priceBob / $exchangeRate, 2);
@@ -41,7 +41,7 @@ class CurrencyConversionService
 
         if ($priceBob === null || $priceUsd === null) {
             if ($exchangeRate === null || $exchangeRate <= 0) {
-                throw ValidationException::withMessages(['stays' => 'Configura un tipo de cambio vigente para guardar BOB y USD.']);
+                throw ValidationException::withMessages(['stays' => 'Configura un tipo de cambio vigente para guardar '.company_currency_code().' y USD.']);
             }
 
             if ($priceBob === null && $priceUsd !== null) {

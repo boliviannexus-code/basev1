@@ -83,6 +83,20 @@ class CheckInAuditTest extends TestCase
         $this->get(route('audits.show', $paymentAudit))->assertOk()->assertSee('125.50 BOB')->assertSee('Método de pago')->assertSee('Efectivo');
     }
 
+    public function test_audit_formats_amount_using_audited_company_currency(): void
+    {
+        config(['audit.console' => true]);
+        Permission::findOrCreate('audits.view');
+        $company = Company::factory()->create(['local_currency' => 'PEN']);
+        $user = User::factory()->create(['company_id' => $company->id]);
+        $user->givePermissionTo('audits.view');
+        $this->actingAs($user);
+        $group = CheckInGroup::factory()->create(['company_id' => $company->id]);
+        $stay = Stay::factory()->create(['company_id' => $company->id, 'check_in_group_id' => $group->id, 'price_per_night_bob' => 125]);
+        $audit = Audit::query()->where('auditable_type', Stay::class)->where('auditable_id', $stay->id)->where('event', 'created')->firstOrFail();
+        $this->get(route('audits.show', $audit))->assertOk()->assertSee('Precio por noche (PEN)')->assertSee('125.00 PEN');
+    }
+
     public function test_check_in_audit_is_hidden_from_other_companies(): void
     {
         config(['audit.console' => true]);

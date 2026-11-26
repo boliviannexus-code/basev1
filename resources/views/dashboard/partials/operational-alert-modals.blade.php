@@ -45,7 +45,7 @@
                         <thead><tr>@if (! $dashboardCompany)<th>Empresa</th>@endif<th>Habitacion</th><th>Huesped</th><th class="text-end">Saldo</th></tr></thead>
                         <tbody>
                             @forelse ($alerts['pending_balance_rooms'] as $stay)
-                                <tr>@if (! $dashboardCompany)<td data-label="Empresa">{{ $stay->company?->name ?: '-' }}</td>@endif<td data-label="Habitación" class="fw-semibold">{{ $stayUnit($stay) }}</td><td data-label="Huésped">{{ $stay->holderGuest?->full_name ?: $stay->holderGuest?->name ?: 'Sin huesped' }}</td><td data-label="Saldo" class="text-end fw-semibold"><x-ui.money class="align-items-end" :amount="$stay->accountStatement?->balance ?? 0" :currency="$stay->accountStatement?->currency ?? $stay->currency" :exchange-rate="$stay->exchange_rate" /></td></tr>
+                                <tr>@if (! $dashboardCompany)<td data-label="Empresa">{{ $stay->company?->name ?: '-' }}</td>@endif<td data-label="Habitación" class="fw-semibold">{{ $stayUnit($stay) }}</td><td data-label="Huésped">{{ $stay->holderGuest?->full_name ?: $stay->holderGuest?->name ?: 'Sin huesped' }}</td><td data-label="Saldo" class="text-end fw-semibold"><x-ui.money class="align-items-end" :company="$stay->company_id" :amount="$stay->accountStatement?->balance ?? 0" :currency="$stay->accountStatement?->currency ?? $stay->currency" :exchange-rate="$stay->exchange_rate" /></td></tr>
                             @empty
                                 <tr><td colspan="{{ $dashboardCompany ? 3 : 4 }}" class="text-center text-body-secondary py-4">No hay habitaciones con saldo pendiente.</td></tr>
                             @endforelse

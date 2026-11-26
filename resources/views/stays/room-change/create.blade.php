@@ -1,5 +1,5 @@
 @php
-    $money = fn ($value) => number_format((float) $value, 2).' Bs';
+    $money = fn ($value) => number_format((float) $value, 2).' '.company_currency_symbol();
     $resourceLabel = collect([
         $stay->space?->title ?: $stay->space?->name,
         $stay->room?->name ?: $stay->room?->title,
@@ -64,7 +64,7 @@
 
         <div class="row g-3">
             <div class="col-md-6">
-                <label class="form-label" for="room-change-price">Precio noche BOB</label>
+                <label class="form-label" for="room-change-price">Precio noche {{ company_currency_code() }}</label>
                 <input class="form-control @error('price_per_night_bob') is-invalid @enderror" id="room-change-price" name="price_per_night_bob" type="number" min="0" step="0.01" value="{{ old('price_per_night_bob', number_format((float) $stay->price_per_night_bob, 2, '.', '')) }}" required @disabled(! $canMove)>
                 <div class="invalid-feedback">{{ $errors->first('price_per_night_bob') }}</div>
             </div>

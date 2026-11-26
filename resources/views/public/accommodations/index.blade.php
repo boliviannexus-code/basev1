@@ -130,7 +130,7 @@
                             <div class="public-card-footer">
                                 <div>
                                     <span class="public-price-label">Desde por noche</span>
-                                    <strong>{{ $result['price_from'] !== null ? 'Bs '.money_format_decimal($result['price_from']) : 'Sin tarifa' }}</strong>
+                                    <strong>{{ $result['price_from'] !== null ? company_currency_symbol($space->company_id).' '.money_format_decimal($result['price_from']) : 'Sin tarifa' }}</strong>
                                 </div>
                                 <a class="btn btn-outline-dark btn-sm" href="{{ route('public.accommodations.show', ['space' => $space, ...$result['query']]) }}">
                                     {{ filled($filters['check_in'] ?? null) && filled($filters['check_out'] ?? null) ? 'Reservar' : 'Ver disponibilidad' }}

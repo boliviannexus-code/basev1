@@ -5,7 +5,7 @@
     <div class="col-sm-6 col-xl-3"><x-ui.stat-card label="Egresos" :value="money_format_decimal($totals['expenses'])" icon="ti ti-cash-banknote-off" tone="warning" /></div>
     <div class="col-sm-6 col-xl-3"><x-ui.stat-card label="Descuentos" :value="money_format_decimal($totals['discounts'] ?? 0)" icon="ti ti-discount-2" tone="warning" /></div>
     <div class="col-sm-6 col-xl-3">
-        <x-ui.stat-card label="Cargos extra de estancias" :value="$stayExtraChargeTotals->isEmpty() ? '0.00 BOB' : $stayExtraChargeTotals->map(fn ($total, $currency) => money_format_decimal($total).' '.$currency)->implode(' · ')" icon="ti ti-receipt" tone="info" />
+        <x-ui.stat-card label="Cargos extra de estancias" :value="$stayExtraChargeTotals->isEmpty() ? '0.00 '.company_currency_code() : $stayExtraChargeTotals->map(fn ($total, $currency) => money_format_decimal($total).' '.display_currency($currency))->implode(' · ')" icon="ti ti-receipt" tone="info" />
         <div class="text-body-secondary small mt-1">Cargos registrados; no se suman a caja.</div>
     </div>
 </div>
@@ -131,7 +131,7 @@
         </summary>
         <div class="table-responsive">
             <table class="table table-sm table-hover align-middle mb-0">
-                <thead><tr><th>Fecha</th><th>Espacio</th><th>Comprobante</th><th>Huésped</th><th>Usuario</th><th>Método</th><th class="text-end">BOB</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Espacio</th><th>Comprobante</th><th>Huésped</th><th>Usuario</th><th>Método</th><th class="text-end">{{ company_currency_code() }}</th></tr></thead>
                 <tbody>
                     @forelse ($lodging as $payment)
                         <tr>
@@ -160,7 +160,7 @@
         </summary>
         <div class="table-responsive">
             <table class="table table-sm table-hover align-middle mb-0">
-                <thead><tr><th>Fecha</th><th>Espacio</th><th>Comprobante</th><th>Reserva</th><th>Usuario</th><th>Método</th><th>Referencia</th><th class="text-end">BOB</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Espacio</th><th>Comprobante</th><th>Reserva</th><th>Usuario</th><th>Método</th><th>Referencia</th><th class="text-end">{{ company_currency_code() }}</th></tr></thead>
                 <tbody>
                     @forelse ($reservations as $payment)
                         <tr>

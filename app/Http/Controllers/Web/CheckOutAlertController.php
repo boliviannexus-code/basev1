@@ -39,6 +39,7 @@ class CheckOutAlertController extends Controller
                 'guest' => $stay->holderGuest?->full_name ?: $stay->holderGuest?->name ?: 'Sin huesped',
                 'check_out_date' => $stay->check_out_date->format('d/m/Y'),
                 'currency' => $stay->currency,
+                'currency_label' => display_currency($stay->currency, $stay->company_id),
                 'balance' => (float) ($stay->accountStatement?->balance ?? 0),
                 'snooze_minutes' => (int) $company->check_out_alert_snooze_minutes,
                 'check_in_url' => route('check-ins.edit', $stay->check_in_group_id),

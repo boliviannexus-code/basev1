@@ -9,7 +9,7 @@
     ];
 @endphp
 
-<x-ui.table-card title="Habitaciones del día · Importes en BOB" class="mt-3">
+<x-ui.table-card :title="'Habitaciones del día · Importes en '.company_currency_code()" class="mt-3">
     <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
             <thead>

@@ -41,8 +41,8 @@
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="price_display_text">Texto comercial de precio</label>
-                    <input class="form-control @error('price_display_text') is-invalid @enderror" id="price_display_text" name="price_display_text" value="{{ old('price_display_text', $package->price_display_text) }}" placeholder="990 Bs la pareja">
-                    <div class="form-hint">Ej.: 600 Bs por paquete / incluye 2 personas.</div>
+                    <input class="form-control @error('price_display_text') is-invalid @enderror" id="price_display_text" name="price_display_text" value="{{ old('price_display_text', $package->price_display_text) }}" placeholder="990 {{ company_currency_symbol() }} la pareja">
+                    <div class="form-hint">Ej.: 600 {{ company_currency_symbol() }} por paquete / incluye 2 personas.</div>
                     @error('price_display_text')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
@@ -103,7 +103,14 @@
     </div>
     <div class="col-md-2">
         <label class="form-label" for="currency">Moneda</label>
-        <input class="form-control @error('currency') is-invalid @enderror" id="currency" name="currency" maxlength="3" value="{{ old('currency', $package->currency ?: 'BOB') }}">
+        <select class="form-select @error('currency') is-invalid @enderror" id="currency" name="currency">
+            @php($storedCurrency = old('currency', $package->currency ?: 'BOB'))
+            <option value="BOB" @selected($storedCurrency === 'BOB')>{{ company_currency_code() }}</option>
+            <option value="USD" @selected($storedCurrency === 'USD')>USD</option>
+            @if (! in_array($storedCurrency, ['BOB', 'USD'], true))
+                <option value="{{ $storedCurrency }}" selected>{{ display_currency($storedCurrency) }}</option>
+            @endif
+        </select>
         @error('currency')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
     <div class="col-md-2">

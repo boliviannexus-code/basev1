@@ -141,6 +141,43 @@ class OperationalReportService
         ];
     }
 
+    public function statistics(int $companyId, array $filters): array
+    {
+        $filters['statistics'] = true;
+        $direct = $this->directIncomes($companyId, $filters);
+        $expenses = $this->expenses($companyId, $filters);
+        $lodging = $filters['category_id'] ? collect() : $this->lodging($companyId, $filters);
+        $reservations = $filters['category_id'] ? collect() : $this->reservations($companyId, $filters);
+        $incomeRows = collect()
+            ->merge($direct->map(fn ($item): array => ['date' => $item->received_at, 'amount' => (float) $item->amount, 'method' => $item->paymentMethod?->name]))
+            ->merge($lodging->map(fn ($item): array => ['date' => $item->created_at, 'amount' => (float) $item->amount_bob, 'method' => $item->paymentMethod?->name]))
+            ->merge($reservations->map(fn ($item): array => ['date' => $item->created_at, 'amount' => (float) $item->amount_bob, 'method' => $item->paymentMethod?->name]));
+        $incomeByDate = $incomeRows->groupBy(fn (array $row): string => $row['date']->toDateString());
+        $expensesByDate = $expenses->groupBy(fn ($item): string => $item->spent_at->toDateString());
+        $daily = collect(\Carbon\CarbonPeriod::create($filters['from']->startOfDay(), $filters['to']->startOfDay()))
+            ->map(fn ($day): array => [
+                'date' => $day->toDateString(),
+                'income' => (float) ($incomeByDate->get($day->toDateString())?->sum('amount') ?? 0),
+                'expenses' => (float) ($expensesByDate->get($day->toDateString())?->sum('amount') ?? 0),
+            ])->values();
+        $income = (float) $incomeRows->sum('amount');
+        $expense = (float) $expenses->sum('amount');
+
+        return [
+            'daily' => $daily,
+            'income' => $income,
+            'expenses' => $expense,
+            'balance' => $income - $expense,
+            'exceeds_detail_limit' => max($direct->count(), $expenses->count(), $lodging->count(), $reservations->count()) > 500,
+            'sources' => [
+                ['name' => 'Ingresos directos', 'total' => (float) $direct->sum('amount')],
+                ['name' => 'Hospedaje', 'total' => (float) $lodging->sum('amount_bob')],
+                ['name' => 'Reservas', 'total' => (float) $reservations->sum('amount_bob')],
+            ],
+            'methods' => $this->methodSummary($incomeRows, $expenses),
+        ];
+    }
+
     private function stayExtraCharges(int $companyId, array $filters): Collection
     {
         return AccountStatementItem::query()
@@ -169,7 +206,7 @@ class OperationalReportService
             ->when($filters['payment_method_id'], fn (Builder $query, int $id) => $query->where('payment_method_id', $id))
             ->when($filters['category_id'], fn (Builder $query, int $id) => $query->where('extra_charge_category_id', $id))
             ->latest('received_at')
-            ->limit(500)
+            ->when(empty($filters['statistics']), fn (Builder $query): Builder => $query->limit(500))
             ->get();
     }
 
@@ -184,7 +221,7 @@ class OperationalReportService
             ->when($filters['payment_method_id'], fn (Builder $query, int $id) => $query->where('payment_method_id', $id))
             ->when($filters['category_id'], fn (Builder $query, int $id) => $query->where('extra_charge_category_id', $id))
             ->latest('spent_at')
-            ->limit(500)
+            ->when(empty($filters['statistics']), fn (Builder $query): Builder => $query->limit(500))
             ->get();
     }
 
@@ -199,7 +236,7 @@ class OperationalReportService
             ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('user_id', $id))
             ->when($filters['payment_method_id'], fn (Builder $query, int $id) => $query->where('payment_method_id', $id))
             ->latest('created_at')
-            ->limit(500)
+            ->when(empty($filters['statistics']), fn (Builder $query): Builder => $query->limit(500))
             ->get();
     }
 
@@ -214,7 +251,7 @@ class OperationalReportService
             ->when($filters['user_id'], fn (Builder $query, int $id) => $query->where('user_id', $id))
             ->when($filters['payment_method_id'], fn (Builder $query, int $id) => $query->where('payment_method_id', $id))
             ->latest('created_at')
-            ->limit(500)
+            ->when(empty($filters['statistics']), fn (Builder $query): Builder => $query->limit(500))
             ->get();
     }
 

@@ -18,6 +18,7 @@ class Company extends Model implements Auditable
 
     protected $fillable = [
         'name',
+        'local_currency',
         'legal_name',
         'tax_id',
         'phone',

@@ -10,7 +10,7 @@ use OwenIt\Auditing\Models\Audit;
 class AuditPresenter
 {
     private const LABELS = [
-        'company_id' => 'Empresa', 'code' => 'Código', 'check_in_group_id' => 'Check-in',
+        'company_id' => 'Empresa', 'local_currency' => 'Moneda local', 'code' => 'Código', 'check_in_group_id' => 'Check-in',
         'space_id' => 'Alojamiento', 'space_room_id' => 'Habitación', 'room_bed_unit_id' => 'Cama',
         'holder_guest_id' => 'Huésped titular', 'main_guest_id' => 'Huésped principal',
         'check_in_date' => 'Fecha de ingreso', 'check_out_date' => 'Fecha de salida',
@@ -26,9 +26,9 @@ class AuditPresenter
         'opening_amount' => 'Monto de apertura', 'closing_amount' => 'Efectivo contado', 'name' => 'Nombre', 'email' => 'Correo',
     ];
 
-    public function label(string $field): string
+    public function label(string $field, ?int $companyId = null): string
     {
-        return self::LABELS[$field] ?? ucfirst(str_replace('_', ' ', $field));
+        return str_replace('BOB', company_currency_code($companyId), self::LABELS[$field] ?? ucfirst(str_replace('_', ' ', $field)));
     }
 
     public function summary(Audit $audit): string
@@ -41,10 +41,10 @@ class AuditPresenter
         };
         $amount = $values['amount_bob'] ?? $values['amount'] ?? null;
         if ($amount !== null && is_numeric($amount)) {
-            $prefix = 'Importe: '.number_format((float) $amount, 2, '.', ',').' BOB';
+            $prefix = 'Importe: '.number_format((float) $amount, 2, '.', ',').' '.company_currency_code($audit->company_id);
         }
         $fields = collect(array_unique(array_merge(array_keys($audit->old_values ?? []), array_keys($values))))
-            ->take($prefix ? 2 : 4)->map(fn ($field) => $this->label($field))->implode(', ');
+            ->take($prefix ? 2 : 4)->map(fn ($field) => $this->label($field, $audit->company_id))->implode(', ');
 
         return collect([$prefix, $fields])->filter()->implode(' · ') ?: 'Sin cambios registrados';
     }
@@ -56,7 +56,7 @@ class AuditPresenter
         if (is_bool($value) || $field === 'breakfast_included') return filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'Sí' : 'No';
         $states = ['occupied' => 'Ocupada', 'checked_in' => 'Check-in realizado', 'checked_out' => 'Check-out realizado', 'cancelled' => 'Anulado', 'active' => 'Activo', 'open' => 'Abierta', 'closed' => 'Cerrada'];
         if ($field === 'status') return $states[$value] ?? (string) $value;
-        if (in_array($field, ['amount_bob', 'amount', 'price_per_night_bob', 'opening_amount', 'closing_amount'], true) && is_numeric($value)) return number_format((float) $value, 2, '.', ',').' BOB';
+        if (in_array($field, ['amount_bob', 'amount', 'price_per_night_bob', 'opening_amount', 'closing_amount'], true) && is_numeric($value)) return number_format((float) $value, 2, '.', ',').' '.company_currency_code($companyId);
         $lookups = [
             'space_id' => ['spaces', 'title'], 'space_room_id' => ['space_rooms', 'name'],
             'room_bed_unit_id' => ['room_bed_units', 'label'], 'payment_method_id' => ['payment_methods', 'name'],

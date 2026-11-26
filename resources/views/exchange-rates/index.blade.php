@@ -2,7 +2,7 @@
 
 @section('title', 'Tipo de cambio | '.config('app.name', 'Base Admin'))
 @section('page-title', 'Tipo de cambio')
-@section('page-subtitle', 'Tasa vigente para conversiones USD a BOB')
+@section('page-subtitle', 'Tasa vigente para conversiones USD a '.company_currency_code())
 
 @section('content')
     <div class="row g-3">
@@ -11,7 +11,7 @@
                 <div class="card-body">
                     @if ($currentRate)
                         <div class="display-6 fw-semibold">{{ number_format((float) $currentRate->rate, 4) }}</div>
-                        <div class="text-body-secondary">1 USD = {{ number_format((float) $currentRate->rate, 4) }} BOB</div>
+                        <div class="text-body-secondary">1 USD = {{ number_format((float) $currentRate->rate, 4) }} {{ company_currency_code() }}</div>
                         <div class="small text-body-secondary mt-2">Vigente desde {{ $currentRate->effective_date->format('d/m/Y') }}</div>
                     @else
                         <div class="text-body-secondary">Sin tipo de cambio configurado.</div>
@@ -63,7 +63,7 @@
                             @forelse ($rates as $rate)
                                 <tr>
                                     <td>{{ $rate->effective_date->format('d/m/Y') }}</td>
-                                    <td>1 {{ $rate->from_currency }} = {{ number_format((float) $rate->rate, 4) }} {{ $rate->to_currency }}</td>
+                                    <td>1 {{ $rate->from_currency }} = {{ number_format((float) $rate->rate, 4) }} {{ display_currency($rate->to_currency) }}</td>
                                     <td>
                                         <span class="badge text-bg-{{ $rate->is_active ? 'success' : 'secondary' }}">{{ $rate->is_active ? 'Vigente' : 'Historico' }}</span>
                                     </td>

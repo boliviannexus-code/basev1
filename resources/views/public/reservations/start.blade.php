@@ -88,14 +88,14 @@
                     @if ($roomItems->isNotEmpty())
                         <div class="public-chip-list mt-3">
                             @foreach ($roomItems as $item)
-                                <span>{{ $item['room']->title ?: $item['room']->name }} · {{ $item['capacity'] }} persona{{ $item['capacity'] === 1 ? '' : 's' }} · Bs {{ money_format_decimal($item['price_per_night']) }}/noche</span>
+                                <span>{{ $item['room']->title ?: $item['room']->name }} · {{ $item['capacity'] }} persona{{ $item['capacity'] === 1 ? '' : 's' }} · {{ company_currency_symbol($space->company_id) }} {{ money_format_decimal($item['price_per_night']) }}/noche</span>
                             @endforeach
                         </div>
                     @endif
                     @if ($bedUnitItems->isNotEmpty())
                         <div class="public-chip-list mt-3">
                             @foreach ($bedUnitItems as $item)
-                                <span>{{ $item['room']->title ?: $item['room']->name }} · {{ $item['bed_unit']->label }} · {{ $item['capacity'] }} persona{{ $item['capacity'] === 1 ? '' : 's' }} · Bs {{ money_format_decimal($item['price_per_night']) }}/noche</span>
+                                <span>{{ $item['room']->title ?: $item['room']->name }} · {{ $item['bed_unit']->label }} · {{ $item['capacity'] }} persona{{ $item['capacity'] === 1 ? '' : 's' }} · {{ company_currency_symbol($space->company_id) }} {{ money_format_decimal($item['price_per_night']) }}/noche</span>
                             @endforeach
                         </div>
                     @endif
@@ -211,7 +211,7 @@
                     @if (($quote['booking_type'] ?? 'normal') === 'package')
                         <div>
                             <dt>Precio base paquete</dt>
-                            <dd>{{ money_format_decimal($quote['package_price']) }} BOB</dd>
+                            <dd>{{ money_format_decimal($quote['package_price']) }} {{ company_currency_code($space->company_id) }}</dd>
                         </div>
                         <div>
                             <dt>Personas incluidas</dt>
@@ -223,41 +223,41 @@
                         </div>
                         <div>
                             <dt>Personas extra</dt>
-                            <dd>{{ $quote['extra_people'] }} x {{ $quote['nights'] }} noche{{ $quote['nights'] === 1 ? '' : 's' }} = {{ money_format_decimal($quote['extra_people_total']) }} BOB</dd>
+                            <dd>{{ $quote['extra_people'] }} x {{ $quote['nights'] }} noche{{ $quote['nights'] === 1 ? '' : 's' }} = {{ money_format_decimal($quote['extra_people_total']) }} {{ company_currency_code($space->company_id) }}</dd>
                         </div>
                         @foreach (($quote['extra_people_details'] ?? collect()) as $detail)
                             <div>
                                 <dt>{{ $detail['date'] }}</dt>
-                                <dd>{{ $detail['quantity'] }} x {{ money_format_decimal($detail['unit_price']) }} BOB = {{ money_format_decimal($detail['total']) }} BOB</dd>
+                                <dd>{{ $detail['quantity'] }} x {{ money_format_decimal($detail['unit_price']) }} {{ company_currency_code($space->company_id) }} = {{ money_format_decimal($detail['total']) }} {{ company_currency_code($space->company_id) }}</dd>
                             </div>
                         @endforeach
                         @if (($quote['package_extra_nights'] ?? 0) > 0)
                             <div>
                                 <dt>Noches extra</dt>
-                                <dd>{{ $quote['package_extra_nights'] }} · {{ money_format_decimal($quote['package_extra_nights_total']) }} BOB</dd>
+                                <dd>{{ $quote['package_extra_nights'] }} · {{ money_format_decimal($quote['package_extra_nights_total']) }} {{ company_currency_code($space->company_id) }}</dd>
                             </div>
                         @endif
                         <div>
                             <dt>Total final del paquete</dt>
-                            <dd>{{ money_format_decimal($quote['total_amount']) }} BOB</dd>
+                            <dd>{{ money_format_decimal($quote['total_amount']) }} {{ company_currency_code($space->company_id) }}</dd>
                         </div>
                     @else
                         <div>
                             <dt>{{ $rooms->count() > 1 ? 'Total habitaciones por noche' : 'Precio por noche' }}</dt>
-                            <dd>{{ money_format_decimal($quote['price_per_night']) }} BOB</dd>
+                            <dd>{{ money_format_decimal($quote['price_per_night']) }} {{ company_currency_code($space->company_id) }}</dd>
                         </div>
                         <div>
                             <dt>Total por {{ $quote['nights'] }} noche{{ $quote['nights'] === 1 ? '' : 's' }}</dt>
-                            <dd>{{ money_format_decimal($quote['total_amount']) }} BOB</dd>
+                            <dd>{{ money_format_decimal($quote['total_amount']) }} {{ company_currency_code($space->company_id) }}</dd>
                         </div>
                     @endif
                     <div>
                         <dt>Reserva con adelanto</dt>
-                        <dd>{{ money_format_decimal($quote['advance_amount']) }} BOB</dd>
+                        <dd>{{ money_format_decimal($quote['advance_amount']) }} {{ company_currency_code($space->company_id) }}</dd>
                     </div>
                     <div>
                         <dt>Saldo pendiente</dt>
-                        <dd>{{ money_format_decimal($quote['balance_amount']) }} BOB</dd>
+                        <dd>{{ money_format_decimal($quote['balance_amount']) }} {{ company_currency_code($space->company_id) }}</dd>
                     </div>
                 </dl>
                 <p class="public-payment-note">Tu reserva se confirma despues de validar el pago.</p>

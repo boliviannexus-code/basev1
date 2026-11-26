@@ -189,28 +189,29 @@ class PublicAccommodationController extends Controller
 
     private function quotePayload(array $quote, array $result, string $reservationUrl): array
     {
+        $currency = company_currency_symbol((int) $result['space']->company_id);
         $isPackage = ($quote['booking_type'] ?? 'normal') === 'package';
         $lines = [
             ['label' => 'Ingreso', 'value' => $quote['check_in']],
             ['label' => 'Salida', 'value' => $quote['check_out']],
             ['label' => 'Personas', 'value' => (string) $quote['guests']],
-            ['label' => 'Reserva con adelanto', 'value' => money_format_decimal($quote['advance_amount']).' Bs'],
-            ['label' => 'Saldo', 'value' => money_format_decimal($quote['balance_amount']).' Bs'],
+            ['label' => 'Reserva con adelanto', 'value' => money_format_decimal($quote['advance_amount']).' '.$currency],
+            ['label' => 'Saldo', 'value' => money_format_decimal($quote['balance_amount']).' '.$currency],
         ];
 
         if ($isPackage) {
             array_splice($lines, 3, 0, [
-                ['label' => 'Precio base paquete', 'value' => money_format_decimal($quote['package_price']).' Bs'],
+                ['label' => 'Precio base paquete', 'value' => money_format_decimal($quote['package_price']).' '.$currency],
                 [
                     'label' => 'Personas extra',
-                    'value' => $quote['extra_people'].' x '.$quote['nights'].' noche'.($quote['nights'] === 1 ? '' : 's').' = '.money_format_decimal($quote['extra_people_total']).' Bs',
+                    'value' => $quote['extra_people'].' x '.$quote['nights'].' noche'.($quote['nights'] === 1 ? '' : 's').' = '.money_format_decimal($quote['extra_people_total']).' '.$currency,
                 ],
             ]);
 
             $extraPeopleDetails = collect($quote['extra_people_details'] ?? [])
                 ->map(fn (array $detail): array => [
                     'label' => $detail['date'],
-                    'value' => $detail['quantity'].' x '.money_format_decimal($detail['unit_price']).' Bs = '.money_format_decimal($detail['total']).' Bs',
+                    'value' => $detail['quantity'].' x '.money_format_decimal($detail['unit_price']).' '.$currency.' = '.money_format_decimal($detail['total']).' '.$currency,
                 ])
                 ->all();
 
@@ -221,7 +222,7 @@ class PublicAccommodationController extends Controller
             if (($quote['package_extra_nights'] ?? 0) > 0) {
                 array_splice($lines, 5 + count($extraPeopleDetails), 0, [[
                     'label' => 'Noches extra',
-                    'value' => $quote['package_extra_nights'].' · '.money_format_decimal($quote['package_extra_nights_total']).' Bs',
+                    'value' => $quote['package_extra_nights'].' · '.money_format_decimal($quote['package_extra_nights_total']).' '.$currency,
                 ]]);
             }
         }
@@ -230,10 +231,10 @@ class PublicAccommodationController extends Controller
             'booking_type' => $isPackage ? 'package' : 'normal',
             'mode_label' => $isPackage ? 'Paquete' : 'Solo habitacion',
             'title' => $isPackage ? 'Total final del paquete' : 'Total solo habitacion',
-            'total' => money_format_decimal($quote['total_amount']).' Bs',
+            'total' => money_format_decimal($quote['total_amount']).' '.$currency,
             'detail' => $isPackage
                 ? 'Incluye '.$quote['included_people'].' persona'.($quote['included_people'] === 1 ? '' : 's').' · extra: '.$quote['extra_people']
-                : ($result['mode'] === 'shared' ? 'Habitacion' : 'Espacio').' · '.$quote['nights'].' noche'.($quote['nights'] === 1 ? '' : 's').' · '.money_format_decimal($quote['price_per_night']).' Bs por noche',
+                : ($result['mode'] === 'shared' ? 'Habitacion' : 'Espacio').' · '.$quote['nights'].' noche'.($quote['nights'] === 1 ? '' : 's').' · '.money_format_decimal($quote['price_per_night']).' '.$currency.' por noche',
             'lines' => $lines,
             'message' => 'Tu reserva se confirma despues de validar el pago.',
             'reservation_url' => $reservationUrl,

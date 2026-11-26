@@ -125,7 +125,7 @@ class StoreCheckInRequest extends FormRequest
                 $hasUsd = filled($stay['price_per_night_usd'] ?? null);
 
                 if (! $hasBob && ! $hasUsd) {
-                    $validator->errors()->add("stays.{$index}.price_per_night_bob", 'Ingresa el precio por noche en BOB o USD.');
+                    $validator->errors()->add("stays.{$index}.price_per_night_bob", 'Ingresa el precio por noche en '.company_currency_code().' o USD.');
                 }
 
                 if ((! $hasBob || ! $hasUsd) && ! filled($stay['exchange_rate'] ?? null)) {

@@ -69,6 +69,63 @@ final class OperationalEconomicReportTest extends TestCase
             ->assertDontSee('Ventas POS');
     }
 
+    public function test_daily_report_defaults_to_today_and_filters_independently_from_period(): void
+    {
+        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-11-20 12:00:00'));
+        [$company, $user, $method, $register] = $this->context();
+        $user->givePermissionTo('reports.view');
+        $space = Space::factory()->create(['company_id' => $company->id]);
+        $this->createLodgingPayment($company, $user, $method, $register, $space, 'HOS-TODAY', 80);
+        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-11-19 12:00:00'));
+        $this->createLodgingPayment($company, $user, $method, $register, $space, 'HOS-YESTERDAY', 120);
+        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-11-20 12:00:00'));
+        $this->withoutVite();
+
+        $this->actingAs($user)->get(route('reports.index'))->assertOk()->assertViewHas('isDaily', true)
+            ->assertViewHas('totals', fn (array $totals): bool => $totals['lodging'] === 80.0)
+            ->assertSee('Reporte diario')->assertSee('Reporte por periodo')->assertSee('name="date"', false);
+        $this->get(route('reports.index', ['daily' => 1, 'date' => '2026-11-19']))->assertOk()
+            ->assertViewHas('totals', fn (array $totals): bool => $totals['lodging'] === 120.0);
+        $this->get(route('reports.index', ['daily' => 0, 'from' => '2026-11-19', 'to' => '2026-11-20']))->assertOk()
+            ->assertViewHas('isDaily', false)->assertViewHas('totals', fn (array $totals): bool => $totals['lodging'] === 200.0)
+            ->assertSee('name="from"', false)->assertSee('name="to"', false);
+        $this->get(route('reports.index', ['from' => '2026-11-19', 'to' => '2026-11-20']))->assertOk()->assertViewHas('isDaily', false);
+        Permission::findOrCreate('reports.print');
+        $user->givePermissionTo('reports.print');
+        $this->get(route('reports.print', ['daily' => 1, 'date' => '2026-11-19']))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+    }
+
+    public function test_statistics_include_all_movements_and_respect_company_and_date(): void
+    {
+        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-11-20 12:00:00'));
+        [$company, $user, $method, $register] = $this->context();
+        $user->givePermissionTo('reports.view');
+        $space = Space::factory()->create(['company_id' => $company->id]);
+        $this->createLodgingPayment($company, $user, $method, $register, $space, 'HOS-ONE', 80);
+        $rows = [];
+        for ($i = 1; $i <= 501; $i++) {
+            $rows[] = ['company_id' => $company->id, 'space_cash_register_id' => $register->id, 'user_id' => $user->id,
+                'payment_method_id' => $method->id, 'receipt_number' => 'TEST-'.$i, 'detail' => 'Ingreso', 'amount' => 1,
+                'received_at' => '2026-11-20 10:00:00', 'created_at' => now(), 'updated_at' => now()];
+        }
+        \Illuminate\Support\Facades\DB::table('space_cash_incomes')->insert($rows);
+        [$otherCompany, $otherUser, $otherMethod, $otherRegister] = $this->context();
+        $otherSpace = Space::factory()->create(['company_id' => $otherCompany->id]);
+        $this->createLodgingPayment($otherCompany, $otherUser, $otherMethod, $otherRegister, $otherSpace, 'HOS-OTHER', 1000);
+        $this->withoutVite();
+        $response = $this->actingAs($user)->get(route('reports.index', ['tab' => 'statistics', 'from' => '2026-11-19', 'to' => '2026-11-20']));
+        $response->assertOk()->assertViewHas('isStatistics', true)->assertSee('Ingresos y egresos por día')->assertSee('economic-bar-value', false)
+            ->assertSee('581.00')->assertSee('Ingresos por método de pago')->assertSee('economic-pie', false)->assertSee('100.0%')
+            ->assertViewHas('statistics', fn (array $stats): bool => $stats['income'] === 581.0 && $stats['daily']->count() === 2
+                && $stats['daily'][0]['income'] === 0.0 && $stats['daily'][1]['income'] === 581.0);
+        $this->get(route('reports.index', ['tab' => 'statistics', 'from' => '2026-11-19', 'to' => '2026-11-20', 'space_id' => $space->id]))
+            ->assertOk()->assertViewHas('statistics', fn (array $stats): bool => $stats['income'] === 80.0);
+        $this->get(route('reports.index', ['tab' => 'statistics', 'from' => '2026-11-18', 'to' => '2026-11-19']))
+            ->assertOk()->assertSee('No hay ingresos para mostrar en la torta.');
+        $this->get(route('reports.index', ['tab' => 'statistics', 'from' => '2024-01-01', 'to' => '2026-11-20']))
+            ->assertOk()->assertSee('hasta 366 días')->assertViewHas('statistics', null);
+    }
+
     public function test_pos_sales_report_type_is_no_longer_available(): void
     {
         $types = app(OperationalReportService::class)->reportTypes();

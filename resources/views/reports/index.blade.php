@@ -5,8 +5,17 @@
 @section('page-subtitle', 'Ingresos y egresos de hospedaje por periodo, espacio y forma de pago')
 
 @section('content')
+    <div class="d-flex flex-wrap gap-2 mb-3" role="navigation" aria-label="Tipo de periodo">
+        <a class="btn btn-sm {{ $isDaily ? 'btn-primary' : 'btn-outline-secondary' }}" href="{{ route('reports.index', ['daily' => 1]) }}"><i class="ti ti-calendar-stats"></i> Reporte diario</a>
+        <a class="btn btn-sm {{ ! $isDaily && ! $isStatistics ? 'btn-primary' : 'btn-outline-secondary' }}" href="{{ route('reports.index', ['daily' => 0]) }}"><i class="ti ti-chart-bar"></i> Reporte por periodo</a>
+        <a class="btn btn-sm {{ $isStatistics ? 'btn-primary' : 'btn-outline-secondary' }}" href="{{ route('reports.index', ['tab' => 'statistics', 'daily' => 0]) }}"><i class="ti ti-chart-bar"></i> Estadísticas</a>
+    </div>
+
     <x-ui.table-card title="Filtros">
         <form class="row g-3 align-items-end" method="GET" action="{{ route('reports.index') }}" autocomplete="off" data-report-filter-form>
+            <input type="hidden" name="daily" value="{{ $isDaily ? '1' : '0' }}">
+            @if ($isStatistics)<input type="hidden" name="tab" value="statistics">@endif
+            @unless ($isStatistics)
             <div class="col-md-3 col-xl-2">
                 <label class="form-label" for="report-type">Reporte</label>
                 <select class="form-select" id="report-type" name="type" data-tom-select>
@@ -15,6 +24,13 @@
                     @endforeach
                 </select>
             </div>
+            @endunless
+            @if ($isDaily)
+                <div class="col-md-3 col-xl-2">
+                    <label class="form-label" for="report-date">Fecha</label>
+                    <input class="form-control" id="report-date" name="date" type="date" value="{{ $dailyDate->toDateString() }}" required>
+                </div>
+            @else
             <div class="col-md-3 col-xl-2">
                 <label class="form-label" for="report-from">Desde</label>
                 <input class="form-control" id="report-from" name="from" type="date" value="{{ $filters['from']->toDateString() }}">
@@ -23,6 +39,7 @@
                 <label class="form-label" for="report-to">Hasta</label>
                 <input class="form-control" id="report-to" name="to" type="date" value="{{ $filters['to']->toDateString() }}">
             </div>
+            @endif
             <div class="col-md-3 col-xl-2">
                 <label class="form-label" for="report-user">Usuario</label>
                 <select class="form-select" id="report-user" name="user_id" data-tom-select data-placeholder="Todos">
@@ -61,18 +78,21 @@
             </div>
             <div class="col-12 d-flex flex-wrap gap-2">
                 <button class="btn btn-primary" type="submit"><i class="ti ti-filter"></i> Filtrar</button>
-                <a class="btn btn-outline-secondary" href="{{ route('reports.index') }}"><i class="ti ti-eraser"></i> Limpiar</a>
+                <a class="btn btn-outline-secondary" href="{{ route('reports.index', $isStatistics ? ['tab' => 'statistics', 'daily' => 0] : ['daily' => $isDaily ? 1 : 0]) }}"><i class="ti ti-eraser"></i> Limpiar</a>
+                @if (! $isStatistics)
                 @can('reports.print')
-                    <a class="btn btn-outline-primary ms-md-auto" href="{{ route('reports.print', request()->query()) }}" target="_blank" rel="noopener" data-report-print-link>
+                    <a class="btn btn-outline-primary ms-md-auto" href="{{ route('reports.print', array_merge(request()->query(), ['daily' => $isDaily ? 1 : 0], $isDaily ? ['date' => $dailyDate->toDateString()] : [])) }}" target="_blank" rel="noopener" data-report-print-link>
                         <i class="ti ti-file-type-pdf"></i>
                         Imprimir PDF
                     </a>
                 @endcan
+                @endif
             </div>
         </form>
     </x-ui.table-card>
 
     <div data-report-results>
+        @unless ($isStatistics)
         <div class="d-flex flex-wrap gap-2 mt-3">
             @foreach ($reportTypes as $type => $label)
                 <a class="btn btn-sm {{ $reportType === $type ? 'btn-primary' : 'btn-outline-secondary' }}" href="{{ route('reports.index', array_merge(request()->query(), ['type' => $type])) }}" data-report-type-link>
@@ -81,11 +101,12 @@
             @endforeach
         </div>
 
+        @endunless
         <div class="d-flex align-items-center justify-content-between gap-3 mt-3">
             <div>
                 <h2 class="h3 mb-1">{{ $reportTitle }}</h2>
                 <div class="text-body-secondary">
-                    {{ $company?->name }} · {{ $filters['from']->format('Y-m-d') }} al {{ $filters['to']->format('Y-m-d') }}
+                    {{ $company?->name }} · {{ $isDaily ? $dailyDate->format('d/m/Y') : $filters['from']->format('Y-m-d').' al '.$filters['to']->format('Y-m-d') }}
                     @if ($filters['space_id'])
                         · {{ $spaces->firstWhere('id', $filters['space_id'])?->title ?: $spaces->firstWhere('id', $filters['space_id'])?->name }}
                     @endif
@@ -100,6 +121,10 @@
             </div>
         @endif
 
-        @include('reports.partials.operational-sections')
+        @if ($isStatistics)
+            @include('reports.partials.statistics')
+        @else
+            @include('reports.partials.operational-sections')
+        @endif
     </div>
 @endsection

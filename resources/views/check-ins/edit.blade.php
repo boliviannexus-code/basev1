@@ -161,7 +161,7 @@
                             </div>
                             <input type="hidden" name="currency" value="BOB">
                             <div>
-                                <label class="form-label">Precio BOB</label>
+                                <label class="form-label">Precio {{ company_currency_code() }}</label>
                                 <input class="form-control form-control-sm @error('price_per_night_bob') is-invalid @enderror" name="price_per_night_bob" type="number" min="0" step="0.01" value="{{ old('price_per_night_bob', $stay->price_per_night_bob) }}" autocomplete="off" data-reference-price-bob @disabled($stay->status !== 'occupied' || $stay->isUnattended())>
                                 <div class="invalid-feedback">{{ $errors->first('price_per_night_bob') }}</div>
                             </div>
@@ -305,7 +305,7 @@
                                 <span class="text-body-secondary small">Activas</span>
                                 <div class="check-in-edit-badges">
                                     @forelse ($activeItems as $item)
-                                        <span class="badge text-bg-light">{{ $item->date->toDateString() }} · {{ $item->total }} {{ $item->currency }}</span>
+                                        <span class="badge text-bg-light">{{ $item->date->toDateString() }} · {{ $item->total }} {{ display_currency($item->currency) }}</span>
                                     @empty
                                         <span class="text-body-secondary small">Sin cargos activos.</span>
                                     @endforelse

@@ -26,7 +26,7 @@
     <div class="row g-3 mb-3">
         @forelse ($rows->groupBy('currency') as $currency => $currencyRows)
             <div class="col-sm-6 col-lg-3">
-                <x-ui.stat-card :label="'Pendiente en '.$currency" :value="money_format_decimal($currencyRows->sum('balance')).' '.$currency" icon="ti ti-report-money" tone="info" />
+                <x-ui.stat-card :label="'Pendiente en '.display_currency($currency)" :value="money_format_decimal($currencyRows->sum('balance')).' '.display_currency($currency)" icon="ti ti-report-money" tone="info" />
             </div>
         @empty
             <div class="col-12 text-body-secondary">No hay cobros pendientes.</div>
@@ -34,7 +34,7 @@
         @foreach ($rows->groupBy('type') as $type => $typeRows)
             @foreach ($typeRows->groupBy('currency') as $currency => $currencyRows)
                 <div class="col-sm-6 col-lg-3">
-                    <x-ui.stat-card :label="$type.' · '.$currencyRows->count().' registros'" :value="money_format_decimal($currencyRows->sum('balance')).' '.$currency" icon="ti ti-chart-bar" tone="info" />
+                    <x-ui.stat-card :label="$type.' · '.$currencyRows->count().' registros'" :value="money_format_decimal($currencyRows->sum('balance')).' '.display_currency($currency)" icon="ti ti-chart-bar" tone="info" />
                 </div>
             @endforeach
         @endforeach
@@ -47,7 +47,7 @@
                 <thead><tr><th>Fecha de referencia</th><th>Tipo</th><th>Huésped</th><th>Referencia</th><th class="text-end">Saldo pendiente</th></tr></thead>
                 <tbody>
                     @forelse ($rows as $row)
-                        <tr><td>{{ $row['date']?->format('d/m/Y') ?? '-' }}</td><td>{{ $row['type'] }}</td><td>{{ $row['guest'] }}</td><td>{{ $row['reference'] }}</td><td class="text-end">{{ money_format_decimal($row['balance']) }} {{ $row['currency'] }}</td></tr>
+                        <tr><td>{{ $row['date']?->format('d/m/Y') ?? '-' }}</td><td>{{ $row['type'] }}</td><td>{{ $row['guest'] }}</td><td>{{ $row['reference'] }}</td><td class="text-end">{{ money_format_decimal($row['balance']) }} {{ display_currency($row['currency']) }}</td></tr>
                     @empty
                         <tr><td colspan="5" class="text-center text-body-secondary">No hay cobros pendientes para mostrar.</td></tr>
                     @endforelse

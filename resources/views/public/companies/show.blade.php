@@ -99,7 +99,7 @@
                         $category = $package->services->first()?->type ?: collect($package->badges)->filter()->first();
                         $detailUrl = route('public.company.packages.show', [$company->public_slug, $package->slug]);
                         $reservationUrl = $packageSpace ? route('public.accommodations.show', ['space' => $packageSpace->id, 'package_id' => $package->id]) : null;
-                        $priceText = $package->price_display_text ?: 'Desde '.money_format_decimal($package->price).' '.$package->currency;
+                        $priceText = $package->price_display_text ?: 'Desde '.money_format_decimal($package->price).' '.display_currency($package->currency, $package->company_id);
                     @endphp
 
                     <article class="company-package-card" id="paquete-{{ $package->id }}">

@@ -183,7 +183,7 @@
                     <th>Metodo</th>
                     <th>Referencia</th>
                     <th class="text-end">Monto</th>
-                    <th class="text-end">BOB caja</th>
+                    <th class="text-end">{{ company_currency_code() }} caja</th>
                 </tr>
             </thead>
             <tbody>
@@ -194,7 +194,7 @@
                         <td>{{ $payment->stay?->holderGuest?->full_name ?? 'Hospedaje' }}</td>
                         <td>{{ $payment->paymentMethod?->name ?? '-' }}</td>
                         <td>{{ $payment->reference ?: '-' }}</td>
-                        <td class="text-end">{{ money_format_decimal($payment->amount_original) }} {{ $payment->currency_original }}</td>
+                        <td class="text-end">{{ money_format_decimal($payment->amount_original) }} {{ display_currency($payment->currency_original) }}</td>
                         <td class="text-end fw-semibold">{{ money_format_decimal($payment->amount_bob) }}</td>
                     </tr>
                 @empty

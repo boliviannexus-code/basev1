@@ -44,7 +44,7 @@
                             </span>
                         </div>
                         <div>
-                            <strong>{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</strong>
+                            <strong>{{ money_format_decimal($reservation->total_amount) }} {{ display_currency($reservation->currency, $reservation->company_id) }}</strong>
                             <span>{{ $statusLabels[$reservation->status] ?? str($reservation->status)->replace('_', ' ')->headline() }}</span>
                         </div>
                     </a>

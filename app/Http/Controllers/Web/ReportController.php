@@ -24,9 +24,13 @@ class ReportController extends Controller
         abort_unless($company, 403);
 
         $companyId = (int) $company->id;
-        $filters = $this->reports->filters($request->query());
+        $isStatistics = $request->query('tab') === 'statistics';
+        [$filters, $isDaily, $dailyDate] = $this->economicFilters($request);
         $reportTypes = $this->reports->reportTypes();
-        $data = $this->reports->build($companyId, $filters);
+        $statisticsTooLong = $isStatistics && $filters['from']->startOfDay()->diffInDays($filters['to']->startOfDay()) > 365;
+        $data = $isStatistics
+            ? ['statistics' => $statisticsTooLong ? null : $this->reports->statistics($companyId, $filters)]
+            : $this->reports->build($companyId, $filters);
 
         return view('reports.index', [
             ...$this->reports->options($companyId),
@@ -34,7 +38,11 @@ class ReportController extends Controller
             'filters' => $filters,
             'reportTypes' => $reportTypes,
             'reportType' => $filters['type'],
-            'reportTitle' => $reportTypes[$filters['type']],
+            'reportTitle' => $isStatistics ? 'Estadísticas económicas' : ($isDaily ? 'Reporte diario · '.$reportTypes[$filters['type']] : $reportTypes[$filters['type']]),
+            'isStatistics' => $isStatistics,
+            'statisticsTooLong' => $statisticsTooLong,
+            'isDaily' => $isDaily,
+            'dailyDate' => $dailyDate,
             'company' => $company,
         ]);
     }
@@ -45,7 +53,7 @@ class ReportController extends Controller
         abort_unless($company, 403);
 
         $companyId = (int) $company->id;
-        $filters = $this->reports->filters($request->query());
+        [$filters, $isDaily, $dailyDate] = $this->economicFilters($request);
         $reportTypes = $this->reports->reportTypes();
         $data = $this->reports->build($companyId, $filters);
 
@@ -56,13 +64,13 @@ class ReportController extends Controller
             'printedBy' => $request->user(),
             'filters' => $filters,
             'reportType' => $filters['type'],
-            'reportTitle' => $reportTypes[$filters['type']],
+            'reportTitle' => $isDaily ? 'Reporte diario · '.$reportTypes[$filters['type']] : $reportTypes[$filters['type']],
         ])->render();
 
         $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
         $pdf->SetCreator(config('app.name'));
         $pdf->SetAuthor($company?->name ?? config('app.name'));
-        $pdf->SetTitle($reportTypes[$filters['type']]);
+        $pdf->SetTitle($isDaily ? 'Reporte diario · '.$reportTypes[$filters['type']] : $reportTypes[$filters['type']]);
         $pdf->SetMargins(10, 10, 10);
         $pdf->SetAutoPageBreak(true, 12);
         $pdf->AddPage();
@@ -72,6 +80,22 @@ class ReportController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="reporte.pdf"',
         ]);
+    }
+
+    private function economicFilters(Request $request): array
+    {
+        $legacyPeriod = $request->hasAny(['from', 'to']) && ! $request->has('daily');
+        $isDaily = $request->query('tab') === 'statistics' ? false : ($legacyPeriod ? false : $request->boolean('daily', true));
+        $dailyDate = null;
+        $input = $request->query();
+        if ($isDaily) {
+            $validated = $request->validate(['date' => ['nullable', 'date_format:Y-m-d']]);
+            $dailyDate = CarbonImmutable::parse($validated['date'] ?? today()->toDateString())->startOfDay();
+            $input['from'] = $dailyDate->toDateString();
+            $input['to'] = $dailyDate->toDateString();
+        }
+
+        return [$this->reports->filters($input), $isDaily, $dailyDate];
     }
 
     public function projected(Request $request, \App\Services\Reports\ProjectedCollectionsService $projection): View

@@ -759,7 +759,7 @@
                                                         <th>Comprobante</th>
                                                         <th>Estancia</th>
                                                         <th>Metodo</th>
-                                                        <th class="text-end">Total BOB</th>
+                                                        <th class="text-end">Total {{ company_currency_code() }}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>

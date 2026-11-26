@@ -48,7 +48,7 @@
                 <label class="form-label" for="extra-charge-unit">Unitario</label>
                 <div class="input-group">
                     <input class="form-control" id="extra-charge-unit" type="number" name="unit_price" min="0" step="0.5" data-extra-charge-unit required>
-                    <span class="input-group-text">Bs</span>
+                    <span class="input-group-text">{{ company_currency_symbol() }}</span>
                 </div>
             </div>
             <div class="col-md-4">
@@ -58,7 +58,7 @@
             <div class="col-12">
                 <div class="d-flex justify-content-between align-items-center border rounded px-3 py-2">
                     <span class="text-body-secondary">Total</span>
-                    <strong><span data-extra-charge-total>0.00</span> Bs</strong>
+                    <strong><span data-extra-charge-total>0.00</span> {{ company_currency_symbol() }}</strong>
                 </div>
             </div>
         </div>

@@ -102,7 +102,7 @@
             <div class="col-lg-5">
                 <x-ui.table-card title="Pagos por metodo">
                     <table class="table table-sm table-vcenter mb-0">
-                        <thead><tr><th>Metodo</th><th class="text-end">Pagos</th><th class="text-end">Total BOB</th></tr></thead>
+                        <thead><tr><th>Metodo</th><th class="text-end">Pagos</th><th class="text-end">Total {{ company_currency_code() }}</th></tr></thead>
                         <tbody>
                             @forelse (($cashSummary['payments'] ?? []) as $payment)
                                 <tr>
@@ -120,7 +120,7 @@
             <div class="col-lg-7">
                 <x-ui.table-card title="Cobros de estancias">
                     <table class="table table-sm table-hover align-middle mb-0">
-                        <thead><tr><th>Comprobante</th><th>Fecha</th><th>Estancia</th><th>Metodo</th><th class="text-end">Total BOB</th></tr></thead>
+                        <thead><tr><th>Comprobante</th><th>Fecha</th><th>Estancia</th><th>Metodo</th><th class="text-end">Total {{ company_currency_code() }}</th></tr></thead>
                         <tbody>
                             @forelse (($cashSummary['lodging_payments'] ?? []) as $payment)
                                 <tr>
@@ -141,7 +141,7 @@
 
         <x-ui.table-card title="Cobros de reservas" class="mt-3">
             <table class="table table-sm table-hover align-middle mb-0">
-                <thead><tr><th>Comprobante</th><th>Fecha</th><th>Reserva</th><th>Metodo</th><th>Referencia</th><th class="text-end">Total BOB</th></tr></thead>
+                <thead><tr><th>Comprobante</th><th>Fecha</th><th>Reserva</th><th>Metodo</th><th>Referencia</th><th class="text-end">Total {{ company_currency_code() }}</th></tr></thead>
                 <tbody>
                     @forelse (($cashSummary['reservation_payments'] ?? []) as $payment)
                         <tr>
@@ -161,7 +161,7 @@
 
         <x-ui.table-card title="Ingresos directos" class="mt-3">
             <table class="table table-sm table-hover align-middle mb-0">
-                <thead><tr><th>Comprobante</th><th>Fecha</th><th>Categoria</th><th class="text-end">Cantidad</th><th>Detalle</th><th>Metodo</th><th>Referencia</th><th class="text-end">Total BOB</th></tr></thead>
+                <thead><tr><th>Comprobante</th><th>Fecha</th><th>Categoria</th><th class="text-end">Cantidad</th><th>Detalle</th><th>Metodo</th><th>Referencia</th><th class="text-end">Total {{ company_currency_code() }}</th></tr></thead>
                 <tbody>
                     @forelse (($cashSummary['direct_incomes'] ?? []) as $income)
                         <tr>

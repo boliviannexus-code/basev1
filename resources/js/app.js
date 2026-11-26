@@ -49,7 +49,7 @@ function initCheckOutAlerts() {
         if (window.location.pathname === new URL(stay.check_in_url, window.location.origin).pathname) return false;
         const content = document.createElement('div');
         content.textContent = `${stay.unit || 'Habitacion'} · ${stay.guest}. Salida: ${stay.check_out_date}. Debe ampliar la estancia manualmente o realizar el check-out.`;
-        if (stay.balance > 0) content.textContent += ` Saldo pendiente: ${stay.balance.toFixed(2)} ${stay.currency}.`;
+        if (stay.balance > 0) content.textContent += ` Saldo pendiente: ${stay.balance.toFixed(2)} ${stay.currency_label || stay.currency}.`;
         const result = await Swal.fire({
             icon: 'warning',
             title: 'Check-out pendiente',
@@ -1736,6 +1736,22 @@ function updateReportPrintLink(url) {
     printLink.href = printUrl.toString();
 }
 
+const economicSeriesVisibility = { income: true, expense: true, values: true };
+
+function syncEconomicChart(scope = document) {
+    scope.querySelectorAll('[data-economic-chart]').forEach((chart) => {
+        chart.querySelectorAll('[data-economic-series]').forEach((button) => {
+            button.setAttribute('aria-pressed', String(economicSeriesVisibility[button.dataset.economicSeries]));
+        });
+        chart.querySelectorAll('[data-economic-bar]').forEach((bar) => {
+            bar.hidden = !economicSeriesVisibility[bar.dataset.economicBar];
+        });
+        chart.querySelectorAll('.economic-bar-value').forEach((value) => {
+            value.hidden = !economicSeriesVisibility.values;
+        });
+    });
+}
+
 async function refreshReport(form) {
     const target = document.querySelector('[data-report-results]');
 
@@ -1758,6 +1774,7 @@ async function refreshReport(form) {
         }
 
         target.replaceWith(freshTarget);
+        syncEconomicChart(freshTarget);
         window.history.replaceState({}, '', url.toString());
         updateReportPrintLink(url);
     } catch (error) {
@@ -4082,7 +4099,7 @@ function initAvailabilityGrid() {
                                     <span
                                         class="availability-status availability-status-action"
                                     >${escapeHtml(cell.guest_name ?? cell.short_label ?? cell.label)}</span>
-                                    ${cell.price_display ? `<strong class="availability-price">Bs ${escapeHtml(cell.price_display)}</strong>` : '<strong class="availability-price availability-price-empty">Sin precio</strong>'}
+                                    ${cell.price_display ? `<strong class="availability-price">${escapeHtml(document.querySelector('meta[name="local-currency-symbol"]')?.content || 'Bs')} ${escapeHtml(cell.price_display)}</strong>` : '<strong class="availability-price availability-price-empty">Sin precio</strong>'}
                                     <small class="${cell.is_public_online ? 'text-success' : 'text-warning'}">
                                         <i class="${cell.is_public_online ? 'ti ti-world-check' : 'ti ti-world-off'}"></i>
                                         ${cell.is_public_online ? 'Publico' : 'Interno'}
@@ -5616,7 +5633,7 @@ function initStayPaymentForms(scope = document) {
         const canCheckOutToday = form.dataset.canCheckOutToday === '1';
         const canSubmitPayment = form.dataset.canSubmitPayment === '1';
         const checkoutBalance = Number(form.dataset.checkoutBalance || 0);
-        const currency = balanceLabel?.textContent.trim().split(' ').pop() || 'BOB';
+        const currency = balanceLabel?.textContent.trim().split(' ').pop() || document.querySelector('meta[name="local-currency-code"]')?.content || 'BOB';
 
         const selectedBalance = () => Number(scopeSelect?.selectedOptions[0]?.dataset.balance || 0);
 
@@ -6306,4 +6323,13 @@ document.addEventListener('submit', async (event) => {
         form.querySelector('button[type="submit"]')?.setAttribute('disabled', 'disabled');
         form.submit();
     }
+});
+
+document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-economic-series]');
+    if (!button) return;
+    const series = button.dataset.economicSeries;
+    if (!(series in economicSeriesVisibility)) return;
+    economicSeriesVisibility[series] = !economicSeriesVisibility[series];
+    syncEconomicChart();
 });

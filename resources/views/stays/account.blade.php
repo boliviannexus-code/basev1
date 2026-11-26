@@ -19,7 +19,7 @@
         $discountItems = $activeItems->where('type', 'discount');
         $paymentItems = $activeItems->where('type', 'payment');
         $cancelledItems = $statement->items->where('status', 'cancelled')->sortBy('date');
-        $money = fn ($value, $currency = null) => number_format((float) $value, 2).' '.($currency ?: $statement->currency);
+        $money = fn ($value, $currency = null) => number_format((float) $value, 2).' '.display_currency($currency ?: $statement->currency);
         $exchangeRate = (float) $stay->exchange_rate;
         $status = [
             'paid' => ['label' => 'Pagado', 'tone' => 'success'],
@@ -116,7 +116,7 @@
                             <div>{{ $stay->people_count }}</div>
                         </div>
                         <div class="col-md-3">
-                            <div class="text-secondary small">Precio BOB</div>
+                            <div class="text-secondary small">Precio {{ company_currency_code() }}</div>
                             <div>{{ $money($stay->price_per_night_bob, 'BOB') }}</div>
                         </div>
                         <div class="col-md-3">
@@ -125,7 +125,7 @@
                         </div>
                         <div class="col-md-3">
                             <div class="text-secondary small">Moneda principal</div>
-                            <div>{{ $stay->currency }}</div>
+                            <div>{{ display_currency($stay->currency) }}</div>
                         </div>
                         <div class="col-md-3">
                             <div class="text-secondary small">Tipo de cambio</div>
@@ -365,7 +365,7 @@
                                             <div class="text-body-secondary small">{{ $payment->reference }}</div>
                                         @endif
                                     </td>
-                                    <td class="text-end fw-semibold">{{ money_format_decimal($payment->amount_bob) }} BOB</td>
+                                    <td class="text-end fw-semibold">{{ money_format_decimal($payment->amount_bob) }} {{ company_currency_code() }}</td>
                                 </tr>
                             @empty
                                 @forelse ($paymentItems as $item)

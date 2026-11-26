@@ -1,5 +1,5 @@
 @php
-    $money = fn ($value, $currency = 'BOB') => number_format((float) $value, 2).' '.$currency;
+    $money = fn ($value, $currency = 'BOB') => number_format((float) $value, 2).' '.display_currency($currency);
     $currency = 'BOB';
     $exchangeRate = (float) ($exchangeRate ?? 0);
     $isMultipleStay = (bool) ($isMultipleStay ?? false);
@@ -64,7 +64,7 @@
         </div>
 
         <div class="col-md-6">
-            <label class="form-label" for="stay-payment-amount">Monto BOB</label>
+            <label class="form-label" for="stay-payment-amount">Monto {{ company_currency_code() }}</label>
             <input class="form-control text-end @error('amount', 'stayPayment') is-invalid @enderror" id="stay-payment-amount" name="amount" type="number" min="0.01" step="0.01" value="{{ old('amount', number_format((float) $balance, 2, '.', '')) }}" data-stay-payment-amount data-payment-bob-amount data-payment-exchange-rate="{{ $exchangeRate }}" required>
             <div class="form-hint" data-payment-usd-reference>
                 @if ($exchangeRate > 0)

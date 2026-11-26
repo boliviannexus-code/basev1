@@ -6,7 +6,7 @@
 
 @section('content')
     @php
-        $money = fn ($value) => money_format_decimal($value).' BOB';
+        $money = fn ($value) => money_format_decimal($value).' '.company_currency_code();
         $pct = fn ($value) => number_format((float) $value, 2).' %';
         $bar = fn ($value) => min(100, max(0, (float) $value));
     @endphp

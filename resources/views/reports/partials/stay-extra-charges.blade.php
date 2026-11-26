@@ -12,8 +12,8 @@
                     <td>{{ $charge->stay?->holderGuest?->full_name ?? '-' }}</td>
                     <td>{{ $charge->description }}</td>
                     <td>{{ number_format((float) $charge->quantity, 2) }}</td>
-                    <td>{{ number_format((float) $charge->unit_price, 2) }} {{ $charge->currency }}</td>
-                    <td>{{ number_format((float) $charge->total, 2) }} {{ $charge->currency }}</td>
+                    <td>{{ number_format((float) $charge->unit_price, 2) }} {{ display_currency($charge->currency) }}</td>
+                    <td>{{ number_format((float) $charge->total, 2) }} {{ display_currency($charge->currency) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="9">Sin cargos extra de estancias para los filtros seleccionados.</td></tr>
@@ -22,5 +22,5 @@
     </table>
 </div>
 @foreach ($stayExtraChargeTotals as $currency => $total)
-    <p><strong>Subtotal cargos extra: {{ number_format($total, 2) }} {{ $currency }}</strong></p>
+    <p><strong>Subtotal cargos extra: {{ number_format($total, 2) }} {{ display_currency($currency) }}</strong></p>
 @endforeach

@@ -179,7 +179,7 @@
                                     @php($optionalServices = $package->services->where('pivot.inclusion_type', 'optional_paid')->values())
                                     @php($excludedServices = $package->services->where('pivot.inclusion_type', 'not_included')->values())
                                     @php($badges = collect($package->badges)->filter()->whenEmpty(fn ($items) => $items->push('Todo incluido')))
-                                    @php($priceText = $package->price_display_text ?: money_format_decimal($package->price).' '.$package->currency.' por paquete / incluye '.$package->included_people.' persona'.($package->included_people === 1 ? '' : 's'))
+                                    @php($priceText = $package->price_display_text ?: money_format_decimal($package->price).' '.display_currency($package->currency, $space->company_id).' por paquete / incluye '.$package->included_people.' persona'.($package->included_people === 1 ? '' : 's'))
                                     @php($packageReservationUrl = route('public.accommodations.show', ['space' => $space, ...$packageBaseQuery, 'package_id' => $package->id]).'#booking-panel')
                                     @php($packageModalId = 'public-package-modal-'.$package->id)
                                     @php($packageGallery = collect()
@@ -231,7 +231,7 @@
                                                 <div><dt>Personas incluidas</dt><dd>{{ $package->included_people }}</dd></div>
                                                 <div><dt>Max. personas</dt><dd>{{ $package->extra_person_price ? $space->max_capacity : ($package->max_people ?: $space->max_capacity) }}</dd></div>
                                                 @if ($package->extra_person_price)
-                                                    <div><dt>Persona extra</dt><dd>{{ money_format_decimal($package->extra_person_price) }} {{ $package->currency }}</dd></div>
+                                                    <div><dt>Persona extra</dt><dd>{{ money_format_decimal($package->extra_person_price) }} {{ display_currency($package->currency, $space->company_id) }}</dd></div>
                                                 @endif
                                             </dl>
                                             @if ($includedServices->isNotEmpty())
@@ -313,7 +313,7 @@
                                                         <div><span>Personas incluidas</span><strong>{{ $package->included_people }}</strong></div>
                                                         <div><span>Máximo personas</span><strong>{{ $package->extra_person_price ? $space->max_capacity : ($package->max_people ?: $space->max_capacity) }}</strong></div>
                                                         @if ($package->extra_person_price)
-                                                            <div><span>Persona extra</span><strong>{{ money_format_decimal($package->extra_person_price) }} {{ $package->currency }}</strong></div>
+                                                            <div><span>Persona extra</span><strong>{{ money_format_decimal($package->extra_person_price) }} {{ display_currency($package->currency, $space->company_id) }}</strong></div>
                                                         @endif
                                                     </div>
 
@@ -334,7 +334,7 @@
                                                                 <h4>Opcionales</h4>
                                                                 <div class="public-package-services">
                                                                     @foreach ($optionalServices as $service)
-                                                                        <span><i class="{{ $packageIcon($service) }}"></i>{{ $service->pivot->custom_name ?: $service->name }}@if ($service->pivot->additional_price) · {{ money_format_decimal($service->pivot->additional_price) }} {{ $package->currency }}@endif</span>
+                                                                        <span><i class="{{ $packageIcon($service) }}"></i>{{ $service->pivot->custom_name ?: $service->name }}@if ($service->pivot->additional_price) · {{ money_format_decimal($service->pivot->additional_price) }} {{ display_currency($package->currency, $space->company_id) }}@endif</span>
                                                                     @endforeach
                                                                 </div>
                                                             </section>
@@ -404,9 +404,9 @@
                                         @endif
                                         @if ($showFullRoomOption)
                                             <dl class="public-inline-summary">
-                                                <div><dt>Habitacion/noche</dt><dd>{{ money_format_decimal($roomQuote['price_per_night']) }} Bs</dd></div>
-                                                <div><dt>Total</dt><dd>{{ money_format_decimal($roomQuote['total_amount']) }} Bs</dd></div>
-                                                <div><dt>Adelanto</dt><dd>{{ money_format_decimal($roomQuote['advance_amount']) }} Bs</dd></div>
+                                                <div><dt>Habitacion/noche</dt><dd>{{ money_format_decimal($roomQuote['price_per_night']) }} {{ company_currency_symbol($space->company_id) }}</dd></div>
+                                                <div><dt>Total</dt><dd>{{ money_format_decimal($roomQuote['total_amount']) }} {{ company_currency_symbol($space->company_id) }}</dd></div>
+                                                <div><dt>Adelanto</dt><dd>{{ money_format_decimal($roomQuote['advance_amount']) }} {{ company_currency_symbol($space->company_id) }}</dd></div>
                                             </dl>
                                         @endif
                                     </span>
@@ -435,7 +435,7 @@
                                                         <small>{{ $bedUnit->bedType?->name ?: 'Cama' }} · {{ $bedCapacity }} persona{{ $bedCapacity === 1 ? '' : 's' }}</small>
                                                     </span>
                                                     @if ($bedQuote)
-                                                        <span>{{ money_format_decimal($bedQuote['price_per_night']) }} Bs/noche</span>
+                                                        <span>{{ money_format_decimal($bedQuote['price_per_night']) }} {{ company_currency_symbol($space->company_id) }}/noche</span>
                                                     @else
                                                         <span>Sin tarifa</span>
                                                     @endif
@@ -451,7 +451,7 @@
                             @if ($sharedSelectionEnabled)
                                 <div class="public-live-quote" data-shared-room-summary>
                                     <span data-shared-room-summary-count>Selecciona habitaciones o camas</span>
-                                    <strong data-shared-room-summary-total>Bs 0.00</strong>
+                                    <strong data-shared-room-summary-total>{{ company_currency_symbol($space->company_id) }} 0.00</strong>
                                     <small data-shared-room-summary-detail>Capacidad seleccionada: 0 de {{ $selectedGuests }} persona{{ $selectedGuests === 1 ? '' : 's' }}</small>
                                     <button class="btn btn-dark w-100" type="submit" data-shared-room-submit disabled>
                                         Reservar seleccion
@@ -493,7 +493,7 @@
                             <option value="">Solo habitacion</option>
                             @foreach ($space->accommodationPackages as $package)
                                 <option value="{{ $package->id }}" @selected($selectedPackageId === $package->id)>
-                                    {{ $package->name }} · {{ money_format_decimal($package->price) }} {{ $package->currency }}
+                                    {{ $package->name }} · {{ money_format_decimal($package->price) }} {{ display_currency($package->currency, $space->company_id) }}
                                 </option>
                             @endforeach
                         </select>
@@ -531,31 +531,31 @@
                 @if ($quote)
                     <div class="public-live-quote" data-public-quote>
                         <span>{{ ($quote['booking_type'] ?? 'normal') === 'package' ? 'Total final del paquete' : 'Total solo habitacion' }}</span>
-                        <strong>{{ money_format_decimal($quote['total_amount']) }} Bs</strong>
+                        <strong>{{ money_format_decimal($quote['total_amount']) }} {{ company_currency_symbol($space->company_id) }}</strong>
                         @if (($quote['booking_type'] ?? 'normal') === 'package')
                             <small>Incluye {{ $quote['included_people'] }} persona{{ $quote['included_people'] === 1 ? '' : 's' }} · extra: {{ $quote['extra_people'] }}</small>
                         @else
-                            <small>{{ $result['mode'] === 'shared' ? 'Habitacion' : 'Espacio' }}: {{ money_format_decimal($quote['price_per_night']) }} Bs por noche</small>
+                            <small>{{ $result['mode'] === 'shared' ? 'Habitacion' : 'Espacio' }}: {{ money_format_decimal($quote['price_per_night']) }} {{ company_currency_symbol($space->company_id) }} por noche</small>
                         @endif
                         <dl>
                             @if (($quote['booking_type'] ?? 'normal') === 'package')
-                                <div><dt>Precio base paquete</dt><dd>{{ money_format_decimal($quote['package_price']) }} Bs</dd></div>
+                                <div><dt>Precio base paquete</dt><dd>{{ money_format_decimal($quote['package_price']) }} {{ company_currency_symbol($space->company_id) }}</dd></div>
                                 <div>
                                     <dt>Personas extra</dt>
-                                    <dd>{{ $quote['extra_people'] }} x {{ $quote['nights'] }} noche{{ $quote['nights'] === 1 ? '' : 's' }} = {{ money_format_decimal($quote['extra_people_total']) }} Bs</dd>
+                                    <dd>{{ $quote['extra_people'] }} x {{ $quote['nights'] }} noche{{ $quote['nights'] === 1 ? '' : 's' }} = {{ money_format_decimal($quote['extra_people_total']) }} {{ company_currency_symbol($space->company_id) }}</dd>
                                 </div>
                                 @foreach (($quote['extra_people_details'] ?? collect()) as $detail)
                                     <div>
                                         <dt>{{ $detail['date'] }}</dt>
-                                        <dd>{{ $detail['quantity'] }} x {{ money_format_decimal($detail['unit_price']) }} Bs = {{ money_format_decimal($detail['total']) }} Bs</dd>
+                                        <dd>{{ $detail['quantity'] }} x {{ money_format_decimal($detail['unit_price']) }} {{ company_currency_symbol($space->company_id) }} = {{ money_format_decimal($detail['total']) }} {{ company_currency_symbol($space->company_id) }}</dd>
                                     </div>
                                 @endforeach
                                 @if (($quote['package_extra_nights'] ?? 0) > 0)
-                                    <div><dt>Noches extra</dt><dd>{{ $quote['package_extra_nights'] }} · {{ money_format_decimal($quote['package_extra_nights_total']) }} Bs</dd></div>
+                                    <div><dt>Noches extra</dt><dd>{{ $quote['package_extra_nights'] }} · {{ money_format_decimal($quote['package_extra_nights_total']) }} {{ company_currency_symbol($space->company_id) }}</dd></div>
                                 @endif
                             @endif
-                            <div><dt>Reserva con adelanto</dt><dd>{{ money_format_decimal($quote['advance_amount']) }} Bs</dd></div>
-                            <div><dt>Saldo</dt><dd>{{ money_format_decimal($quote['balance_amount']) }} Bs</dd></div>
+                            <div><dt>Reserva con adelanto</dt><dd>{{ money_format_decimal($quote['advance_amount']) }} {{ company_currency_symbol($space->company_id) }}</dd></div>
+                            <div><dt>Saldo</dt><dd>{{ money_format_decimal($quote['balance_amount']) }} {{ company_currency_symbol($space->company_id) }}</dd></div>
                         </dl>
                         <p>Tu reserva se confirma despues de validar el pago.</p>
                     </div>
@@ -1052,8 +1052,8 @@
                 const selectionLabel = selectedType === 'bed_unit' ? 'cama' : 'habitacion';
                 const selectionPlural = selectedType === 'bed_unit' ? 'camas' : 'habitaciones';
                 count.textContent = selected.length === 1 ? `1 ${selectionLabel} seleccionada` : `${selected.length} ${selectionPlural} seleccionadas`;
-                total.textContent = `Bs ${format(amount)}`;
-                detail.textContent = `Capacidad seleccionada: ${capacity} de ${requiredGuests} persona${requiredGuests === 1 ? '' : 's'} · Bs ${format(perNight)} por noche`;
+                total.textContent = `${@json(company_currency_symbol($space->company_id))} ${format(amount)}`;
+                detail.textContent = `Capacidad seleccionada: ${capacity} de ${requiredGuests} persona${requiredGuests === 1 ? '' : 's'} · ${@json(company_currency_symbol($space->company_id))} ${format(perNight)} por noche`;
                 submit.disabled = !valid;
             };
 

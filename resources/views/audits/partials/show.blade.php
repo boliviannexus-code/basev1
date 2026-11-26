@@ -37,7 +37,7 @@
         <tbody>
             @forelse ($fields as $field)
                 <tr>
-                    <td class="fw-semibold">{{ $presenter->label($field) }}</td>
+                    <td class="fw-semibold">{{ $presenter->label($field, $audit->company_id) }}</td>
                     <td class="text-break">{{ $presenter->value($field, $oldValues[$field] ?? null, $audit->company_id) }}</td>
                     <td class="text-break">{{ $presenter->value($field, $newValues[$field] ?? null, $audit->company_id) }}</td>
                 </tr>

@@ -148,7 +148,7 @@
         </summary>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Comprobante</th><th>Fecha</th><th>Categoria</th><th class="text-end">Cantidad</th><th>Detalle</th><th>Metodo</th><th>Referencia</th><th class="text-end">BOB caja</th></tr></thead>
+                <thead><tr><th>Comprobante</th><th>Fecha</th><th>Categoria</th><th class="text-end">Cantidad</th><th>Detalle</th><th>Metodo</th><th>Referencia</th><th class="text-end">{{ company_currency_code() }} caja</th></tr></thead>
                 <tbody>
                     @forelse ($directIncomes as $income)
                         <tr>
@@ -176,7 +176,7 @@
         </summary>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Comprobante</th><th>Fecha</th><th>Estancia</th><th>Metodo</th><th>Referencia</th><th class="text-end">Monto</th><th class="text-end">BOB caja</th></tr></thead>
+                <thead><tr><th>Comprobante</th><th>Fecha</th><th>Estancia</th><th>Metodo</th><th>Referencia</th><th class="text-end">Monto</th><th class="text-end">{{ company_currency_code() }} caja</th></tr></thead>
                 <tbody>
                     @forelse ($lodgingPayments as $payment)
                         <tr>
@@ -185,7 +185,7 @@
                             <td>{{ $payment->stay?->holderGuest?->full_name ?? 'Estancia' }}</td>
                             <td>{{ $payment->paymentMethod?->name ?? '-' }}</td>
                             <td>{{ $payment->reference ?: '-' }}</td>
-                            <td class="text-end">{{ money_format_decimal($payment->amount_original) }} {{ $payment->currency_original }}</td>
+                            <td class="text-end">{{ money_format_decimal($payment->amount_original) }} {{ display_currency($payment->currency_original) }}</td>
                             <td class="text-end fw-semibold">{{ money_format_decimal($payment->amount_bob) }}</td>
                         </tr>
                     @empty
@@ -203,7 +203,7 @@
         </summary>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Comprobante</th><th>Fecha</th><th>Reserva</th><th>Metodo</th><th>Referencia</th><th class="text-end">Monto</th><th class="text-end">BOB caja</th></tr></thead>
+                <thead><tr><th>Comprobante</th><th>Fecha</th><th>Reserva</th><th>Metodo</th><th>Referencia</th><th class="text-end">Monto</th><th class="text-end">{{ company_currency_code() }} caja</th></tr></thead>
                 <tbody>
                     @forelse ($reservationPayments as $payment)
                         <tr>
@@ -212,7 +212,7 @@
                             <td>{{ $payment->reservationGroup?->code ?? 'Reserva' }}</td>
                             <td>{{ $payment->paymentMethod?->name ?? '-' }}</td>
                             <td>{{ $payment->reference ?: '-' }}</td>
-                            <td class="text-end">{{ money_format_decimal($payment->amount_original) }} {{ $payment->currency_original }}</td>
+                            <td class="text-end">{{ money_format_decimal($payment->amount_original) }} {{ display_currency($payment->currency_original) }}</td>
                             <td class="text-end fw-semibold">{{ money_format_decimal($payment->amount_bob) }}</td>
                         </tr>
                     @empty

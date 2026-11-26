@@ -1,11 +1,11 @@
 @php
     $nightItems = $record->accountStatement?->items?->where('type', 'lodging_night')->where('status', 'active')->filter(fn ($item) => $item->date)->groupBy(fn ($item) => $item->date->format('d/m/Y'));
-    $nightLines = $nightItems?->map(fn ($items, $date) => $date.': '.money_format_decimal($items->sum('total')).' '.$record->currency)->values()->all() ?? [];
+    $nightLines = $nightItems?->map(fn ($items, $date) => $date.': '.money_format_decimal($items->sum('total')).' '.display_currency($record->currency, $record->company_id))->values()->all() ?? [];
     if (! $nightLines && $record instanceof \App\Models\Reservation) {
-        $nightLines = [money_format_decimal($record->price_per_person).' '.$record->currency];
+        $nightLines = [money_format_decimal($record->price_per_person).' '.display_currency($record->currency, $record->company_id)];
     }
     if (! $nightLines && $record instanceof \App\Models\ReservationGroup) {
-        $nightLines = $record->reservations->whereNotIn('status', ['cancelled', 'no_show'])->map(fn ($reservation) => $reservation->code.': '.money_format_decimal($reservation->price_per_person).' '.$reservation->currency)->all();
+        $nightLines = $record->reservations->whereNotIn('status', ['cancelled', 'no_show'])->map(fn ($reservation) => $reservation->code.': '.money_format_decimal($reservation->price_per_person).' '.display_currency($reservation->currency, $reservation->company_id))->all();
     }
     $isConfirmed = in_array($record->status, ['confirmed', 'checked_in'], true);
     $reservations = $record instanceof \App\Models\ReservationGroup
@@ -40,9 +40,9 @@
         '🌙 *'.$t[7].':* '.$record->nights,
         '💰 *'.$t[8].':*',
     ], $nightLines ?: [$t[26]], [
-        '*'.$t[9].':* '.money_format_decimal($record->total_amount).' '.$record->currency,
-    ], $paid > 0 ? ['*'.$t[10].':* '.money_format_decimal($paid).' '.$record->currency] : [], [
-        '*'.$t[11].':* '.money_format_decimal($balance).' '.$record->currency, '',
+        '*'.$t[9].':* '.money_format_decimal($record->total_amount).' '.display_currency($record->currency, $record->company_id),
+    ], $paid > 0 ? ['*'.$t[10].':* '.money_format_decimal($paid).' '.display_currency($record->currency, $record->company_id)] : [], [
+        '*'.$t[11].':* '.money_format_decimal($balance).' '.display_currency($record->currency, $record->company_id), '',
         '🛎️ *'.$t[12].':*', '- '.$t[13].': '.$breakfast, '- '.$t[17], '- '.$t[18], '- '.$t[19], '',
     ], $paid > 0 ? [
         '📌 *'.$t[20].':*', '- '.$t[21], '- '.$t[22], '- '.$t[23], '- '.$t[24],

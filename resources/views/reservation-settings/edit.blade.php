@@ -70,10 +70,10 @@
                     <dl class="row mb-0">
                         <dt class="col-sm-5">Porcentaje activo</dt>
                         <dd class="col-sm-7">{{ number_format($percentage, 2) }}%</dd>
-                        <dt class="col-sm-5">Ejemplo sobre 1,000.00 Bs</dt>
-                        <dd class="col-sm-7">{{ money_format_decimal($exampleAdvance) }} Bs de adelanto</dd>
+                        <dt class="col-sm-5">Ejemplo sobre 1,000.00 {{ company_currency_symbol() }}</dt>
+                        <dd class="col-sm-7">{{ money_format_decimal($exampleAdvance) }} {{ company_currency_symbol() }} de adelanto</dd>
                         <dt class="col-sm-5">Saldo del ejemplo</dt>
-                        <dd class="col-sm-7">{{ money_format_decimal($exampleTotal - $exampleAdvance) }} Bs</dd>
+                        <dd class="col-sm-7">{{ money_format_decimal($exampleTotal - $exampleAdvance) }} {{ company_currency_symbol() }}</dd>
                     </dl>
                 </div>
             </x-ui.card>

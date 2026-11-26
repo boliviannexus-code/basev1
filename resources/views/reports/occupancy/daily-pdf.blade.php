@@ -39,7 +39,7 @@
 
 <h1 style="{{ $font }} font-size: 18px; text-align: center;">{{ $dailyOccupancy['date']->format('d/m/Y') }}</h1>
 
-<h2 style="{{ $font }} font-size: 12px;">Habitaciones del día · Importes en BOB</h2>
+<h2 style="{{ $font }} font-size: 12px;">Habitaciones del día · Importes en {{ company_currency_code($company) }}</h2>
 <table cellpadding="2" cellspacing="0" style="{{ $font }}">
     <tr>
         <th width="12%" style="{{ $th }}">Habitacion</th>

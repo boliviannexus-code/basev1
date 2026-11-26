@@ -4,7 +4,7 @@
     @php
         $displayName = $company->public_name ?: $company->name;
         $mainImage = $gallery->first()['url'] ?? null;
-        $priceText = $package->price_display_text ?: money_format_decimal($package->price).' '.$package->currency;
+        $priceText = $package->price_display_text ?: money_format_decimal($package->price).' '.display_currency($package->currency, $package->company_id);
         $badgeItems = collect($package->badges)->filter();
         $serviceIcon = function ($service, string $fallback): string {
             $icon = trim((string) $service->icon);
@@ -95,7 +95,7 @@
                         <div><dt>Personas incluidas</dt><dd>{{ $package->included_people }}</dd></div>
                         <div><dt>Máx. personas</dt><dd>{{ $package->max_people ?: '-' }}</dd></div>
                         @if ($package->extra_person_price)
-                            <div><dt>Persona extra</dt><dd>{{ money_format_decimal($package->extra_person_price) }} {{ $package->currency }}</dd></div>
+                            <div><dt>Persona extra</dt><dd>{{ money_format_decimal($package->extra_person_price) }} {{ display_currency($package->currency, $package->company_id) }}</dd></div>
                         @endif
                     </dl>
                 </section>
@@ -202,7 +202,7 @@
                                                         <small>{{ $service->pivot->custom_description }}</small>
                                                     @endif
                                                     @if ($service->pivot->additional_price)
-                                                        <small>Adicional: {{ money_format_decimal($service->pivot->additional_price) }} {{ $package->currency }}</small>
+                                                        <small>Adicional: {{ money_format_decimal($service->pivot->additional_price) }} {{ display_currency($package->currency, $package->company_id) }}</small>
                                                     @endif
                                                 </span>
                                             </li>

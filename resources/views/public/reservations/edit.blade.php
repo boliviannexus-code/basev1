@@ -81,9 +81,9 @@
                 <dl>
                     <div><dt>Ingreso</dt><dd>{{ $reservation->check_in->toDateString() }}</dd></div>
                     <div><dt>Salida</dt><dd>{{ $reservation->check_out->toDateString() }}</dd></div>
-                    <div><dt>Total</dt><dd>{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</dd></div>
-                    <div><dt>Adelanto QR</dt><dd>{{ money_format_decimal($reservation->advance_amount) }} {{ $reservation->currency }}</dd></div>
-                    <div><dt>Saldo pendiente</dt><dd>{{ money_format_decimal($reservation->balance_amount) }} {{ $reservation->currency }}</dd></div>
+                    <div><dt>Total</dt><dd>{{ money_format_decimal($reservation->total_amount) }} {{ display_currency($reservation->currency, $reservation->company_id) }}</dd></div>
+                    <div><dt>Adelanto QR</dt><dd>{{ money_format_decimal($reservation->advance_amount) }} {{ display_currency($reservation->currency, $reservation->company_id) }}</dd></div>
+                    <div><dt>Saldo pendiente</dt><dd>{{ money_format_decimal($reservation->balance_amount) }} {{ display_currency($reservation->currency, $reservation->company_id) }}</dd></div>
                 </dl>
             </aside>
         </div>

@@ -23,7 +23,7 @@
         ? ((float) $account->subtotal + (float) $account->extra_charges_total - (float) $account->discount_total)
         : 0;
     $groupTotal = (float) $groupStatements->sum(fn ($account) => $statementTotal($account));
-    $money = fn ($value) => number_format((float) $value, 2).' Bs';
+    $money = fn ($value) => number_format((float) $value, 2).' '.company_currency_symbol();
     $statusLabels = [
         'checked_in' => 'En curso',
         'checked_out' => 'Finalizado',

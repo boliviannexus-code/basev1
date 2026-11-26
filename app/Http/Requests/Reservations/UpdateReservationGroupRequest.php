@@ -81,7 +81,7 @@ class UpdateReservationGroupRequest extends FormRequest
             'reservations.*.nights' => 'noches',
             'reservations.*.guests' => 'personas',
             'reservations.*.price_per_night' => 'precio por noche',
-            'reservations.*.price_per_night_bob' => 'precio por noche BOB',
+            'reservations.*.price_per_night_bob' => 'precio por noche '.company_currency_code(),
             'reservations.*.price_per_night_usd' => 'precio por noche USD',
             'reservations.*.exchange_rate' => 'tipo de cambio',
             'reservations.*.night_prices.*' => 'precio de noche',
@@ -125,11 +125,11 @@ class UpdateReservationGroupRequest extends FormRequest
                 $hasUsd = filled($reservationData['price_per_night_usd'] ?? null);
 
                 if (! $hasBob && ! $hasUsd) {
-                    $validator->errors()->add("reservations.{$reservationId}.price_per_night_bob", 'Ingresa el precio por noche en BOB o USD.');
+                    $validator->errors()->add("reservations.{$reservationId}.price_per_night_bob", 'Ingresa el precio por noche en '.company_currency_code().' o USD.');
                 }
 
                 if ((! $hasBob || ! $hasUsd) && ! filled($reservationData['exchange_rate'] ?? null)) {
-                    $validator->errors()->add("reservations.{$reservationId}.exchange_rate", 'Configura un tipo de cambio vigente para guardar BOB y USD.');
+                    $validator->errors()->add("reservations.{$reservationId}.exchange_rate", 'Configura un tipo de cambio vigente para guardar '.company_currency_code().' y USD.');
                 }
 
                 foreach ($reservationData['night_prices'] ?? [] as $date => $price) {

@@ -146,7 +146,7 @@
                         <div class="mb-3">
                             <label class="form-label" for="availability-price">Precio por noche</label>
                             <div class="input-group">
-                                <span class="input-group-text">Bs</span>
+                                <span class="input-group-text">{{ company_currency_symbol() }}</span>
                                 <input class="form-control" id="availability-price" name="price" type="number" min="0" step="0.01" inputmode="decimal" data-availability-status-field="price" placeholder="0.00">
                             </div>
                             <div class="form-hint">Este precio alimenta la disponibilidad pública y las cotizaciones.</div>
@@ -243,7 +243,7 @@
                                 <div>
                                     <label class="form-label" for="availability-bulk-price">Precio por noche</label>
                                     <div class="input-group">
-                                        <span class="input-group-text">Bs</span>
+                                        <span class="input-group-text">{{ company_currency_symbol() }}</span>
                                         <input class="form-control" id="availability-bulk-price" name="price" type="number" min="0" step="0.01" inputmode="decimal" data-availability-bulk-field="price" placeholder="No cambiar precio">
                                     </div>
                                     <div class="invalid-feedback d-block" data-error-for="price"></div>

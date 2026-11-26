@@ -39,7 +39,7 @@
                                         <div class="fw-semibold">{{ $item->name }}</div>
                                         <div class="text-body-secondary small">Orden {{ $item->sort_order }}{{ $item->is_protected ? ' · Base' : '' }}</div>
                                     </td>
-                                    <td class="text-end">{{ money_format_decimal($item->default_unit_price) }} Bs</td>
+                                    <td class="text-end">{{ money_format_decimal($item->default_unit_price) }} {{ company_currency_symbol() }}</td>
                                     <td>
                                         <span class="badge text-bg-{{ $item->is_active ? 'success' : 'secondary' }}">{{ $item->is_active ? 'Activa' : 'Inactiva' }}</span>
                                     </td>

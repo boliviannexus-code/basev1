@@ -154,22 +154,22 @@
                     <div><dt>Noches</dt><dd>{{ $reservation->nights }}</dd></div>
                     <div><dt>Personas</dt><dd>{{ $reservation->guests }}</dd></div>
                     @if ($reservation->booking_type === 'package')
-                        <div><dt>Precio base paquete</dt><dd>{{ money_format_decimal($reservation->package_price) }} {{ $reservation->currency }}</dd></div>
+                        <div><dt>Precio base paquete</dt><dd>{{ money_format_decimal($reservation->package_price) }} {{ display_currency($reservation->currency, $reservation->company_id) }}</dd></div>
                         <div><dt>Personas incluidas</dt><dd>{{ $reservation->included_people }}</dd></div>
                         <div><dt>Personas extra</dt><dd>{{ $reservation->extra_people }}</dd></div>
                         <div>
                             <dt>Personas extra</dt>
-                            <dd>{{ $reservation->extra_people }} x {{ $reservation->nights }} noche{{ $reservation->nights === 1 ? '' : 's' }} = {{ money_format_decimal($reservation->extra_people_total) }} {{ $reservation->currency }}</dd>
+                            <dd>{{ $reservation->extra_people }} x {{ $reservation->nights }} noche{{ $reservation->nights === 1 ? '' : 's' }} = {{ money_format_decimal($reservation->extra_people_total) }} {{ display_currency($reservation->currency, $reservation->company_id) }}</dd>
                         </div>
                         @if ((int) $reservation->package_extra_nights > 0)
-                            <div><dt>Noches extra</dt><dd>{{ $reservation->package_extra_nights }} · {{ money_format_decimal($reservation->package_extra_nights_total) }} {{ $reservation->currency }}</dd></div>
+                            <div><dt>Noches extra</dt><dd>{{ $reservation->package_extra_nights }} · {{ money_format_decimal($reservation->package_extra_nights_total) }} {{ display_currency($reservation->currency, $reservation->company_id) }}</dd></div>
                         @endif
-                        <div><dt>Total final del paquete</dt><dd>{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</dd></div>
+                        <div><dt>Total final del paquete</dt><dd>{{ money_format_decimal($reservation->total_amount) }} {{ display_currency($reservation->currency, $reservation->company_id) }}</dd></div>
                     @else
-                        <div><dt>Total por {{ $reservation->nights }} noche{{ $reservation->nights === 1 ? '' : 's' }}</dt><dd>{{ money_format_decimal($reservation->total_amount) }} {{ $reservation->currency }}</dd></div>
+                        <div><dt>Total por {{ $reservation->nights }} noche{{ $reservation->nights === 1 ? '' : 's' }}</dt><dd>{{ money_format_decimal($reservation->total_amount) }} {{ display_currency($reservation->currency, $reservation->company_id) }}</dd></div>
                     @endif
-                    <div><dt>Reserva con adelanto</dt><dd>{{ money_format_decimal($reservation->advance_amount) }} {{ $reservation->currency }}</dd></div>
-                    <div><dt>Saldo pendiente</dt><dd>{{ money_format_decimal($reservation->balance_amount) }} {{ $reservation->currency }}</dd></div>
+                    <div><dt>Reserva con adelanto</dt><dd>{{ money_format_decimal($reservation->advance_amount) }} {{ display_currency($reservation->currency, $reservation->company_id) }}</dd></div>
+                    <div><dt>Saldo pendiente</dt><dd>{{ money_format_decimal($reservation->balance_amount) }} {{ display_currency($reservation->currency, $reservation->company_id) }}</dd></div>
                 </dl>
                 <a class="btn btn-outline-dark w-100" href="{{ route('public.reservations.index') }}">Ver mis reservas</a>
             </aside>

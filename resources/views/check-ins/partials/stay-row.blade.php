@@ -74,7 +74,7 @@
         </div>
         <input type="hidden" name="{{ $field('currency') }}" value="BOB" data-stay-currency>
         <div class="col-sm-6 col-lg-3">
-            <label class="form-label">Precio noche BOB</label>
+            <label class="form-label">Precio noche {{ company_currency_code() }}</label>
             <input class="form-control @error("stays.{$index}.price_per_night_bob") is-invalid @enderror" name="{{ $field('price_per_night_bob') }}" type="number" min="0" step="0.01" value="{{ old("stays.{$index}.price_per_night_bob", $stay['price_per_night_bob'] ?? '') }}" autocomplete="off" data-stay-price-bob>
             <div class="invalid-feedback">{{ $errors->first("stays.{$index}.price_per_night_bob") }}</div>
         </div>

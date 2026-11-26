@@ -3,6 +3,7 @@
     'currency' => 'BOB',
     'exchangeRate' => null,
     'inline' => false,
+    'company' => null,
 ])
 
 @php
@@ -11,10 +12,10 @@
     $amount = (float) $amount;
     $rate = (float) $exchangeRate;
     $isUsd = $currency === 'USD';
-    $primary = money_format_decimal($amount).' '.$currency;
+    $primary = money_format_decimal($amount).' '.display_currency($currency, $company);
     $reference = $rate > 0
         ? ($isUsd
-            ? money_format_decimal($amount * $rate).' BOB'
+            ? money_format_decimal($amount * $rate).' '.company_currency_code($company)
             : money_format_decimal($amount / $rate).' USD')
         : null;
 @endphp

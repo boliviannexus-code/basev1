@@ -1,4 +1,16 @@
 <div class="row g-3">
+    @if (auth()->user()?->hasRole('super_admin'))
+        <div class="col-md-6">
+            <label class="form-label" for="company-local-currency">Moneda local de presentación</label>
+            <select class="form-select" id="company-local-currency" name="local_currency">
+                @foreach (\App\Support\CompanyCurrency::CURRENCIES as $code => [$name, $symbol])
+                    <option value="{{ $code }}" @selected(old('local_currency', $company->local_currency ?? 'BOB') === $code)>{{ $name }} · {{ $code }} ({{ $symbol }})</option>
+                @endforeach
+            </select>
+            <div class="form-hint">Cambia la etiqueta de los importes; no convierte valores ni cambia el tipo de cambio.</div>
+            <div class="invalid-feedback" data-error-for="local_currency"></div>
+        </div>
+    @endif
     <div class="col-md-6">
         <label class="form-label" for="company-name">Nombre comercial</label>
         <input class="form-control" id="company-name" name="name" value="{{ old('name', $company->name ?? '') }}" required>

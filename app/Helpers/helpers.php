@@ -71,3 +71,24 @@ if (! function_exists('permission_label')) {
         return permission_module_label($module).': '.permission_action_label($action);
     }
 }
+
+if (! function_exists('company_currency_code')) {
+    function company_currency_code(\App\Models\Company|int|null $company = null): string
+    {
+        return \App\Support\CompanyCurrency::code($company);
+    }
+}
+
+if (! function_exists('company_currency_symbol')) {
+    function company_currency_symbol(\App\Models\Company|int|null $company = null): string
+    {
+        return \App\Support\CompanyCurrency::symbol($company);
+    }
+}
+
+if (! function_exists('display_currency')) {
+    function display_currency(?string $currency, \App\Models\Company|int|null $company = null): string
+    {
+        return \App\Support\CompanyCurrency::display($currency, $company);
+    }
+}

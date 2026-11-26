@@ -53,7 +53,7 @@
                                 @endif
                             </td>
                             <td>
-                                <div>{{ money_format_decimal($package->price) }} {{ $package->currency }}</div>
+                                <div>{{ money_format_decimal($package->price) }} {{ display_currency($package->currency, $package->company_id) }}</div>
                                 @if ($package->price_display_text)
                                     {{-- <div class="text-body-secondary small">{{ $package->price_display_text }}</div> --}}
                                 @endif

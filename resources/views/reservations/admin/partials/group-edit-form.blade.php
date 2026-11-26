@@ -46,7 +46,7 @@
 
 @unless ($currentExchangeRate)
     <div class="alert alert-warning">
-        Configura un tipo de cambio USD a BOB para modificar precios con referencia USD.
+        Configura un tipo de cambio USD a {{ company_currency_code() }} para modificar precios con referencia USD.
     </div>
 @endunless
 
@@ -203,7 +203,7 @@
                                     <input type="hidden" name="reservations[{{ $reservation->id }}][currency]" value="BOB">
                                     <input type="hidden" name="reservations[{{ $reservation->id }}][exchange_rate]" value="{{ $exchangeRate }}" data-reference-exchange-rate>
                                     <div class="col-sm-6 col-lg-4">
-                                        <label class="form-label">Precio noche BOB</label>
+                                        <label class="form-label">Precio noche {{ company_currency_code() }}</label>
                                         <input class="form-control @error("reservations.{$reservation->id}.price_per_night_bob") is-invalid @enderror" name="reservations[{{ $reservation->id }}][price_per_night_bob]" type="number" min="0" step="0.01" value="{{ $priceBob }}" data-reference-price-bob>
                                         @error("reservations.{$reservation->id}.price_per_night_bob")<div class="invalid-feedback">{{ $message }}</div>@enderror
                                     </div>

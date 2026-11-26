@@ -39,7 +39,7 @@
 
     @unless ($currentExchangeRate)
         <div class="alert alert-warning">
-            Configura un tipo de cambio USD a BOB para esta empresa antes de registrar reservas.
+            Configura un tipo de cambio USD a {{ company_currency_code() }} para esta empresa antes de registrar reservas.
         </div>
     @endunless
 

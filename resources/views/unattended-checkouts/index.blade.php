@@ -26,7 +26,7 @@
                             @endcan
                         </td>
                         <td>{{ $stay->check_out_date->format('d/m/Y') }}</td>
-                        <td>{{ number_format((float) ($stay->accountStatement?->balance ?? 0), 2) }} {{ $stay->currency }}</td>
+                        <td>{{ number_format((float) ($stay->accountStatement?->balance ?? 0), 2) }} {{ display_currency($stay->currency, $stay->company_id) }}</td>
                         <td>
                             <form method="POST" action="{{ route('unattended-checkouts.resolve', $stay) }}" class="d-flex flex-wrap gap-2" data-unattended-resolution-form>
                                 @csrf
@@ -80,7 +80,7 @@
                         </td>
                         <td>{{ $group->check_in->format('d/m/Y') }}</td>
                         <td>{{ str_replace('_', ' ', $group->status) }}</td>
-                        <td>{{ number_format((float) $group->balance_amount, 2) }} {{ $group->currency }}</td>
+                        <td>{{ number_format((float) $group->balance_amount, 2) }} {{ display_currency($group->currency, $group->company_id) }}</td>
                         <td>
                             <form method="POST" action="{{ route('unattended-checkouts.reservation-groups.resolve', $group) }}" class="d-flex flex-wrap gap-2" data-unattended-resolution-form>
                                 @csrf
@@ -110,7 +110,7 @@
                         </td>
                         <td>{{ $reservation->check_in->format('d/m/Y') }}</td>
                         <td>{{ str_replace('_', ' ', $reservation->status) }}</td>
-                        <td>{{ number_format((float) $reservation->balance_amount, 2) }} {{ $reservation->currency }}</td>
+                        <td>{{ number_format((float) $reservation->balance_amount, 2) }} {{ display_currency($reservation->currency, $reservation->company_id) }}</td>
                         <td>
                             <form method="POST" action="{{ route('unattended-checkouts.reservations.resolve', $reservation) }}" class="d-flex flex-wrap gap-2" data-unattended-resolution-form>
                                 @csrf

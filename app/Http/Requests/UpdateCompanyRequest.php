@@ -21,6 +21,7 @@ class UpdateCompanyRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'local_currency' => ['sometimes', 'required', \Illuminate\Validation\Rule::in(array_keys(\App\Support\CompanyCurrency::CURRENCIES))],
             'legal_name' => ['nullable', 'string', 'max:255'],
             'tax_id' => ['nullable', 'string', 'max:80'],
             'phone' => ['nullable', 'string', 'max:80'],
@@ -34,4 +35,16 @@ class UpdateCompanyRequest extends FormRequest
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
+    public function after(): array
+    {
+        return [function (\Illuminate\Validation\Validator $validator): void {
+            $company = $this->route('company');
+            if ($this->has('local_currency') && $company instanceof Company
+                && $this->input('local_currency') !== ($company->local_currency ?? 'BOB')
+                && ! $this->user()?->hasRole('super_admin')) {
+                $validator->errors()->add('local_currency', 'Solo un superadministrador puede cambiar la moneda.');
+            }
+        }];
+    }
+
 }

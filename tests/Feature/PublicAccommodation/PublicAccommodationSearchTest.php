@@ -579,6 +579,37 @@ class PublicAccommodationSearchTest extends TestCase
         $this->assertSame('168.00', $reservation->balance_amount);
     }
 
+    public function test_public_quote_uses_space_company_currency_even_with_other_company_logged_in(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $company = Company::factory()->create(['local_currency' => 'PEN']);
+        $otherCompany = Company::factory()->create(['local_currency' => 'ARS']);
+        $space = $this->privateSpace($company, ['title' => 'Casa Perú', 'max_capacity' => 4]);
+        $this->openPrivate($space, '2026-07-01', '2026-07-02');
+        $this->getJson(route('public.accommodations.quote', ['space' => $space, 'check_in' => '2026-07-01', 'check_out' => '2026-07-03', 'guests' => 2]))
+            ->assertOk()->assertJsonPath('quote.total', '240.00 S/');
+        $this->actingAs(User::factory()->create(['company_id' => $otherCompany->id]));
+        $this->getJson(route('public.accommodations.quote', ['space' => $space, 'check_in' => '2026-07-01', 'check_out' => '2026-07-03', 'guests' => 2]))
+            ->assertOk()->assertJsonPath('quote.total', '240.00 S/');
+        $this->get(route('public.accommodations.show', ['space' => $space, 'check_in' => '2026-07-01', 'check_out' => '2026-07-03', 'guests' => 2]))
+            ->assertOk()->assertSee('240.00 S/')->assertDontSee('240.00 $ ARS');
+    }
+
+    public function test_public_search_uses_each_company_currency_in_the_same_list(): void
+    {
+        $this->seed(AccommodationCatalogSeeder::class);
+        $peru = Company::factory()->create(['local_currency' => 'PEN']);
+        $argentina = Company::factory()->create(['local_currency' => 'ARS']);
+        $first = $this->privateSpace($peru, ['title' => 'Casa Perú', 'max_capacity' => 4]);
+        $second = $this->privateSpace($argentina, ['title' => 'Casa Argentina', 'max_capacity' => 4]);
+        $this->openPrivate($first, '2026-07-01', '2026-07-02');
+        $this->openPrivate($second, '2026-07-01', '2026-07-02');
+        $this->packageFor($peru, $first, ['price' => 120]);
+        $this->packageFor($argentina, $second, ['price' => 120]);
+        $this->get(route('public.accommodations.search', ['check_in' => '2026-07-01', 'check_out' => '2026-07-03', 'guests' => 2]))
+            ->assertOk()->assertSee('Casa Perú')->assertSee('Casa Argentina')->assertSee('S/ 120.00')->assertSee('$ ARS 120.00');
+    }
+
     public function test_private_quote_endpoint_returns_room_only_quote_without_reload(): void
     {
         $this->seed(AccommodationCatalogSeeder::class);
