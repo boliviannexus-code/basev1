@@ -46,6 +46,9 @@ use App\Http\Controllers\Web\TournamentRegistrationController;
 use App\Http\Controllers\Web\TransportTypeController;
 use App\Http\Controllers\Web\UserController;
 use App\Http\Controllers\Web\WebsitePageController;
+use App\Http\Middleware\PreventAuthenticatedResponseCaching;
+use App\Http\Middleware\ResolveCompanyFromPath;
+use App\Models\Company;
 use Illuminate\Support\Facades\Route;
 
 Route::domain('{tenant}.'.config('tenancy.base_domain'))->group(function (): void {
@@ -57,14 +60,17 @@ Route::domain('{tenant}.'.config('tenancy.base_domain'))->group(function (): voi
     Route::get('pagina-imagen/{field}', [PublicLeaguePageController::class, 'image'])->name('public.image');
 });
 
-Route::redirect('/', '/login');
+Route::get('/', fn () => view('welcome', [
+    'publicLeagues' => Company::query()->where('is_active', true)->where('public_page_is_enabled', true)
+        ->whereNotNull('subdomain')->orderBy('name')->get(),
+]))->name('home');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('login', [AuthController::class, 'login'])->name('login.store');
 });
 
-Route::middleware('auth')->group(function (): void {
+Route::middleware(['auth', PreventAuthenticatedResponseCaching::class])->group(function (): void {
     Route::post('logout', [AuthController::class, 'logout'])->name('logout');
 
     Route::get('tours/{tour}/reservar', [TourBookingController::class, 'create'])->name('public.bookings.create');
@@ -79,7 +85,7 @@ Route::middleware('auth')->group(function (): void {
     });
 });
 
-Route::middleware('auth')->prefix('admin')->group(function (): void {
+Route::middleware(['auth', PreventAuthenticatedResponseCaching::class])->prefix('admin')->group(function (): void {
 
     Route::get('/', DashboardController::class)->name('dashboard');
     Route::get('pagina-web', [WebsitePageController::class, 'edit'])->middleware('permission:companies.update')->name('website-page.edit');
@@ -462,4 +468,14 @@ Route::middleware('auth')->prefix('admin')->group(function (): void {
         'update' => 'permission:permissions.edit',
         'destroy' => 'permission:permissions.delete',
     ]);
+});
+
+// Keep these routes after application routes so league identifiers cannot shadow them.
+Route::prefix('{tenant}')->middleware(ResolveCompanyFromPath::class)->name('public.path.')->group(function (): void {
+    Route::get('/', PublicLeaguePageController::class)->name('league');
+    Route::get('tabla-posiciones', [PublicLeaguePageController::class, 'standings'])->name('standings');
+    Route::get('tabla-posiciones/{tournament}/categorias/{category}/series/{series}/equipos/{team}/partidos.pdf', [PublicLeaguePageController::class, 'teamMatchesPdf'])->name('standings.team-matches.pdf');
+    Route::get('partidos', [PublicLeaguePageController::class, 'matches'])->name('matches');
+    Route::get('kardex', [PublicLeaguePageController::class, 'kardex'])->name('kardex');
+    Route::get('pagina-imagen/{field}', [PublicLeaguePageController::class, 'image'])->name('image');
 });

@@ -3,17 +3,17 @@
 <section class="public-hero" style="--hero-image: url('{{ $publicImages['banner'] ?: '' }}');">
     <div class="public-shell">
         <nav class="public-nav">
-            <a class="brand" href="{{ route('public.league', request()->route('tenant')) }}">
+            <a class="brand" href="{{ route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'league', request()->route('tenant')) }}">
                 @if ($company->logo_display_url)
                     <img src="{{ $company->logo_display_url }}" alt="{{ $company->name }}">
                 @endif
                 <span>{{ $company->name }}</span>
             </a>
             <div>
-                <a href="{{ route('public.league', request()->route('tenant')) }}">Inicio</a>
-                <a href="{{ route('public.standings', request()->route('tenant')) }}">Tabla de posiciones</a>
-                <a href="{{ route('public.matches', request()->route('tenant')) }}">Partidos</a>
-                <a href="{{ route('public.kardex', request()->route('tenant')) }}">Consulta jugador</a>
+                <a href="{{ route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'league', request()->route('tenant')) }}">Inicio</a>
+                <a href="{{ route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'standings', request()->route('tenant')) }}">Tabla de posiciones</a>
+                <a href="{{ route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'matches', request()->route('tenant')) }}">Partidos</a>
+                <a href="{{ route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'kardex', request()->route('tenant')) }}">Consulta jugador</a>
                 <a class="login-link" href="{{ $loginUrl }}">Ingresar</a>
             </div>
         </nav>
@@ -24,8 +24,8 @@
                 <h1>{{ $company->public_page_title ?: $company->name }}</h1>
                 <p class="hero-copy">{{ $company->public_page_summary ?: $company->interest_data ?: 'Resultados, partidos y trayectoria deportiva en un solo lugar.' }}</p>
                 <div class="hero-actions">
-                    <a href="{{ route('public.matches', request()->route('tenant')) }}">Ver partidos</a>
-                    <a class="secondary" href="{{ route('public.standings', request()->route('tenant')) }}">Tabla de posiciones</a>
+                    <a href="{{ route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'matches', request()->route('tenant')) }}">Ver partidos</a>
+                    <a class="secondary" href="{{ route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'standings', request()->route('tenant')) }}">Tabla de posiciones</a>
                     @if ($whatsappUrl)
                         <a class="secondary" href="{{ $whatsappUrl }}" target="_blank" rel="noopener">WhatsApp</a>
                     @endif
@@ -46,7 +46,7 @@
             <h2>Ultima jornada registrada</h2>
             <p>{{ $latestMatchday?->name ?: 'Aun no hay jornadas con partidos programados.' }}</p>
             @if($latestMatchday)
-                <a class="whatsapp-button" style="background:var(--field);" href="{{ route('public.matches', [request()->route('tenant'), 'filter_mode' => 'matchday', 'matchday_id' => $latestMatchday->id]) }}">Ver fixture completo</a>
+                <a class="whatsapp-button" style="background:var(--field);" href="{{ route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'matches', [request()->route('tenant'), 'filter_mode' => 'matchday', 'matchday_id' => $latestMatchday->id]) }}">Ver fixture completo</a>
             @endif
         </div>
         @include('public.partials.fixture-board', [
@@ -68,9 +68,9 @@
     </section>
 
     <section class="quick-links">
-        <a href="{{ route('public.standings', request()->route('tenant')) }}">Consultar tabla de posiciones</a>
-        <a href="{{ route('public.matches', request()->route('tenant')) }}">Ver partidos programados</a>
-        <a href="{{ route('public.kardex', request()->route('tenant')) }}">Buscar kardex de jugador</a>
+        <a href="{{ route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'standings', request()->route('tenant')) }}">Consultar tabla de posiciones</a>
+        <a href="{{ route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'matches', request()->route('tenant')) }}">Ver partidos programados</a>
+        <a href="{{ route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'kardex', request()->route('tenant')) }}">Buscar kardex de jugador</a>
     </section>
 
     <section class="public-card">

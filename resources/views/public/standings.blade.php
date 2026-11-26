@@ -22,7 +22,7 @@
                     <td>{{ $row['goal_difference'] }}</td>
                     <td><strong>{{ $row['final_points'] }}</strong></td>
                     <td>
-                        <a href="{{ route('public.standings.team-matches.pdf', [
+                        <a href="{{ route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'standings.team-matches.pdf', [
                             'tenant' => request()->route('tenant'),
                             'tournament' => $selectedTournament,
                             'category' => $selectedGroup['category_id'],

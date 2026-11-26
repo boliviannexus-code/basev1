@@ -7,6 +7,13 @@
     <title>@yield('title', config('app.name', 'Tours'))</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
+    @auth
+    <script>
+        window.addEventListener('pageshow', function (event) {
+            if (event.persisted) window.location.reload();
+        });
+    </script>
+    @endauth
 </head>
 <body class="public-body">
 @php($publicWebsite = app(\App\Services\WebsiteContentService::class)->settings())

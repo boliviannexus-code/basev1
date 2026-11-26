@@ -13,6 +13,13 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @include('layouts.partials.interface-theme')
     @stack('styles')
+    @auth
+    <script>
+        window.addEventListener('pageshow', function (event) {
+            if (event.persisted) window.location.reload();
+        });
+    </script>
+    @endauth
 </head>
 <body class="layout-fluid">
 <script>

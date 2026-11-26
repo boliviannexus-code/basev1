@@ -243,9 +243,9 @@ class PublicLeaguePageController extends Controller
                 ->map(fn (string $url): string => str_starts_with($url, 'http://') || str_starts_with($url, 'https://') ? $url : 'https://'.$url),
             'whatsappUrl' => $whatsappNumber ? 'https://wa.me/'.$whatsappNumber : null,
             'publicImages' => [
-                'banner' => $company->public_banner_path ? route('public.image', [request()->route('tenant'), 'banner']) : null,
-                'image_one' => $company->public_image_one_path ? route('public.image', [request()->route('tenant'), 'image-one']) : null,
-                'image_two' => $company->public_image_two_path ? route('public.image', [request()->route('tenant'), 'image-two']) : null,
+                'banner' => $company->public_banner_path ? route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'image', [request()->route('tenant'), 'banner']) : null,
+                'image_one' => $company->public_image_one_path ? route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'image', [request()->route('tenant'), 'image-one']) : null,
+                'image_two' => $company->public_image_two_path ? route((request()->routeIs('public.path.*') ? 'public.path.' : 'public.').'image', [request()->route('tenant'), 'image-two']) : null,
             ],
         ];
     }
