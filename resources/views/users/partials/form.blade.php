@@ -19,7 +19,10 @@
 
     <div class="col-md-6">
         <label class="form-label" for="user-company">Empresa</label>
-        <select class="form-select {{ ($errors ?? null)?->has('company_id') ? 'is-invalid' : '' }}" id="user-company" name="company_id" data-tom-select data-placeholder="Seleccionar empresa">
+        @if (! $isCreate && ! $canAssignNoCompany)
+            <input type="hidden" name="company_id" value="{{ $user->company_id }}">
+        @endif
+        <select class="form-select {{ ($errors ?? null)?->has('company_id') ? 'is-invalid' : '' }}" id="user-company" {{ ! $isCreate && ! $canAssignNoCompany ? 'disabled' : 'name=company_id' }} data-tom-select data-placeholder="Seleccionar empresa">
             @if ($canAssignNoCompany)
                 <option value="">Sin empresa</option>
             @endif

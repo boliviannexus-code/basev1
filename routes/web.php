@@ -70,6 +70,7 @@ Route::middleware('guest')->group(function (): void {
 
 Route::middleware('auth')->group(function (): void {
     Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+    Route::post('switch-company', \App\Http\Controllers\Web\SwitchCompanyController::class)->name('company.switch');
     Route::get('my-account', [MyAccountController::class, 'edit'])->name('my-account.edit');
     Route::patch('my-account/password', [MyAccountController::class, 'updatePassword'])->name('my-account.password.update');
     Route::patch('my-account/transaction-pin', [MyAccountController::class, 'updateTransactionPin'])->name('my-account.transaction-pin.update');
@@ -141,6 +142,7 @@ Route::middleware('auth')->group(function (): void {
             Route::post('blocks', [OccupancyController::class, 'storeBlock'])->middleware('permission:occupancy.manage')->name('blocks.store');
             Route::patch('blocks/{occupancyBlock}', [OccupancyController::class, 'updateBlock'])->whereNumber('occupancyBlock')->middleware('permission:occupancy.manage')->name('blocks.update');
             Route::delete('blocks/{occupancyBlock}', [OccupancyController::class, 'destroyBlock'])->whereNumber('occupancyBlock')->middleware('permission:occupancy.manage')->name('blocks.destroy');
+            Route::post('blocks/{occupancyBlock}/unlock', [OccupancyController::class, 'unlockBlock'])->whereNumber('occupancyBlock')->middleware('permission:occupancy.manage')->name('blocks.unlock');
         });
     Route::prefix('internal-reservations')
         ->name('internal-reservations.')
@@ -309,6 +311,7 @@ Route::middleware('auth')->group(function (): void {
             Route::post('expenses', [SpaceCashController::class, 'storeExpense'])->name('expenses.store');
             Route::get('history', [SpaceCashController::class, 'history'])->middleware('permission:space-cash.view|occupancy.manage')->name('history');
             Route::get('{spaceCashRegister}', [SpaceCashController::class, 'show'])->whereNumber('spaceCashRegister')->middleware('permission:space-cash.view|occupancy.manage')->name('show');
+            Route::post('{spaceCashRegister}/close-user', [SpaceCashController::class, 'closeUserRegister'])->whereNumber('spaceCashRegister')->name('close-user');
         });
     Route::prefix('sales')
         ->name('sales.')

@@ -2,14 +2,22 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsCompanyChanges;
+use OwenIt\Auditing\Contracts\Auditable;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Sale extends Model
+class Sale extends Model implements Auditable
 {
-    use HasFactory;
+    use AuditsCompanyChanges, HasFactory;
+
+    private function auditCompanyId(): ?int
+    {
+        return CashRegister::query()->whereKey($this->cash_register_id)->value('company_id');
+    }
 
     protected $fillable = [
         'branch_id',

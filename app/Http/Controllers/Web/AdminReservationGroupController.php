@@ -58,12 +58,12 @@ class AdminReservationGroupController extends Controller
                 'success' => true,
                 'message' => 'Reserva actualizada correctamente.',
                 'refresh_occupancy' => true,
-                'redirect_url' => route('admin.reservation-groups.show', $group),
+                'redirect_url' => route('occupancy.index'),
             ]);
         }
 
         return redirect()
-            ->route('admin.reservation-groups.show', $group)
+            ->route('occupancy.index')
             ->with('success', 'Reserva actualizada correctamente.');
     }
 

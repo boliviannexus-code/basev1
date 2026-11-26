@@ -61,6 +61,12 @@ class UserService
         }
         $data['is_active'] = array_key_exists('is_active', $data) ? (bool) $data['is_active'] : $user->is_active;
 
+        if (array_key_exists('company_id', $data) && (string) $data['company_id'] !== (string) $user->company_id
+            && (\App\Models\CashRegister::query()->where('user_id', $user->id)->where('status', 'open')->when($data['company_id'] !== null, fn ($query) => $query->where(fn ($query) => $query->whereNull('company_id')->orWhere('company_id', '!=', $data['company_id'])))->exists()
+                || \App\Models\SpaceCashRegister::query()->where('user_id', $user->id)->where('status', 'open')->when($data['company_id'] !== null, fn ($query) => $query->where(fn ($query) => $query->whereNull('company_id')->orWhere('company_id', '!=', $data['company_id'])))->exists())) {
+            throw ValidationException::withMessages(['company_id' => 'Cierra la caja del usuario antes de cambiar su empresa.']);
+        }
+
         if ($user->is_active && ! $data['is_active']) {
             $this->ensureCanDeactivate($user);
         }

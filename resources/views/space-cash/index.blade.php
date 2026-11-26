@@ -5,6 +5,7 @@
 @section('page-subtitle', 'Caja independiente para cobros de estancias y reservas')
 
 @section('content')
+    @include('cash.unified-details')
     @if ($openRegister || ($companyHasOpenRegister ?? false))
         @unless ($openRegister)
             <div class="alert alert-info">

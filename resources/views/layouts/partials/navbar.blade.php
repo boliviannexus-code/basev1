@@ -27,6 +27,19 @@
         </div>
 
         <div class="navbar-nav flex-row align-items-center order-md-last ms-auto">
+            @if (auth()->user()?->hasRole('super_admin'))
+                <form method="POST" action="{{ route('company.switch') }}" class="d-flex align-items-center gap-2 me-3">
+                    @csrf
+                    <label class="visually-hidden" for="navbar-company-switch">Cambiar empresa</label>
+                    <select id="navbar-company-switch" name="company_id" class="form-select form-select-sm" aria-label="Empresa activa">
+                        <option value="" @selected(auth()->user()->company_id === null)>Administracion global</option>
+                        @foreach (\App\Models\Company::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']) as $company)
+                            <option value="{{ $company->id }}" @selected((int) auth()->user()->company_id === $company->id)>{{ $company->name }}</option>
+                        @endforeach
+                    </select>
+                    <button class="btn btn-sm btn-outline-primary text-nowrap" type="submit">Cambiar</button>
+                </form>
+            @endif
             <div class="nav-item dropdown">
                 <button class="nav-link d-flex lh-1 text-reset p-0 border-0 bg-transparent" type="button" data-user-dropdown-toggle aria-expanded="false" aria-label="Abrir menu de usuario">
                     <span class="avatar avatar-sm">{{ str(auth()->user()->name ?? 'U')->substr(0, 1)->upper() }}</span>
@@ -54,3 +67,6 @@
         </div>
     </div>
 </header>
+@if (auth()->user()?->hasRole('super_admin') && $errors->has('company_id'))
+    <div class="container-xl mt-2"><div class="alert alert-danger mb-0">{{ $errors->first('company_id') }}</div></div>
+@endif

@@ -11,6 +11,7 @@
 @section('page-subtitle', 'Movimientos desde la apertura '.($cashRegister->opened_at?->format('Y-m-d H:i') ?? ''))
 
 @section('content')
+    @include('cash.unified-details')
     <div class="d-flex justify-content-end mb-3">
         <a class="btn btn-outline-secondary" href="{{ route('sales.index') }}">
             <i class="ti ti-arrow-left"></i>

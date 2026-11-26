@@ -109,6 +109,27 @@ class OccupancyController extends Controller
         ]);
     }
 
+    public function unlockBlock(OccupancyBlock $occupancyBlock): JsonResponse
+    {
+        Gate::authorize('occupancy.manage');
+        $this->ensureOwnership($occupancyBlock);
+        $occupancyBlock->load(['reservation', 'reservationRoom', 'reservationBedUnit']);
+        if ($occupancyBlock->reservation || $occupancyBlock->reservationRoom || $occupancyBlock->reservationBedUnit) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['block' => 'Este bloqueo pertenece a una reserva y debe gestionarse desde la reserva.']);
+        }
+        if ($occupancyBlock->status !== 'active' || $occupancyBlock->end_date->lt(today())) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['block' => 'El bloqueo ya no esta vigente.']);
+        }
+        if ($occupancyBlock->start_date->lt(today())) {
+            $occupancyBlock->update(['end_date' => today()->subDay()]);
+        } else {
+            $occupancyBlock->update(['status' => 'cancelled']);
+            $occupancyBlock->delete();
+        }
+
+        return response()->json(['success' => true, 'message' => 'Recurso desbloqueado correctamente.']);
+    }
+
     private function companyId(): int
     {
         return (int) auth()->user()?->company_id;

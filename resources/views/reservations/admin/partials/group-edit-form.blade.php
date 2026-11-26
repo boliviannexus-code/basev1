@@ -133,6 +133,15 @@
                                 $exchangeRate = old("reservations.{$reservation->id}.exchange_rate", $currentExchangeRate?->rate);
                                 $priceBob = old("reservations.{$reservation->id}.price_per_night_bob", number_format((float) $reservation->price_per_person, 2, '.', ''));
                                 $priceUsd = old("reservations.{$reservation->id}.price_per_night_usd", filled($exchangeRate) && (float) $exchangeRate > 0 ? number_format((float) $reservation->price_per_person / (float) $exchangeRate, 2, '.', '') : '');
+                                $singleBed = $reservation->bedUnitItems->count() === 1 ? $reservation->bedUnitItems->first()->bedUnit : null;
+                                $singleRoom = $singleBed?->room ?? ($reservation->roomItems->count() === 1 ? $reservation->roomItems->first()->room : null);
+                                $canChangeRoomMode = $reservation->shouldBlockAvailability() && $singleRoom?->sale_mode === 'flexible' && ($singleBed || $reservation->roomItems->count() === 1) && $reservation->check_in->gte(today());
+                                $roomOptions = $canChangeRoomMode ? collect(app(\App\Services\Reservations\ReservationMoveService::class)->availableResources($reservation, $reservation->check_in->toDateString(), $reservation->check_out->toDateString()))->where('space_room_id', $singleRoom->id) : collect();
+                                $fullOption = $roomOptions->firstWhere('resource_type', 'shared_room');
+                                $beds = $roomOptions->where('resource_type', 'shared_bed_unit');
+                                $isFull = (bool) old("reservations.{$reservation->id}.full_room", ! $singleBed);
+                                $selectedBed = old("reservations.{$reservation->id}.bed_unit_id", $singleBed?->id ?? $beds->firstWhere('available', true)['room_bed_unit_id'] ?? '');
+
                             @endphp
                             <div class="check-in-stay-row" data-reservation-date-row data-check-in-price-reference-row>
                                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-2 mb-3">
@@ -149,7 +158,27 @@
                                     <div class="col-12">
                                         <label class="form-label">Espacio / habitacion</label>
                                         <input class="form-control" value="{{ $resourceLabel($reservation) }}" disabled>
-                                        <div class="form-hint">Para cambiar de recurso usa la opcion de mover reserva desde ocupabilidad.</div>
+                                        @if ($canChangeRoomMode)
+                                            <div class="mt-2" data-reservation-room-mode>
+                                                <input type="hidden" name="reservations[{{ $reservation->id }}][full_room]" value="0">
+                                                <label class="check-in-switch check-in-switch-sm">
+                                                    <input class="form-check-input" type="checkbox" name="reservations[{{ $reservation->id }}][full_room]" value="1" data-reservation-full-room @checked($isFull) @disabled(! ($fullOption['available'] ?? false) && ! $isFull)>
+                                                    <span>Habitación completa</span>
+                                                </label>
+                                                <div class="form-hint {{ ! ($fullOption['available'] ?? false) ? 'text-warning' : '' }}">{{ ($fullOption['available'] ?? false) ? 'Capacidad habitación completa: '.($fullOption['capacity'] ?? '-') : 'Habitación completa no disponible en estas fechas.' }} La disponibilidad se verifica al guardar.</div>
+                                                <div class="mt-2" data-reservation-bed-wrap>
+                                                    <label class="form-label">Cama</label>
+                                                    <select class="form-select" name="reservations[{{ $reservation->id }}][bed_unit_id]" data-reservation-bed>
+                                                        <option value="">Seleccionar cama</option>
+                                                        @foreach ($beds as $bed)
+                                                            <option value="{{ $bed['room_bed_unit_id'] }}" @selected((string) $selectedBed === (string) $bed['room_bed_unit_id']) @disabled(! $bed['available'])>{{ $bed['label'] }}{{ ! $bed['available'] ? ' · No disponible' : '' }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        @else
+                                            <div class="form-hint">Para cambiar de recurso usa la opción de mover reserva desde ocupabilidad.</div>
+                                        @endif
                                     </div>
                                     <div class="col-sm-6 col-lg-2">
                                         <label class="form-label">Personas</label>

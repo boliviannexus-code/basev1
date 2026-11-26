@@ -61,6 +61,28 @@ class CheckInAuditTest extends TestCase
             ->assertJsonFragment(['auditable_label' => 'Check-ins', 'user_name' => $creator->name, 'created_at' => $registeredAt]);
     }
 
+    public function test_room_check_in_and_payments_have_readable_details(): void
+    {
+        config(['audit.console' => true]);
+        Permission::findOrCreate('audits.view');
+        $company = Company::factory()->create();
+        $user = User::factory()->create(['company_id' => $company->id]);
+        $user->givePermissionTo('audits.view');
+        $this->actingAs($user);
+        $space = \App\Models\Space::factory()->create(['company_id' => $company->id, 'title' => 'Hotel Sol']);
+        $room = \App\Models\SpaceRoom::factory()->create(['company_id' => $company->id, 'space_id' => $space->id, 'name' => 'Habitación 101']);
+        $group = CheckInGroup::factory()->create(['company_id' => $company->id]);
+        $stay = Stay::factory()->create(['company_id' => $company->id, 'check_in_group_id' => $group->id, 'space_id' => $space->id, 'space_room_id' => $room->id]);
+        $audit = Audit::query()->where('auditable_type', Stay::class)->where('auditable_id', $stay->id)->where('event', 'created')->firstOrFail();
+        $this->get(route('audits.show', $audit))->assertOk()->assertSee($company->name)->assertSee('Habitación 101')->assertSee('Precio por noche (BOB)')->assertSee('Registrado el')->assertSee('Check-in registrado')->assertDontSee('#'.$room->id);
+        $this->getJson(route('datatables.audits', ['room_id' => $room->id]))->assertOk()->assertJsonFragment(['changes' => 'Check-in registrado · Empresa, Check-in']);
+        $method = \App\Models\PaymentMethod::query()->create(['company_id' => $company->id, 'name' => 'Efectivo', 'is_active' => true]);
+        $register = \App\Models\SpaceCashRegister::factory()->create(['company_id' => $company->id, 'user_id' => $user->id]);
+        $payment = \App\Models\SpaceCashIncome::query()->create(['company_id' => $company->id, 'space_cash_register_id' => $register->id, 'user_id' => $user->id, 'payment_method_id' => $method->id, 'receipt_number' => 'TEST-01', 'detail' => 'Ingreso', 'amount' => 125.50]);
+        $paymentAudit = Audit::query()->where('auditable_type', \App\Models\SpaceCashIncome::class)->where('auditable_id', $payment->id)->firstOrFail();
+        $this->get(route('audits.show', $paymentAudit))->assertOk()->assertSee('125.50 BOB')->assertSee('Método de pago')->assertSee('Efectivo');
+    }
+
     public function test_check_in_audit_is_hidden_from_other_companies(): void
     {
         config(['audit.console' => true]);

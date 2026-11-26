@@ -84,7 +84,7 @@ class OccupancyGridActionService
         if (! $allowed) {
             throw ValidationException::withMessages([
                 'date' => match ($action) {
-                    self::ACTION_CHECK_IN => 'El check-in solo esta permitido para la fecha de hoy.',
+                    self::ACTION_CHECK_IN => 'El check-in solo esta permitido hoy para un recurso disponible.',
                     self::ACTION_CHECK_OUT => 'El check-out solo esta permitido hoy cuando el espacio esta ocupado.',
                     default => 'No se pueden gestionar acciones para fechas pasadas.',
                 },
@@ -119,6 +119,15 @@ class OccupancyGridActionService
 
         if ($reservation) {
             return $this->reservationActions($reservation);
+        }
+
+        if (! empty($occupancyState['block_id'])) {
+            $actions = [['key' => 'view_block', 'label' => 'Ver detalle del bloqueo', 'icon' => 'ti-info-circle', 'tone' => 'primary']];
+            if (! $date->lt($today)) {
+                $actions[] = ['key' => 'unlock_block', 'label' => 'Desbloquear', 'icon' => 'ti-lock-open', 'tone' => 'danger'];
+            }
+
+            return $actions;
         }
 
         if ($date->lt($today) || in_array($availabilityStatus?->status, ['closed', 'reserved'], true)) {

@@ -134,6 +134,49 @@ class ReservationMoveTest extends TestCase
         $this->assertNotSame($targetSpace->id, $reservation->refresh()->space_id);
     }
 
+    public function test_flexible_room_can_change_between_bed_and_full_room_and_rejects_conflicts(): void
+    {
+        [$user, $reservation] = $this->context();
+        $mode = \App\Models\SpaceMode::query()->firstOrCreate(['slug' => 'compartido'], ['name' => 'Compartido', 'is_active' => true]);
+        $space = Space::factory()->create(['company_id' => $user->company_id, 'space_mode_id' => $mode->id, 'status' => 'active']);
+        $room = \App\Models\SpaceRoom::factory()->create(['company_id' => $user->company_id, 'space_id' => $space->id, 'status' => 'active', 'sale_mode' => 'flexible', 'max_capacity' => 2]);
+        $bed = \App\Models\RoomBedUnit::factory()->create(['company_id' => $user->company_id, 'space_room_id' => $room->id, 'status' => 'active']);
+        $otherBed = \App\Models\RoomBedUnit::factory()->create(['company_id' => $user->company_id, 'space_room_id' => $room->id, 'status' => 'active']);
+        $payload = ['resource_type' => 'shared_bed_unit', 'space_id' => $space->id, 'space_room_id' => $room->id, 'room_bed_unit_id' => $bed->id, 'check_in' => $reservation->check_in->toDateString(), 'check_out' => $reservation->check_out->toDateString(), 'price_per_night' => 80];
+        $this->actingAs($user)->postJson(route('admin.reservations.move.store', $reservation), $payload)->assertOk();
+        $this->assertDatabaseHas('reservation_bed_units', ['reservation_id' => $reservation->id, 'room_bed_unit_id' => $bed->id]);
+        $this->get(route('admin.reservations.move.create', $reservation))->assertOk()->assertSee('data-move-full-room-switch', false)->assertSee('data-full-room-available="1"', false);
+        $payload['resource_type'] = 'shared_room';
+        $payload['room_bed_unit_id'] = null;
+        $conflict = OccupancyBlock::factory()->create(['company_id' => $user->company_id, 'space_id' => $space->id, 'space_room_id' => $room->id, 'room_bed_unit_id' => $otherBed->id, 'status' => 'active', 'start_date' => $payload['check_in'], 'end_date' => $reservation->check_out->copy()->subDay()]);
+        $this->postJson(route('admin.reservations.move.store', $reservation), $payload)->assertUnprocessable()->assertJsonValidationErrors('space_id');
+        $this->get(route('admin.reservations.move.create', $reservation))->assertOk()->assertSee('data-full-room-available="0"', false);
+        $conflict->delete();
+        $this->postJson(route('admin.reservations.move.store', $reservation), $payload)->assertOk();
+        $this->assertDatabaseHas('reservation_rooms', ['reservation_id' => $reservation->id, 'space_room_id' => $room->id]);
+        $this->assertDatabaseMissing('reservation_bed_units', ['reservation_id' => $reservation->id]);
+        $payload['resource_type'] = 'shared_bed_unit';
+        $payload['room_bed_unit_id'] = $bed->id;
+        $this->postJson(route('admin.reservations.move.store', $reservation), $payload)->assertOk();
+        $this->assertDatabaseHas('reservation_bed_units', ['reservation_id' => $reservation->id, 'room_bed_unit_id' => $bed->id]);
+        $group = $reservation->reservationGroup()->firstOrFail();
+        $this->get(route('admin.reservation-groups.edit', $group))->assertOk()->assertSee('data-reservation-full-room', false);
+        $edit = ['guest_name' => $group->guest_name, 'reservations' => [$reservation->id => [
+            'check_in' => $payload['check_in'], 'check_out' => $payload['check_out'], 'nights' => 2, 'guests' => 1,
+            'price_per_night_bob' => 80, 'price_per_night_usd' => 11.49, 'exchange_rate' => 6.96,
+            'full_room' => 1, 'bed_unit_id' => $bed->id,
+        ]]];
+        $conflict->restore();
+        $this->patchJson(route('admin.reservation-groups.update', $group), $edit)->assertUnprocessable();
+        $this->assertDatabaseHas('reservation_bed_units', ['reservation_id' => $reservation->id, 'room_bed_unit_id' => $bed->id]);
+        $conflict->delete();
+        $this->patchJson(route('admin.reservation-groups.update', $group), $edit)->assertOk()->assertJsonPath('redirect_url', route('occupancy.index'));
+        $this->assertDatabaseHas('reservation_rooms', ['reservation_id' => $reservation->id, 'space_room_id' => $room->id]);
+        $edit['reservations'][$reservation->id]['full_room'] = 0;
+        $this->patchJson(route('admin.reservation-groups.update', $group), $edit)->assertOk();
+        $this->assertDatabaseHas('reservation_bed_units', ['reservation_id' => $reservation->id, 'room_bed_unit_id' => $bed->id]);
+    }
+
     private function context(): array
     {
         Permission::findOrCreate('reservations.manage');

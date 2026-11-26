@@ -70,6 +70,7 @@
                         data-room-id="{{ $room?->id }}"
                         data-room-bed-unit-id="{{ $bed_unit?->id }}"
                         data-stay-id="{{ $occupancy_state['stay_id'] ?? '' }}"
+                        data-block-id="{{ $occupancy_state['block_id'] ?? '' }}"
                         data-cleaning-stay-id="{{ $occupancy_state['cleaning_stay_id'] ?? '' }}"
                         data-reservation-id="{{ $occupancy_state['reservation_id'] ?? '' }}"
                         data-reservation-group-id="{{ $occupancy_state['reservation_group_id'] ?? '' }}"

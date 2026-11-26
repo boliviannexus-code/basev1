@@ -21,14 +21,7 @@ class CloseCashRegisterTest extends TestCase
     public function test_user_can_close_open_cash_register(): void
     {
         $user = $this->userWithPosAccess();
-        [$pointOfSale, $branch] = $this->assignedPointOfSale($user);
-        $cashRegister = CashRegister::factory()->create([
-            'point_of_sale_id' => $pointOfSale->id,
-            'branch_id' => $branch->id,
-            'user_id' => $user->id,
-            'opening_amount' => 50,
-            'status' => 'open',
-        ]);
+        $cashRegister = app(\App\Services\CashRegisterService::class)->openForUser($user, 50);
 
         $this
             ->actingAs($user)

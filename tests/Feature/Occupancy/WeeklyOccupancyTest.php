@@ -496,7 +496,7 @@ class WeeklyOccupancyTest extends TestCase
             OccupancyBlock::factory()->create([
                 'company_id' => $company->id,
                 'space_id' => $space->id,
-                'type' => 'occupied',
+                'type' => 'manual_block',
                 'start_date' => '2026-06-10',
                 'end_date' => '2026-06-10',
             ]);
@@ -513,7 +513,52 @@ class WeeklyOccupancyTest extends TestCase
             $this->assertSame([], $pastActions);
             $this->assertSame(['check_in', 'reservation', 'block'], collect($todayActions)->pluck('key')->all());
             $this->assertSame(['reservation', 'block'], collect($futureActions)->pluck('key')->all());
-            $this->assertSame(['check_in', 'reservation', 'block'], collect($occupiedTodayActions)->pluck('key')->all());
+            $this->assertSame(['view_block', 'unlock_block'], collect($occupiedTodayActions)->pluck('key')->all());
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_manual_block_prevents_check_in_actions_and_modal(): void
+    {
+        Carbon::setTestNow('2026-06-10 10:00:00');
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user, $company] = $this->companyUser();
+            $space = $this->privateSpace($company);
+            OccupancyBlock::factory()->create([
+                'company_id' => $company->id, 'space_id' => $space->id,
+                'type' => 'manual_block', 'status' => 'active',
+                'start_date' => '2026-06-10', 'end_date' => '2026-06-10',
+            ]);
+            $params = ['space_id' => $space->id, 'date' => '2026-06-10'];
+            $actions = $this->actingAs($user)->getJson(route('occupancy.cell-actions', $params))->assertOk()->json('actions');
+            $this->assertNotContains('check_in', collect($actions)->pluck('key')->all());
+            $this->actingAs($user)->getJson(route('occupancy.check-in.modal', $params))->assertUnprocessable();
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_unlock_preserves_past_block_details_and_releases_current_dates(): void
+    {
+        Carbon::setTestNow('2026-06-10 10:00:00');
+        try {
+            $this->seed(AccommodationCatalogSeeder::class);
+            [$user, $company] = $this->companyUser();
+            $space = $this->privateSpace($company);
+            $block = OccupancyBlock::factory()->create([
+                'company_id' => $company->id, 'space_id' => $space->id, 'type' => 'manual_block', 'status' => 'active',
+                'start_date' => '2026-06-08', 'end_date' => '2026-06-12',
+            ]);
+            $past = $this->actingAs($user)->getJson(route('occupancy.cell-actions', ['space_id' => $space->id, 'date' => '2026-06-09']))->assertOk()->json('actions');
+            $this->assertSame(['view_block'], collect($past)->pluck('key')->all());
+            $this->actingAs($user)->postJson(route('occupancy.blocks.unlock', $block))->assertOk();
+            $this->assertSame('2026-06-09', $block->refresh()->end_date->toDateString());
+            $past = $this->actingAs($user)->getJson(route('occupancy.cell-actions', ['space_id' => $space->id, 'date' => '2026-06-09']))->assertOk()->json('actions');
+            $this->assertSame(['view_block'], collect($past)->pluck('key')->all());
+            $today = $this->actingAs($user)->getJson(route('occupancy.cell-actions', ['space_id' => $space->id, 'date' => '2026-06-10']))->assertOk()->json('actions');
+            $this->assertContains('check_in', collect($today)->pluck('key')->all());
         } finally {
             Carbon::setTestNow();
         }

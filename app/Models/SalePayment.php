@@ -2,11 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsCompanyChanges;
+use OwenIt\Auditing\Contracts\Auditable;
+
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class SalePayment extends Model
+class SalePayment extends Model implements Auditable
 {
+    use AuditsCompanyChanges;
+
+    private function auditCompanyId(): ?int
+    {
+        return \Illuminate\Support\Facades\DB::table('sales')->join('cash_registers', 'cash_registers.id', '=', 'sales.cash_register_id')->where('sales.id', $this->sale_id)->value('cash_registers.company_id');
+    }
+
     protected $fillable = ['sale_id', 'payment_method_id', 'payment_method_name', 'amount', 'received_amount', 'change_amount', 'reference'];
 
     protected function casts(): array

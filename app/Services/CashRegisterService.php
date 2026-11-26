@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CashRegister;
+use App\Models\SpaceCashRegister;
 use App\Models\CashRegisterUserSequence;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -12,46 +13,22 @@ class CashRegisterService
 {
     public function openForUser(User $user, float $openingAmount): CashRegister
     {
-        if (! $user->company_id) {
-            throw ValidationException::withMessages([
-                'opening_amount' => 'Tu usuario no esta vinculado a una empresa.',
-            ]);
-        }
-
-        if ($this->currentForUser($user)) {
-            throw ValidationException::withMessages([
-                'opening_amount' => 'Ya tienes una caja abierta.',
-            ]);
-        }
-
-        return CashRegister::query()->create([
-            'company_id' => $user->company_id,
-            'point_of_sale_id' => null,
-            'branch_id' => null,
-            'user_id' => $user->id,
-            'opening_amount' => $openingAmount,
-            'opened_at' => now(),
-            'status' => 'open',
-        ]);
+        $register = app(UnifiedCashSessionService::class)->open($user, $openingAmount);
+        return $register;
     }
 
     public function closeForUser(User $user, float $closingAmount): CashRegister
     {
-        $cashRegister = $this->currentForUser($user);
-
-        if (! $cashRegister) {
-            throw ValidationException::withMessages([
-                'closing_amount' => 'No tienes una caja abierta para cerrar.',
-            ])->errorBag('cashClose');
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('space_cash_registers', 'cash_register_id')) {
+            $legacy = $this->currentForUser($user);
+            if (! $legacy) {
+                throw ValidationException::withMessages(['closing_amount' => 'No tienes una caja abierta.'])->errorBag('cashClose');
+            }
+            $legacy->update(['closing_amount' => $closingAmount, 'closed_at' => now(), 'status' => 'closed']);
+            return $legacy->refresh();
         }
-
-        $cashRegister->update([
-            'closing_amount' => $closingAmount,
-            'closed_at' => now(),
-            'status' => 'closed',
-        ]);
-
-        return $cashRegister->refresh();
+        $register = app(UnifiedCashSessionService::class)->close($user, $closingAmount, 'cashClose');
+        return $register;
     }
 
     public function currentForUser(User $user): ?CashRegister
@@ -109,6 +86,21 @@ class CashRegisterService
     }
 
     public function cashSummary(CashRegister $cashRegister): array
+    {
+        $summary = $this->rawCashSummary($cashRegister);
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('space_cash_registers', 'cash_register_id')) {
+            return $summary;
+        }
+        $space = SpaceCashRegister::query()->where('cash_register_id', $cashRegister->id)->first();
+        if (! $space) {
+            return $summary;
+        }
+        $spaceSummary = app(SpaceCashRegisterService::class)->rawCashSummary($space);
+
+        return app(UnifiedCashSummaryService::class)->combine($spaceSummary, $summary, null, $cashRegister->company_id);
+    }
+
+    public function rawCashSummary(CashRegister $cashRegister): array
     {
         $cashRegister->loadMissing([
             'sales.payments',

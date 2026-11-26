@@ -51,6 +51,16 @@
             </div>
 
             <div>
+                <label class="form-label" for="audit-filter-room">Habitación del check-in</label>
+                <select class="form-select form-select-sm" id="audit-filter-room" name="room_id" data-tom-select data-placeholder="Todas">
+                    <option value="">Todas</option>
+                    @foreach ($rooms as $room)
+                        <option value="{{ $room->id }}">{{ $room->space?->title ?: $room->space?->name }} / {{ $room->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
                 <label class="form-label" for="audit-filter-date-from">Desde</label>
                 <input class="form-control form-control-sm" id="audit-filter-date-from" name="date_from" type="date">
             </div>
@@ -81,7 +91,7 @@
                     <th>Accion</th>
                     <th>Modulo</th>
                     <th>ID</th>
-                    <th>Cambios</th>
+                    <th>Detalle</th>
                     <th>IP</th>
                     <th class="text-end">Acciones</th>
                 </tr>

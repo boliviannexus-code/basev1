@@ -173,6 +173,8 @@ class ReservationMoveService
             'disabled' => ! $available,
             'status' => $available ? 'available' : 'closed',
             'sale_mode' => $room?->sale_mode,
+            'full_room_available' => $room && $bedUnit && $room->sale_mode === 'flexible' ? ! $this->resourceHasConflict($reservation, $space, $room, null, $checkIn, $checkOut) : false,
+            'full_room_capacity' => $room ? $this->capacity($space, $room, null) : null,
         ];
     }
 

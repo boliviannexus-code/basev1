@@ -1,20 +1,4 @@
 @php
-    $formatAuditValue = function ($value): string {
-        if ($value === null) {
-            return '-';
-        }
-
-        if (is_bool($value)) {
-            return $value ? 'Si' : 'No';
-        }
-
-        if (is_array($value)) {
-            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '-';
-        }
-
-        return (string) $value;
-    };
-
     $fields = collect(array_keys($oldValues))
         ->merge(array_keys($newValues))
         ->unique()
@@ -25,23 +9,21 @@
     <div class="d-flex flex-wrap gap-2 align-items-center">
         <span class="badge text-bg-primary">{{ $eventLabel }}</span>
         <span class="fw-semibold">{{ $auditableLabel }}</span>
-        <span class="text-body-secondary">#{{ $audit->auditable_id }}</span>
     </div>
     <div class="text-body-secondary small mt-1">
-        {{ $audit->created_at?->format('Y-m-d H:i:s') }} · {{ $audit->user?->name ?? 'Sistema' }} · {{ $audit->ip_address ?? 'Sin IP' }}
+        Registrado el {{ $audit->created_at?->format('d/m/Y') }} a las {{ $audit->created_at?->format('H:i:s') }} · Por {{ $audit->user?->name ?? 'Sistema' }}
     </div>
 </div>
 
-<dl class="row mb-3">
-    <dt class="col-sm-3">URL</dt>
-    <dd class="col-sm-9 text-break">{{ $audit->url ?? '-' }}</dd>
+<div class="mb-3">
+    <div><strong>Empresa:</strong> {{ $context['company'] }}</div>
+    @if ($context['room'])
+        <div><strong>Habitación{{ $context['room_is_current'] ? ' actual' : '' }}:</strong> {{ $context['room'] }}</div>
+    @endif
+</div>
 
-    <dt class="col-sm-3">Navegador</dt>
-    <dd class="col-sm-9 text-break">{{ $audit->user_agent ?? '-' }}</dd>
-
-    <dt class="col-sm-3">Tags</dt>
-    <dd class="col-sm-9">{{ $audit->tags ?? '-' }}</dd>
-</dl>
+<p class="mb-3">{{ $presenter->summary($audit) }}</p>
+<p class="text-body-secondary small">Los nombres de habitaciones, alojamientos y métodos de pago se muestran según sus datos actuales.</p>
 
 <div class="table-responsive">
     <table class="table table-sm table-vcenter mb-0">
@@ -55,9 +37,9 @@
         <tbody>
             @forelse ($fields as $field)
                 <tr>
-                    <td class="fw-semibold">{{ $field }}</td>
-                    <td class="text-break">{{ $formatAuditValue($oldValues[$field] ?? null) }}</td>
-                    <td class="text-break">{{ $formatAuditValue($newValues[$field] ?? null) }}</td>
+                    <td class="fw-semibold">{{ $presenter->label($field) }}</td>
+                    <td class="text-break">{{ $presenter->value($field, $oldValues[$field] ?? null, $audit->company_id) }}</td>
+                    <td class="text-break">{{ $presenter->value($field, $newValues[$field] ?? null, $audit->company_id) }}</td>
                 </tr>
             @empty
                 <tr>

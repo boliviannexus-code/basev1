@@ -63,6 +63,10 @@ class ReservationGroupManagementService
                     ]);
                 }
 
+                if (array_key_exists('full_room', $reservationData)) {
+                    $this->changeRoomMode($reservation, $reservationData);
+                    $reservation->refresh();
+                }
                 $this->updateReservation($reservation, $reservationData);
             }
 
@@ -250,6 +254,31 @@ class ReservationGroupManagementService
             ->whereKey($group->id)
             ->lockForUpdate()
             ->firstOrFail();
+    }
+
+    private function changeRoomMode(Reservation $reservation, array $data): void
+    {
+        $reservation->loadMissing(['roomItems.room', 'bedUnitItems.bedUnit.room']);
+        $currentBed = $reservation->bedUnitItems->count() === 1 ? $reservation->bedUnitItems->first()->bedUnit : null;
+        $room = $currentBed?->room ?? ($reservation->roomItems->count() === 1 ? $reservation->roomItems->first()->room : null);
+        $fullRoom = (bool) $data['full_room'];
+        if (! $room || $room->sale_mode !== 'flexible' || ($currentBed === null && $reservation->roomItems->count() !== 1)) {
+            throw ValidationException::withMessages(["reservations.{$reservation->id}.full_room" => 'Solo se puede cambiar el modo de una habitacion flexible individual.']);
+        }
+        $bedId = $fullRoom ? null : (int) ($data['bed_unit_id'] ?? 0);
+        if (($fullRoom && ! $currentBed) || (! $fullRoom && $currentBed && $bedId === (int) $currentBed->id)) {
+            return;
+        }
+        if (! $fullRoom && ! $bedId) {
+            throw ValidationException::withMessages(["reservations.{$reservation->id}.bed_unit_id" => 'Selecciona una cama disponible.']);
+        }
+        $reservation->update(['guests' => (int) $data['guests']]);
+        app(ReservationMoveService::class)->move($reservation, [
+            'resource_type' => $fullRoom ? 'shared_room' : 'shared_bed_unit',
+            'space_id' => $room->space_id, 'space_room_id' => $room->id, 'room_bed_unit_id' => $bedId,
+            'check_in' => $data['check_in'], 'check_out' => CarbonImmutable::parse($data['check_in'])->addDays((int) $data['nights'])->toDateString(),
+            'price_per_night' => $reservation->price_per_person,
+        ], auth()->user());
     }
 
     private function updateReservation(Reservation $reservation, array $data): Reservation

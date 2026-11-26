@@ -27,6 +27,15 @@
     };
     $isMovable = $reservation->shouldBlockAvailability();
     $canMove = $isMovable && count($resources) > 0;
+    $currentBedId = $reservation->bedUnitItems->first()?->room_bed_unit_id;
+    $currentRoomId = $reservation->roomItems->first()?->space_room_id ?? $reservation->space_room_id;
+    $currentFullRoom = ! $currentBedId && $currentRoomId;
+    $selectedKey = $currentBedId ? 'bed:'.$currentBedId : ($currentRoomId ? 'room:'.$currentRoomId : 'space:'.$reservation->space_id);
+    if ($currentFullRoom) {
+        $flexibleBed = collect($resources)->first(fn ($resource) => $resource['resource_type'] === 'shared_bed_unit' && $resource['space_room_id'] === $currentRoomId && $resource['sale_mode'] === 'flexible' && ! $resource['disabled']);
+        if ($flexibleBed) $selectedKey = $flexibleBed['key'];
+    }
+
 @endphp
 
 <form
@@ -44,7 +53,7 @@
     <div class="vstack gap-3">
         <div class="alert alert-info mb-0">
             <div class="fw-semibold">Mover reserva {{ $reservation->code }}</div>
-            <div>Selecciona nuevas fechas y un recurso disponible. La fecha de ingreso no puede ser anterior a hoy.</div>
+            <div>Selecciona una habitación completa o una cama disponible. También puedes cambiar las fechas; el ingreso no puede ser anterior a hoy.</div>
         </div>
 
         <div class="row g-3">
@@ -82,6 +91,9 @@
             <select class="form-select @error('space_id') is-invalid @enderror" id="reservation-move-resource" data-room-change-resource required @disabled(! $canMove)>
                 <option value="">Seleccionar</option>
                 @foreach ($resources as $resource)
+                    @if ($resource['resource_type'] === 'shared_room' && $resource['sale_mode'] === 'flexible' && collect($resources)->contains(fn ($item) => $item['resource_type'] === 'shared_bed_unit' && $item['space_room_id'] === $resource['space_room_id']))
+                        @continue
+                    @endif
                     <option
                         value="{{ $resource['key'] }}"
                         data-resource-type="{{ $resource['resource_type'] }}"
@@ -89,14 +101,25 @@
                         data-room-id="{{ $resource['space_room_id'] }}"
                         data-bed-unit-id="{{ $resource['room_bed_unit_id'] ?? '' }}"
                         data-capacity="{{ $resource['capacity'] }}"
+                        data-sale-mode="{{ $resource['sale_mode'] }}"
+                        data-full-room-available="{{ $resource['full_room_available'] ? '1' : '0' }}"
+                        data-full-room-capacity="{{ $resource['full_room_capacity'] }}"
+                        @selected($resource['key'] === $selectedKey && ! $resource['disabled'])
                         @disabled($resource['disabled'])
                     >
-                        {{ $resource['label'] }} · Cap. {{ $resource['capacity'] }}
+                        {{ $resource['label'] }} · {{ match ($resource['resource_type']) { 'shared_room' => 'Habitación completa', 'shared_bed_unit' => 'Cama', default => 'Espacio completo' } }} · Cap. {{ $resource['capacity'] }}{{ $resource['disabled'] ? ' · No disponible' : '' }}
                     </option>
                 @endforeach
             </select>
             <div class="invalid-feedback" data-error-for="space_id">{{ $errors->first('space_id') ?: $errors->first('space_room_id') ?: $errors->first('room_bed_unit_id') }}</div>
             <div class="form-hint" data-room-change-hint></div>
+            <div class="d-none mt-2" data-move-full-room-wrap>
+                <label class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" data-move-full-room-switch @checked($currentFullRoom)>
+                    <span class="form-check-label">Vender habitación completa</span>
+                </label>
+                <div class="form-hint" data-move-full-room-hint></div>
+            </div>
         </div>
 
         <input type="hidden" name="resource_type" data-room-change-resource-type>

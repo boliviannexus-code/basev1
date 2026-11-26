@@ -3649,6 +3649,26 @@ function initOccupancyWeekGrid() {
     const openActionFromMenu = (button) => {
         const { occupancyAction, spaceId, roomId, roomBedUnitId, date, stayId, reservationId, reservationGroupId } = button.dataset;
         const handlers = {
+            view_block: () => {
+                const cell = findCell(spaceId, roomId, date, roomBedUnitId);
+                if (!cell?.block_id) return;
+                return Swal.fire({
+                    title: 'Detalle del bloqueo',
+                    html: `<div class="text-start"><p><strong>Tipo:</strong> ${escapeHtml(typeLabels[cell.status] || cell.status_label || 'Bloqueo')}</p><p><strong>Título:</strong> ${escapeHtml(cell.title || '-')}</p><p><strong>Desde:</strong> ${escapeHtml(cell.start_date || '-')} <strong>Hasta:</strong> ${escapeHtml(cell.end_date || '-')}</p><p><strong>Descripción:</strong> ${escapeHtml(cell.description || '-')}</p></div>`,
+                    confirmButtonText: 'Cerrar',
+                });
+            },
+            unlock_block: async () => {
+                const result = await Swal.fire({ title: 'Desbloquear recurso', text: 'Se liberará desde hoy y se conservará el historial anterior.', icon: 'warning', showCancelButton: true, confirmButtonText: 'Desbloquear', cancelButtonText: 'Cancelar' });
+                if (!result.isConfirmed) return;
+                const response = await fetch(routeFor(root.dataset.unlockUrlTemplate, button.dataset.blockId), {
+                    method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.message || 'No se pudo desbloquear.');
+                await loadWeekData();
+                toast.fire({ icon: 'success', title: payload.message });
+            },
             mark_clean: async () => {
                 const response = await fetch(routeFor(root.dataset.cleaningStoreUrlTemplate, button.dataset.cleaningStayId), {
                     method: 'POST',
@@ -5677,22 +5697,41 @@ function initRoomChangeForms(scope = document) {
         const spaceId = form.querySelector('[data-room-change-space-id]');
         const roomId = form.querySelector('[data-room-change-room-id]');
         const bedUnitId = form.querySelector('[data-room-change-bed-unit-id]');
+        const fullRoomWrap = form.querySelector('[data-move-full-room-wrap]');
+        const fullRoomSwitch = form.querySelector('[data-move-full-room-switch]');
+        const fullRoomHint = form.querySelector('[data-move-full-room-hint]');
 
         const sync = () => {
             const option = select?.selectedOptions[0];
             const hasResource = Boolean(option?.value);
 
-            if (resourceType) resourceType.value = hasResource ? option.dataset.resourceType || '' : '';
+            const flexibleBed = hasResource && option.dataset.resourceType === 'shared_bed_unit' && option.dataset.saleMode === 'flexible';
+            const fullAvailable = flexibleBed && option.dataset.fullRoomAvailable === '1';
+            if (fullRoomWrap) fullRoomWrap.classList.toggle('d-none', !flexibleBed);
+            if (fullRoomSwitch) {
+                fullRoomSwitch.disabled = !fullAvailable;
+                if (!fullAvailable) fullRoomSwitch.checked = false;
+            }
+            if (fullRoomHint) {
+                fullRoomHint.textContent = flexibleBed ? (fullAvailable ? `Capacidad habitación completa ${option.dataset.fullRoomCapacity}` : 'Habitación completa no disponible en esas fechas.') : '';
+                fullRoomHint.classList.toggle('text-warning', flexibleBed && !fullAvailable);
+            }
+            const fullRoom = fullAvailable && fullRoomSwitch?.checked;
+            if (resourceType) resourceType.value = hasResource ? (fullRoom ? 'shared_room' : option.dataset.resourceType || '') : '';
             if (spaceId) spaceId.value = hasResource ? option.dataset.spaceId || '' : '';
             if (roomId) roomId.value = hasResource ? option.dataset.roomId || '' : '';
-            if (bedUnitId) bedUnitId.value = hasResource ? option.dataset.bedUnitId || '' : '';
+            if (bedUnitId) bedUnitId.value = hasResource && !fullRoom ? option.dataset.bedUnitId || '' : '';
 
             if (hint) {
-                hint.textContent = hasResource ? `Capacidad ${option.dataset.capacity || '-'}` : '';
+                hint.textContent = hasResource ? `Capacidad ${(fullRoom ? option.dataset.fullRoomCapacity : option.dataset.capacity) || '-'}` : '';
             }
         };
 
-        select?.addEventListener('change', sync);
+        select?.addEventListener('change', () => {
+            if (fullRoomSwitch) fullRoomSwitch.checked = false;
+            sync();
+        });
+        fullRoomSwitch?.addEventListener('change', sync);
         sync();
         form.dataset.roomChangeInitialized = '1';
     });
@@ -5760,6 +5799,19 @@ function initReservationMoveForms(scope = document) {
 }
 
 function initReservationGroupForms(scope = document) {
+    scope.querySelectorAll('[data-reservation-room-mode]').forEach((row) => {
+        if (row.dataset.roomModeInitialized === '1') return;
+        const full = row.querySelector('[data-reservation-full-room]');
+        const wrap = row.querySelector('[data-reservation-bed-wrap]');
+        const bed = row.querySelector('[data-reservation-bed]');
+        const sync = () => {
+            wrap.classList.toggle('d-none', full.checked);
+            bed.required = !full.checked;
+        };
+        full.addEventListener('change', sync);
+        sync();
+        row.dataset.roomModeInitialized = '1';
+    });
     scope.querySelectorAll('[data-reservation-group-form]').forEach((form) => {
         if (form.dataset.reservationGroupInitialized === '1') {
             return;
@@ -6235,5 +6287,23 @@ document.addEventListener('click', async (event) => {
         Swal.fire({ icon: 'success', title: 'Datos copiados', text: 'Ya puedes pegarlos en WhatsApp.', timer: 1800, showConfirmButton: false });
     } catch {
         Swal.fire({ icon: 'info', title: 'Copia los datos manualmente', input: 'textarea', inputValue: text, confirmButtonText: 'Cerrar' });
+    }
+});
+
+// Confirmar el cierre solo después de validar el efectivo contado.
+document.addEventListener('submit', async (event) => {
+    const form = event.target.closest('[data-confirm-cash-close]');
+    if (!form) return;
+    event.preventDefault();
+    const amount = form.querySelector('[name="closing_amount"]')?.value;
+    const result = await Swal.fire({
+        icon: 'warning', title: 'Cerrar caja',
+        text: `¿Confirmas el cierre con un efectivo contado de ${amount}?`,
+        showCancelButton: true, confirmButtonText: 'Sí, cerrar caja', cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#d63939',
+    });
+    if (result.isConfirmed) {
+        form.querySelector('button[type="submit"]')?.setAttribute('disabled', 'disabled');
+        form.submit();
     }
 });

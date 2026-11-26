@@ -47,6 +47,8 @@ class UpdateReservationGroupRequest extends FormRequest
             'reservations.*.check_out' => ['required', 'date'],
             'reservations.*.nights' => ['required', 'integer', 'min:1'],
             'reservations.*.guests' => ['required', 'integer', 'min:1'],
+            'reservations.*.full_room' => ['sometimes', 'boolean'],
+            'reservations.*.bed_unit_id' => ['nullable', 'integer'],
             'reservations.*.price_per_night' => ['nullable', 'numeric', 'min:0'],
             'reservations.*.price_per_night_bob' => ['nullable', 'numeric', 'min:0'],
             'reservations.*.price_per_night_usd' => ['nullable', 'numeric', 'min:0'],
@@ -177,6 +179,7 @@ class UpdateReservationGroupRequest extends FormRequest
                         'check_out' => $checkOut,
                         'nights' => $nights,
                         'guests' => filled($reservation['guests'] ?? null) ? max((int) $reservation['guests'], 1) : 1,
+                        ...array_intersect_key($reservation, array_flip(['full_room', 'bed_unit_id'])),
                         'price_per_night' => filled($reservation['price_per_night'] ?? null)
                             ? round((float) $reservation['price_per_night'], 2)
                             : null,

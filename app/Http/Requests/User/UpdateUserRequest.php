@@ -32,6 +32,14 @@ class UpdateUserRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            $target = $this->route('user');
+            if ($this->exists('company_id') && $target instanceof \App\Models\User
+                && (string) ($this->input('company_id') ?? '') !== (string) ($target->company_id ?? '')
+                && ! $this->user()?->hasRole('super_admin')) {
+                $validator->errors()->add('company_id', 'Solo un super administrador puede cambiar la empresa de un usuario.');
+                return;
+            }
+
             if ($this->filled('company_id') || CompanyContext::canAssignNoCompany($this->user())) {
                 return;
             }

@@ -31,7 +31,7 @@ class OpenSpaceCashRegisterTest extends TestCase
         $this->assertDatabaseHas('space_cash_registers', [
             'company_id' => $user->company_id,
             'user_id' => $user->id,
-            'opening_amount' => '150.25',
+            'opening_amount' => '0.00',
             'status' => 'open',
         ]);
     }
@@ -76,13 +76,13 @@ class OpenSpaceCashRegisterTest extends TestCase
         $this->assertDatabaseHas('space_cash_registers', [
             'company_id' => $company->id,
             'user_id' => $firstUser->id,
-            'opening_amount' => '20.00',
+            'opening_amount' => '0.00',
             'status' => 'open',
         ]);
         $this->assertDatabaseHas('space_cash_registers', [
             'company_id' => $company->id,
             'user_id' => $secondUser->id,
-            'opening_amount' => '30.00',
+            'opening_amount' => '0.00',
             'status' => 'open',
         ]);
     }

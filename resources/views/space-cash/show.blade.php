@@ -15,9 +15,27 @@
 @section('page-subtitle', 'Cobros de estancias y reservas desde la apertura '.($cashRegister->opened_at?->format('Y-m-d H:i') ?? ''))
 
 @section('content')
+    @include('cash.unified-details')
     <div class="d-flex justify-content-end mb-3">
         <a class="btn btn-outline-secondary" href="{{ route('space-cash.history') }}">Volver</a>
     </div>
+
+    @if (auth()->user()?->hasRole('super_admin') && $cashRegister->status === 'open')
+        <div class="card mb-3">
+            <div class="card-body">
+                <form method="POST" action="{{ route('space-cash.close-user', $cashRegister) }}" class="row g-2 align-items-end" data-confirm-cash-close>
+                    @csrf
+                    <div class="col-md-5">
+                        <label class="form-label" for="admin-closing-amount">Efectivo contado para cerrar la caja de {{ $cashRegister->user?->name }}</label>
+                        <input class="form-control @error('closing_amount') is-invalid @enderror" id="admin-closing-amount" name="closing_amount" type="number" min="0" step="0.01" value="{{ old('closing_amount') }}" required>
+                        @error('closing_amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-hint">Efectivo esperado: {{ money_format_decimal($expectedCash) }}. Ingresa el monto realmente contado.</div>
+                    </div>
+                    <div class="col-auto"><button class="btn btn-danger" type="submit">Cerrar caja del usuario</button></div>
+                </form>
+            </div>
+        </div>
+    @endif
 
     <div class="row g-3 mb-3">
         <div class="col-sm-6 col-xl"><x-ui.stat-card label="Base inicial" :value="money_format_decimal($cashSummary['opening'] ?? 0)" icon="ti ti-cash" /></div>

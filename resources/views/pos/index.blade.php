@@ -5,6 +5,7 @@
 @section('page-subtitle', 'Apertura y cierre de caja por usuario')
 
 @section('content')
+    @include('cash.unified-details')
     @if ($openRegister || ($companyHasOpenRegister ?? false))
         @php
             $posCustomers = $customers->map(function ($customer): array {

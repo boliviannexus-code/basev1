@@ -219,12 +219,24 @@ class SpaceCashController extends Controller
 
     public function history(Request $request): View
     {
+        $filters = $request->validate([
+            'status' => ['nullable', \Illuminate\Validation\Rule::in(['open', 'closed'])],
+            'user_id' => ['nullable', 'integer', 'min:1'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', \Illuminate\Validation\Rule::when($request->filled('date_from'), ['after_or_equal:date_from'])],
+        ]);
+        $canViewAll = $request->user()->hasRole('super_admin') || $request->user()->can('space-cash.view-all');
         $cashRegisters = SpaceCashRegister::query()
             ->where('company_id', $request->user()->company_id)
-            ->when(! $request->user()->can('space-cash.view-all'), fn ($query) => $query->where('user_id', $request->user()->id))
+            ->when(! $canViewAll, fn ($query) => $query->where('user_id', $request->user()->id))
+            ->when(! empty($filters['user_id']), fn ($query) => $query->where('user_id', $filters['user_id']))
+            ->when(! empty($filters['status']), fn ($query) => $query->where('status', $filters['status']))
+            ->when(! empty($filters['date_from']), fn ($query) => $query->whereDate('opened_at', '>=', $filters['date_from']))
+            ->when(! empty($filters['date_to']), fn ($query) => $query->whereDate('opened_at', '<=', $filters['date_to']))
             ->with(['company', 'user', 'incomes.paymentMethod', 'lodgingPayments', 'expenses'])
             ->latest('opened_at')
-            ->paginate(15);
+            ->paginate(15)->withQueryString();
+        $users = $canViewAll ? \App\Models\User::query()->where('company_id', $request->user()->company_id)->orderBy('name')->get(['id', 'name']) : collect();
 
         $cashRegisters->getCollection()->each(function (SpaceCashRegister $register): void {
             $summary = $this->cashRegisters->cashSummary($register);
@@ -236,14 +248,14 @@ class SpaceCashController extends Controller
             $register->discount_total = $summary['discount_total'];
         });
 
-        return view('space-cash.history', compact('cashRegisters'));
+        return view('space-cash.history', compact('cashRegisters', 'filters', 'users', 'canViewAll'));
     }
 
     public function show(Request $request, SpaceCashRegister $spaceCashRegister): View
     {
         abort_unless((int) $spaceCashRegister->company_id === (int) $request->user()->company_id, 404);
         abort_unless(
-            (int) $spaceCashRegister->user_id === (int) $request->user()->id || $request->user()->can('space-cash.view-all'),
+            (int) $spaceCashRegister->user_id === (int) $request->user()->id || $request->user()->hasRole('super_admin') || $request->user()->can('space-cash.view-all'),
             403,
         );
         $spaceCashRegister->load(['company', 'user']);
@@ -252,6 +264,40 @@ class SpaceCashController extends Controller
             'cashRegister' => $spaceCashRegister,
             'cashSummary' => $this->cashRegisters->cashSummary($spaceCashRegister),
         ]);
+    }
+
+    public function closeUserRegister(Request $request, SpaceCashRegister $spaceCashRegister): RedirectResponse
+    {
+        abort_unless($request->user()->hasRole('super_admin'), 403);
+        abort_unless((int) $spaceCashRegister->company_id === (int) $request->user()->company_id, 404);
+        $data = $request->validate(['closing_amount' => ['required', 'numeric', 'min:0']]);
+
+        DB::transaction(function () use ($request, $spaceCashRegister, $data): void {
+            \App\Models\User::query()->whereKey($spaceCashRegister->user_id)->lockForUpdate()->first();
+            $register = SpaceCashRegister::query()->whereKey($spaceCashRegister->id)
+                ->where('company_id', $request->user()->company_id)->lockForUpdate()->firstOrFail();
+            if ($register->status !== 'open') {
+                throw ValidationException::withMessages(['closing_amount' => 'Esta caja ya esta cerrada.']);
+            }
+            $linked = null;
+            if (\Illuminate\Support\Facades\Schema::hasColumn('space_cash_registers', 'cash_register_id') && $register->cash_register_id) {
+                $linked = \App\Models\CashRegister::query()->whereKey($register->cash_register_id)
+                    ->where('company_id', $register->company_id)->where('user_id', $register->user_id)->lockForUpdate()->first();
+                if (! $linked || $linked->status !== 'open') {
+                    throw ValidationException::withMessages(['closing_amount' => 'La caja vinculada no esta abierta o no corresponde al mismo usuario y empresa.']);
+                }
+            }
+            $values = ['closing_amount' => $data['closing_amount'], 'closed_at' => now(), 'status' => 'closed'];
+            $register->update($values);
+            $linked?->update($values);
+            \Illuminate\Support\Facades\Log::info('Cash register closed by super administrator', [
+                'actor_id' => $request->user()->id, 'owner_id' => $register->user_id,
+                'company_id' => $register->company_id, 'space_cash_register_id' => $register->id,
+                'cash_register_id' => $linked?->id, 'closing_amount' => $data['closing_amount'],
+            ]);
+        });
+
+        return redirect()->route('space-cash.show', $spaceCashRegister)->with('success', 'Caja cerrada correctamente.');
     }
 
     private function expenseCategories(int $companyId)

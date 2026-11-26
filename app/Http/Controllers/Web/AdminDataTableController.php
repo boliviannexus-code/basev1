@@ -30,6 +30,7 @@ class AdminDataTableController extends Controller
             ->when($request->filled('user_id'), fn ($query) => $query->where('audits.user_id', $request->integer('user_id'))->where('audits.user_type', User::class))
             ->when($request->filled('event'), fn ($query) => $query->where('audits.event', $request->string('event')))
             ->when($request->filled('auditable_type'), fn ($query) => $query->where('audits.auditable_type', $request->string('auditable_type')))
+            ->when($request->filled('room_id'), fn ($query) => $query->where('audits.auditable_type', \App\Models\Stay::class)->where(fn ($query) => $query->whereRaw("CAST(audits.new_values AS jsonb)->>'space_room_id' = ?", [(string) $request->integer('room_id')])->orWhereRaw("CAST(audits.old_values AS jsonb)->>'space_room_id' = ?", [(string) $request->integer('room_id')])) )
             ->when($request->filled('date_from'), fn ($query) => $query->whereDate('audits.created_at', '>=', $request->date('date_from')->toDateString()))
             ->when($request->filled('date_to'), fn ($query) => $query->whereDate('audits.created_at', '<=', $request->date('date_to')->toDateString()));
 
@@ -80,18 +81,7 @@ class AdminDataTableController extends Controller
 
     private function auditChangesSummary(Audit $audit): string
     {
-        $old = array_keys($audit->old_values ?? []);
-        $new = array_keys($audit->new_values ?? []);
-        $fields = array_values(array_unique(array_merge($old, $new)));
-
-        if ($fields === []) {
-            return '-';
-        }
-
-        return collect($fields)
-            ->take(4)
-            ->implode(', ')
-            .(count($fields) > 4 ? '...' : '');
+        return app(\App\Support\AuditPresenter::class)->summary($audit);
     }
 
     private function auditActions(int $auditId): string

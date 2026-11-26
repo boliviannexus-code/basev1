@@ -60,6 +60,20 @@ class SpaceCashHistoryAccessTest extends TestCase
         $this->get(route('space-cash.show', $foreign))->assertNotFound();
     }
 
+    public function test_filters_scope_history_by_user_status_and_opening_dates(): void
+    {
+        [$user, $own, $other] = $this->context();
+        $user->givePermissionTo('space-cash.view-all');
+        $own->update(['opened_at' => '2026-01-10 10:00:00', 'status' => 'closed']);
+        $other->update(['opened_at' => '2026-01-20 10:00:00', 'status' => 'open']);
+        $this->actingAs($user)->get(route('space-cash.history', ['user_id' => $other->user_id, 'status' => 'open', 'date_from' => '2026-01-15', 'date_to' => '2026-01-25']))
+            ->assertOk()->assertViewHas('cashRegisters', fn ($registers): bool => $registers->pluck('id')->all() === [$other->id]);
+        $user->revokePermissionTo('space-cash.view-all');
+        $this->get(route('space-cash.history', ['user_id' => $other->user_id]))
+            ->assertOk()->assertViewHas('cashRegisters', fn ($registers): bool => $registers->isEmpty());
+        $this->get(route('space-cash.history', ['date_to' => '2026-01-15']))->assertOk();
+    }
+
     private function context(): array
     {
         foreach (['space-cash.access', 'space-cash.view', 'space-cash.view-all', 'occupancy.manage'] as $permission) {

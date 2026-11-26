@@ -970,7 +970,7 @@ class InternalReservationTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('message', 'Reserva actualizada correctamente.')
-            ->assertJsonPath('redirect_url', route('admin.reservation-groups.show', $group));
+            ->assertJsonPath('redirect_url', route('occupancy.index'));
 
         $this->assertNull($group->refresh()->guest_email);
         $this->assertSame('Ana Maria Perez', $group->guest_name);

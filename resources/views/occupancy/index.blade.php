@@ -45,6 +45,7 @@
         data-store-url="{{ route('occupancy.blocks.store') }}"
         data-update-url-template="{{ route('occupancy.blocks.update', ['occupancyBlock' => '__ID__']) }}"
         data-destroy-url-template="{{ route('occupancy.blocks.destroy', ['occupancyBlock' => '__ID__']) }}"
+        data-unlock-url-template="{{ route('occupancy.blocks.unlock', ['occupancyBlock' => '__ID__']) }}"
         data-spaces='@json($spacesPayload)'
         data-initial-week='@json($initialWeek)'
         data-can-manage="{{ auth()->user()?->can('occupancy.manage') ? '1' : '0' }}"

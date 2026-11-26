@@ -13,6 +13,7 @@ class SpaceCashRegister extends Model
 
     protected $fillable = [
         'company_id',
+        'cash_register_id',
         'user_id',
         'opening_amount',
         'closing_amount',
