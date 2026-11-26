@@ -32,6 +32,7 @@ use App\Http\Controllers\Web\PosController;
 use App\Http\Controllers\Web\PublicSite\PublicAccommodationController;
 use App\Http\Controllers\Web\PublicSite\PublicCompanyPageController;
 use App\Http\Controllers\Web\PublicSite\PublicReservationController;
+use App\Http\Controllers\Web\PublicSite\OnlineCheckInController;
 use App\Http\Controllers\Web\ReportController;
 use App\Http\Controllers\Web\ReservationChannelController;
 use App\Http\Controllers\Web\ReservationMoveController;
@@ -52,6 +53,7 @@ use App\Support\AccommodationCatalogRegistry;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [PublicAccommodationController::class, 'index'])->name('public.accommodations.index');
+Route::get('check-in-online/{company}', [OnlineCheckInController::class, 'welcome'])->whereNumber('company')->name('public.online-check-in.welcome');
 Route::get('p/{company_slug}/paquetes/{package_slug}', [PublicCompanyPageController::class, 'packageDetail'])->name('public.company.packages.show');
 Route::get('p/{company_slug}', [PublicCompanyPageController::class, 'show'])->name('public.company.show');
 Route::get('espacios/buscar', [PublicAccommodationController::class, 'search'])->name('public.accommodations.search');
@@ -471,6 +473,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('create', [CompanyController::class, 'create'])->middleware('permission:companies.create')->name('create');
         Route::post('/', [CompanyController::class, 'store'])->middleware('permission:companies.create')->name('store');
         Route::get('{company}', [CompanyController::class, 'show'])->middleware('permission:companies.view')->name('show');
+        Route::get('{company}/check-in-qr', [OnlineCheckInController::class, 'qr'])->whereNumber('company')->middleware('permission:companies.view')->name('online-check-in.qr');
         Route::get('{company}/edit', [CompanyController::class, 'edit'])->middleware('permission:companies.update')->name('edit');
         Route::put('{company}', [CompanyController::class, 'update'])->middleware('permission:companies.update')->name('update');
         Route::delete('{company}', [CompanyController::class, 'destroy'])->middleware('permission:companies.delete')->name('destroy');

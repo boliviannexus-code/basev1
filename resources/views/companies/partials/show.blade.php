@@ -37,6 +37,12 @@
     @endif
 </dl>
 
+@if ($company->is_active)
+    <div class="mt-4">
+        <a class="btn btn-outline-primary" href="{{ route('companies.online-check-in.qr', $company) }}"><i class="ti ti-qrcode me-2"></i>QR de check-in en línea</a>
+    </div>
+@endif
+
 @if (\App\Support\CompanyContext::isGlobalAdmin(auth()->user()))
     <div class="d-flex justify-content-end mt-4">
         @if ($company->is_online_enabled_by_admin)
