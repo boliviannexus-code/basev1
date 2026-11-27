@@ -19,6 +19,7 @@ use App\Models\Space;
 use App\Models\SpaceRoom;
 use App\Services\CheckIn\CheckInService;
 use App\Services\CheckIn\CheckInUpdateService;
+use App\Services\CheckIn\DeleteCheckInService;
 use App\Services\Occupancy\RoomCleaningService;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
@@ -77,7 +78,7 @@ class CheckInController extends Controller
             ->with('success', 'Check-in '.$group->code.' registrado correctamente.');
     }
 
-    public function destroy(Request $request, CheckInGroup $checkInGroup, \App\Services\CheckIn\DeleteCheckInService $deletion): RedirectResponse
+    public function destroy(Request $request, CheckInGroup $checkInGroup, DeleteCheckInService $deletion): RedirectResponse
     {
         abort_unless($request->user()?->hasRole('super_admin'), 403);
         $this->ensureOwnership($checkInGroup);
@@ -146,6 +147,7 @@ class CheckInController extends Controller
         $data = $request->validate([
             'check_in_date' => ['required', 'date'],
             'check_out_date' => ['required', 'date', 'after:check_in_date'],
+            'reservation_group_id' => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('reservation_groups', 'id')->where('company_id', $this->companyId())],
         ]);
 
         return response()->json([
@@ -153,6 +155,7 @@ class CheckInController extends Controller
                 $this->companyId(),
                 CarbonImmutable::parse($data['check_in_date']),
                 CarbonImmutable::parse($data['check_out_date']),
+                $data['reservation_group_id'] ?? null,
             ),
         ]);
     }
@@ -322,8 +325,10 @@ class CheckInController extends Controller
                 'document_number' => $guest?->document_number ?: $group->guest_document,
                 'first_name' => $guest?->first_name ?: $firstName,
                 'last_name' => $guest?->last_name ?: $lastName,
-                'birth_country_id' => $guest?->birth_country_id,
+                'birth_country_id' => $group->guest_birth_country_id ?: $guest?->birth_country_id,
                 'birth_date' => $guest?->birth_date?->toDateString() ?: today()->toDateString(),
+                'email' => $group->guest_email ?: $guest?->email,
+                'phone' => $group->guest_phone ?: $guest?->phone,
             ],
             'stays' => $stays,
         ];
@@ -467,7 +472,9 @@ class CheckInController extends Controller
         $status = $room && ! $bedUnit && $room->sale_mode === 'flexible'
             ? $fullRoomStatus
             : $status;
-        if (RoomCleaningService::forResource($dirtyTasks, $space->id, $room?->id, $bedUnit?->id)) {
+        $cleaningTask = RoomCleaningService::forResource($dirtyTasks, $space->id, $room?->id, $bedUnit?->id);
+        $statusBeforeCleaning = $status;
+        if ($cleaningTask) {
             $status = 'dirty';
         }
         if ($room && RoomCleaningService::forResource($dirtyTasks, $space->id, $room->id, null)) {
@@ -492,6 +499,8 @@ class CheckInController extends Controller
             'capacity' => $bedUnit ? 1 : $this->resourceCapacity($space, $room),
             'status' => $status,
             'disabled' => in_array($status, $disabledStatuses, true),
+            'cleaning_stay_id' => $cleaningTask?->id,
+            'cleaning_selectable' => $cleaningTask !== null && ! in_array($statusBeforeCleaning, $disabledStatuses, true),
             'sale_mode' => $room?->sale_mode,
             'full_room_key' => $room && $bedUnit && $room->sale_mode === 'flexible' ? 'room:'.$room->id : null,
             'full_room_available' => $room && $room->sale_mode === 'flexible' && $fullRoomStatus === 'available',

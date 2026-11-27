@@ -53,7 +53,10 @@ use App\Support\AccommodationCatalogRegistry;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [PublicAccommodationController::class, 'index'])->name('public.accommodations.index');
-Route::get('check-in-online/{company}', [OnlineCheckInController::class, 'welcome'])->whereNumber('company')->name('public.online-check-in.welcome');
+Route::get('check-in-online/{company:public_slug}', [OnlineCheckInController::class, 'welcome'])->name('public.online-check-in.welcome');
+Route::post('check-in-online/{company:public_slug}/buscar', [OnlineCheckInController::class, 'search'])->middleware('throttle:10,1')->name('public.online-check-in.search');
+Route::post('check-in-online/{company:public_slug}/formulario', [OnlineCheckInController::class, 'form'])->middleware('throttle:20,1')->name('public.online-check-in.form');
+Route::post('check-in-online/{company:public_slug}/enviar', [OnlineCheckInController::class, 'submit'])->middleware('throttle:10,1')->name('public.online-check-in.submit');
 Route::get('p/{company_slug}/paquetes/{package_slug}', [PublicCompanyPageController::class, 'packageDetail'])->name('public.company.packages.show');
 Route::get('p/{company_slug}', [PublicCompanyPageController::class, 'show'])->name('public.company.show');
 Route::get('espacios/buscar', [PublicAccommodationController::class, 'search'])->name('public.accommodations.search');
@@ -71,6 +74,8 @@ Route::middleware('guest')->group(function (): void {
 });
 
 Route::middleware('auth')->group(function (): void {
+    Route::get('online-check-in/revision', [\App\Http\Controllers\Web\OnlineCheckInReviewController::class, 'index'])->middleware(['company_user', 'permission:occupancy.manage'])->name('online-check-in.review');
+    Route::post('online-check-in/revision/{submission}', [\App\Http\Controllers\Web\OnlineCheckInReviewController::class, 'review'])->middleware(['company_user', 'permission:occupancy.manage'])->name('online-check-in.review.store');
     Route::post('logout', [AuthController::class, 'logout'])->name('logout');
     Route::post('switch-company', \App\Http\Controllers\Web\SwitchCompanyController::class)->name('company.switch');
     Route::get('my-account', [MyAccountController::class, 'edit'])->name('my-account.edit');
@@ -473,7 +478,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('create', [CompanyController::class, 'create'])->middleware('permission:companies.create')->name('create');
         Route::post('/', [CompanyController::class, 'store'])->middleware('permission:companies.create')->name('store');
         Route::get('{company}', [CompanyController::class, 'show'])->middleware('permission:companies.view')->name('show');
-        Route::get('{company}/check-in-qr', [OnlineCheckInController::class, 'qr'])->whereNumber('company')->middleware('permission:companies.view')->name('online-check-in.qr');
+        Route::get('{company:public_slug}/check-in-qr', [OnlineCheckInController::class, 'qr'])->middleware('permission:companies.view')->name('online-check-in.qr');
         Route::get('{company}/edit', [CompanyController::class, 'edit'])->middleware('permission:companies.update')->name('edit');
         Route::put('{company}', [CompanyController::class, 'update'])->middleware('permission:companies.update')->name('update');
         Route::delete('{company}', [CompanyController::class, 'destroy'])->middleware('permission:companies.delete')->name('destroy');

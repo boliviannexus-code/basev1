@@ -54,6 +54,8 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'online_check_in_base_url' => env('ONLINE_CHECK_IN_BASE_URL'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

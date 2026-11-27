@@ -66,6 +66,7 @@
             </select>
             <div class="invalid-feedback">{{ $errors->first("stays.{$index}.space_id") ?: $errors->first("stays.{$index}.space_room_id") ?: $errors->first("stays.{$index}.room_bed_unit_id") }}</div>
             <div class="form-hint" data-stay-resource-hint></div>
+            <div class="alert alert-warning mt-2 d-none" role="status" data-stay-cleaning-notice>Habitación sin limpiar. <button class="btn btn-warning btn-sm ms-2" type="button" data-stay-mark-clean>Marcar como limpia</button></div>
         </div>
         <div class="col-sm-6 col-lg-2">
             <label class="form-label">Personas</label>

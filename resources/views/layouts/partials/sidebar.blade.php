@@ -2,7 +2,7 @@
     $organizationOpen = request()->routeIs('companies.*', 'company.public-profile.*');
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*', 'database-backups.*');
     $globalAdminOpen = request()->routeIs('admin.accommodation-catalogs.*', 'admin.spaces.*');
-    $spacesOpen = request()->routeIs('spaces.*', 'availability.*', 'occupancy.*', 'admin.reservations.*', 'accommodation-packages.*', 'package-services.*');
+    $spacesOpen = request()->routeIs('spaces.*', 'availability.*', 'occupancy.*', 'online-check-in.review*', 'admin.reservations.*', 'accommodation-packages.*', 'package-services.*');
     $cashOpen = request()->routeIs('space-cash.*');
     $reportsOpen = request()->routeIs('reports.*');
     $businessIntelligenceOpen = request()->routeIs('business-intelligence.*');
@@ -12,7 +12,7 @@
         && auth()->user()?->can('company-public-profile.manage');
     $canOrganization = auth()->user()?->can('companies.view') || $canPublicProfile;
     $canSpaces = auth()->user()?->company_id !== null
-        && (auth()->user()?->can('spaces.view') || auth()->user()?->can('spaces.create') || auth()->user()?->can('spaces.edit') || auth()->user()?->can('availability.view') || auth()->user()?->can('occupancy.view') || auth()->user()?->can('reservations.view'));
+        && (auth()->user()?->can('spaces.view') || auth()->user()?->can('spaces.create') || auth()->user()?->can('spaces.edit') || auth()->user()?->can('availability.view') || auth()->user()?->can('occupancy.view') || auth()->user()?->can('occupancy.manage') || auth()->user()?->can('reservations.view'));
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('roles.view')
         || auth()->user()?->can('permissions.view')
@@ -134,6 +134,11 @@
                                             <span class="nav-link-icon"><i class="ti ti-calendar-stats"></i></span>
                                             <span class="nav-link-title">Ocupabilidad</span>
                                         </a>
+                                    </li>
+                                @endcan
+                                @can('occupancy.manage')
+                                    <li class="nav-item {{ request()->routeIs('online-check-in.review*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('online-check-in.review') }}"><span class="nav-link-icon"><i class="ti ti-user-check"></i></span><span class="nav-link-title">Check-in en línea</span></a>
                                     </li>
                                 @endcan
                                 @can('reservations.view')

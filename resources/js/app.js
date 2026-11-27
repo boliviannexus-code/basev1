@@ -4704,6 +4704,9 @@ function initCheckInForm(scope = document) {
         dirty: 'Libre y sucia · limpieza pendiente',
     };
 
+    const canSelectResource = (resource) => !resource.disabled || (form.dataset.allowDirtySelection === '1'
+        && resource.status === 'dirty' && resource.cleaning_selectable === true);
+
     const selectedResource = (row) => resources.find((resource) => resource.key === row.querySelector('[data-stay-resource-select]')?.value);
     const stayRows = () => [...form.querySelectorAll('[data-check-in-stay-row]')];
     const numberValue = (field) => Number(field?.value || 0);
@@ -4901,7 +4904,7 @@ function initCheckInForm(scope = document) {
             data-full-room-available="${resource.full_room_available ? '1' : '0'}"
             data-full-room-capacity="${escapeHtml(resource.full_room_capacity ?? '')}"
             data-full-room-status="${escapeHtml(resource.full_room_status ?? '')}"
-            ${resource.disabled ? 'disabled' : ''}
+            ${canSelectResource(resource) ? '' : 'disabled'}
             ${selectedKey === resource.key ? 'selected' : ''}
         >${escapeHtml(resource.label)} · Cap. ${escapeHtml(resource.capacity)} · ${escapeHtml(statusLabels[resource.status] ?? resource.status)}</option>
     `;
@@ -4910,7 +4913,7 @@ function initCheckInForm(scope = document) {
         const selected = select.value;
         select.innerHTML = `<option value="">Seleccionar</option>${resources.map((resource) => optionHtml(resource, selected)).join('')}`;
 
-        if (selected && !resources.some((resource) => resource.key === selected && !resource.disabled)) {
+        if (selected && !resources.some((resource) => resource.key === selected && canSelectResource(resource))) {
             select.value = '';
         }
     };
@@ -4935,6 +4938,7 @@ function initCheckInForm(scope = document) {
         const fullRoomWrap = row.querySelector('[data-stay-full-room-wrap]');
         const fullRoomSwitch = row.querySelector('[data-stay-full-room-switch]');
         const fullRoomHint = row.querySelector('[data-stay-full-room-hint]');
+        const cleaningNotice = row.querySelector('[data-stay-cleaning-notice]');
         const canShowFullRoomSwitch = resource?.resource_type === 'shared_bed_unit' && resource?.sale_mode === 'flexible';
         const canSellFullRoom = canShowFullRoomSwitch && resource?.full_room_available === true;
 
@@ -4980,6 +4984,8 @@ function initCheckInForm(scope = document) {
                 hint.className = `form-hint ${resource.status === 'reserved' ? 'text-warning' : ''}`;
             }
         }
+
+        cleaningNotice?.classList.toggle('d-none', form.dataset.allowDirtySelection !== '1' || resource?.status !== 'dirty' || !resource?.cleaning_stay_id);
 
         select?.classList.toggle('is-invalid', resource?.disabled === true);
     };
@@ -5140,6 +5146,9 @@ function initCheckInForm(scope = document) {
             if (!resource) {
                 errors.push('Selecciona recurso para cada estancia.');
                 select.classList.add('is-invalid');
+            } else if (resource.status === 'dirty') {
+                errors.push('Habitación sin limpiar. Márcala como limpia antes de realizar el check-in.');
+                select.classList.add('is-invalid');
             } else if (resource.disabled || ['closed', 'occupied'].includes(resource.status)) {
                 errors.push('No se puede seleccionar un recurso cerrado u ocupado.');
                 select.classList.add('is-invalid');
@@ -5204,6 +5213,8 @@ function initCheckInForm(scope = document) {
             check_in_date: checkInDate.value,
             check_out_date: checkOutDate.value,
         });
+        const reservationGroup = form.querySelector('[name="reservation_group_id"]')?.value;
+        if (reservationGroup) params.set('reservation_group_id', reservationGroup);
         const response = await fetch(`${form.dataset.availableResourcesUrl}?${params.toString()}`, {
             headers: {
                 Accept: 'application/json',
@@ -5232,6 +5243,26 @@ function initCheckInForm(scope = document) {
         select.addEventListener('change', () => {
             syncRowResource(row);
             updateTotals();
+        });
+        row.querySelector('[data-stay-mark-clean]')?.addEventListener('click', async (event) => {
+            const resource = selectedResource(row);
+            if (!resource?.cleaning_stay_id || !form.dataset.cleaningUrlTemplate) return;
+            const button = event.currentTarget;
+            button.disabled = true;
+            try {
+                const response = await fetch(form.dataset.cleaningUrlTemplate.replace('__STAY__', encodeURIComponent(resource.cleaning_stay_id)), {
+                    method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.message || 'No se pudo registrar la limpieza.');
+                await loadResources();
+                const stillDirty = selectedResource(row)?.status === 'dirty';
+                await Swal.fire({ icon: stillDirty ? 'info' : 'success', title: stillDirty ? 'Aún hay limpieza pendiente' : 'Habitación limpia', text: stillDirty ? 'Marca las demás tareas de limpieza pendientes.' : payload.message });
+            } catch (error) {
+                await Swal.fire({ icon: 'error', title: 'Limpieza', text: error.message || 'No se pudo registrar la limpieza.' });
+            } finally {
+                button.disabled = false;
+            }
         });
         row.querySelector('[data-stay-people]')?.addEventListener('input', updateTotals);
         row.querySelector('[data-stay-people]')?.addEventListener('input', () => syncStayGuestCount(row));

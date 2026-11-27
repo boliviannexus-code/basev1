@@ -39,7 +39,14 @@
 
 @if ($company->is_active)
     <div class="mt-4">
-        <a class="btn btn-outline-primary" href="{{ route('companies.online-check-in.qr', $company) }}"><i class="ti ti-qrcode me-2"></i>QR de check-in en línea</a>
+        @if ($company->public_slug)
+            <a class="btn btn-outline-primary" href="{{ route('companies.online-check-in.qr', ['company' => $company->public_slug]) }}"><i class="ti ti-qrcode me-2"></i>QR de check-in en línea</a>
+        @else
+            <div class="alert alert-info mb-0">Configura el identificador público de la empresa en su perfil público para generar el QR de check-in.</div>
+            @if ((int) auth()->user()->company_id === (int) $company->id && auth()->user()->can('company-public-profile.manage'))
+                <a class="btn btn-outline-primary mt-2" href="{{ route('company.public-profile.edit') }}">Configurar perfil público</a>
+            @endif
+        @endif
     </div>
 @endif
 

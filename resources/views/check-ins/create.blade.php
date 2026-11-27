@@ -42,6 +42,8 @@
         method="POST"
         action="{{ route('check-ins.store') }}"
         data-check-in-form
+        data-allow-dirty-selection="1"
+        data-cleaning-url-template="{{ route('occupancy.cleaning.store', ['stay' => '__STAY__']) }}"
         data-resources='@json($resources)'
         data-available-resources-url="{{ route('check-ins.available-resources') }}"
         data-countries-url="{{ route('countries.autocomplete') }}"
@@ -103,6 +105,8 @@
                                 <input class="form-control @error('main_guest.last_name') is-invalid @enderror @error('last_name') is-invalid @enderror" id="last_name" name="last_name" value="{{ old('main_guest.last_name', old('last_name', $initial['main_guest']['last_name'] ?? '')) }}" autocomplete="new-password" data-browser-autofill-off required data-main-guest-last-name>
                                 <div class="invalid-feedback">{{ $errors->first('main_guest.last_name') ?: $errors->first('last_name') }}</div>
                             </div>
+                            <div class="col-md-6"><label class="form-label" for="guest_email">Correo electrónico</label><input class="form-control @error('main_guest.email') is-invalid @enderror" id="guest_email" name="guest_email" type="email" value="{{ old('main_guest.email', old('guest_email', $initial['main_guest']['email'] ?? '')) }}"><div class="invalid-feedback">{{ $errors->first('main_guest.email') }}</div></div>
+                            <div class="col-md-6"><label class="form-label" for="guest_phone">Teléfono</label><input class="form-control @error('main_guest.phone') is-invalid @enderror" id="guest_phone" name="guest_phone" maxlength="60" value="{{ old('main_guest.phone', old('guest_phone', $initial['main_guest']['phone'] ?? '')) }}"><div class="invalid-feedback">{{ $errors->first('main_guest.phone') }}</div></div>
                         </div>
                     </div>
                 </x-ui.card>

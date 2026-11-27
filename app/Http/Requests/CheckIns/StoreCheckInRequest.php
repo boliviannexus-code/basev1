@@ -41,6 +41,8 @@ class StoreCheckInRequest extends FormRequest
                 Rule::exists((new Country)->getTable(), 'id')->where(fn (QueryBuilder $query): QueryBuilder => $query->where('company_id', $companyId)),
             ],
             'main_guest.birth_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'main_guest.email' => ['nullable', 'email', 'max:255'],
+            'main_guest.phone' => ['nullable', 'string', 'max:60'],
             'reservation_channel_id' => [
                 'required',
                 Rule::exists((new ReservationChannel)->getTable(), 'id')->where(fn (QueryBuilder $query): QueryBuilder => $query->where('company_id', $companyId)),
@@ -177,6 +179,8 @@ class StoreCheckInRequest extends FormRequest
                 'birth_date' => $this->filled('main_guest.birth_date') || $this->filled('birth_date')
                     ? $this->input('main_guest.birth_date', $this->input('birth_date'))
                     : null,
+                'email' => $this->input('main_guest.email', $this->input('guest_email')),
+                'phone' => $this->input('main_guest.phone', $this->input('guest_phone', $this->input('phone'))),
             ],
             'total_people' => $this->filled('total_people') ? (int) $this->input('total_people') : null,
             'reservation_group_id' => $this->filled('reservation_group_id') ? (int) $this->input('reservation_group_id') : null,

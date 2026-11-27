@@ -105,7 +105,7 @@ class CheckOutTest extends TestCase
         $this->getJson(route('check-ins.available-resources', [
             'check_in_date' => today()->toDateString(),
             'check_out_date' => today()->addDay()->toDateString(),
-        ]))->assertOk()->assertJsonFragment(['status' => 'dirty', 'disabled' => true]);
+        ]))->assertOk()->assertJsonFragment(['status' => 'dirty', 'disabled' => true, 'cleaning_stay_id' => $stay->id, 'cleaning_selectable' => true]);
         try {
             app(AvailabilityStatusService::class)->validateRangeAvailable($user->company_id, [
                 'space_id' => $stay->space_id,
@@ -117,6 +117,10 @@ class CheckOutTest extends TestCase
             $this->assertStringContainsString('sucia', $exception->getMessage());
         }
         $this->postJson(route('occupancy.cleaning.store', $stay))->assertOk();
+        $this->getJson(route('check-ins.available-resources', [
+            'check_in_date' => today()->toDateString(),
+            'check_out_date' => today()->addDay()->toDateString(),
+        ]))->assertOk()->assertJsonFragment(['status' => 'available', 'cleaning_stay_id' => null]);
         $this->assertSame($user->id, (int) $stay->refresh()->cleaned_by);
         $this->assertNotNull($stay->cleaned_at);
         $grid = app(OccupancyGridService::class)->weekData($user->company_id, ['week_start' => today()->subDay()->toDateString()]);
